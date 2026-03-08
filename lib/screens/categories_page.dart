@@ -99,10 +99,10 @@ class _CategoriesPageState extends State<CategoriesPage> {
       body: categories.isEmpty
           ? Center(child: Text("No categories yet"))
           : ListView.builder(
-              itemCount: categories.length,
+              itemCount: DataStore.categories.length,
               itemBuilder: (context, index) {
 
-                final category = categories[index];
+                final category = DataStore.categories[index];
 
                 return ListTile(
                   leading: Icon(Icons.category),
