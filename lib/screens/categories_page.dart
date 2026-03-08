@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/data_store.dart';
 
 class CategoriesPage extends StatefulWidget {
   @override
@@ -7,7 +8,6 @@ class CategoriesPage extends StatefulWidget {
 
 class _CategoriesPageState extends State<CategoriesPage> {
 
-  List<Map<String, String>> categories = [];
 
   void addCategory(String name, String type) {
     setState(() {
