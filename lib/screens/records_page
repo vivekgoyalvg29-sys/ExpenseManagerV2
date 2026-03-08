@@ -1,1 +1,13 @@
+import 'package:flutter/material.dart';
 
+class RecordsPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        "Transaction Records",
+        style: TextStyle(fontSize: 22),
+      ),
+    );
+  }
+}
