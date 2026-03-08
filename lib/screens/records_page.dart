@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/month_header.dart';
+import 'add_transaction_page.dart';
 
 class Transaction {
   final String title;
@@ -23,19 +24,6 @@ class _RecordsPageState extends State<RecordsPage> {
   DateTime currentMonth = DateTime.now();
 
   List<Transaction> transactions = [];
-
-  // ✅ ADD TRANSACTION FUNCTION
-  void addTransaction(String title, double amount) {
-    setState(() {
-      transactions.add(
-        Transaction(
-          title: title,
-          amount: amount,
-          date: DateTime.now(),
-        ),
-      );
-    });
-  }
 
   void deleteTransaction(int index) {
     setState(() {
@@ -74,64 +62,96 @@ class _RecordsPageState extends State<RecordsPage> {
   @override
   Widget build(BuildContext context) {
 
-    return Column(
-      children: [
+    return Scaffold(
 
-        MonthHeader(
-          currentMonth: currentMonth,
-          onPrev: () {
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.add),
+        onPressed: () async {
+
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AddTransactionPage(),
+            ),
+          );
+
+          if (result != null) {
+
             setState(() {
-              currentMonth =
-                  DateTime(currentMonth.year, currentMonth.month - 1);
-            });
-          },
-          onNext: () {
-            setState(() {
-              currentMonth =
-                  DateTime(currentMonth.year, currentMonth.month + 1);
-            });
-          },
-        ),
 
-        Expanded(
-          child: transactions.isEmpty
-              ? Center(child: Text("No transactions yet"))
-              : ListView.builder(
-                  itemCount: transactions.length,
-
-                  itemBuilder: (context, index) {
-
-                    final tx = transactions[index];
-
-                    return ListTile(
-
-                      leading: CircleAvatar(
-                        child: Icon(Icons.money_off),
-                      ),
-
-                      title: Text(tx.title),
-
-                      subtitle: Text(
-                          "${tx.date.day}/${tx.date.month}/${tx.date.year}"
-                      ),
-
-                      trailing: Text(
-                        "₹${tx.amount}",
-                        style: TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      onLongPress: () {
-                        confirmDelete(index);
-                      },
-                    );
-                  },
+              transactions.add(
+                Transaction(
+                  title: result["title"],
+                  amount: result["amount"],
+                  date: result["date"],
                 ),
-        ),
+              );
 
-      ],
+            });
+
+          }
+
+        },
+      ),
+
+      body: Column(
+        children: [
+
+          MonthHeader(
+            currentMonth: currentMonth,
+            onPrev: () {
+              setState(() {
+                currentMonth =
+                    DateTime(currentMonth.year, currentMonth.month - 1);
+              });
+            },
+            onNext: () {
+              setState(() {
+                currentMonth =
+                    DateTime(currentMonth.year, currentMonth.month + 1);
+              });
+            },
+          ),
+
+          Expanded(
+            child: transactions.isEmpty
+                ? Center(child: Text("No transactions yet"))
+                : ListView.builder(
+                    itemCount: transactions.length,
+                    itemBuilder: (context, index) {
+
+                      final tx = transactions[index];
+
+                      return ListTile(
+
+                        leading: CircleAvatar(
+                          child: Icon(Icons.money_off),
+                        ),
+
+                        title: Text(tx.title),
+
+                        subtitle: Text(
+                          "${tx.date.day}/${tx.date.month}/${tx.date.year}"
+                        ),
+
+                        trailing: Text(
+                          "₹${tx.amount}",
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        onLongPress: () {
+                          confirmDelete(index);
+                        },
+                      );
+                    },
+                  ),
+          ),
+
+        ],
+      ),
     );
   }
 }
