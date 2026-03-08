@@ -37,6 +37,11 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   @override
   Widget build(BuildContext context) {
 
+    // Filter accounts based on transaction type
+    final filteredAccounts = DataStore.accounts
+        .where((acc) => acc["type"] == transactionType)
+        .toList();
+
     return Scaffold(
       appBar: AppBar(
         title: Text("Add Transaction"),
@@ -59,6 +64,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                   setState(() {
                     transactionType = v!;
                     selectedCategory = null;
+                    selectedAccount = null;
                   });
                 },
                 decoration: InputDecoration(labelText: "Type"),
@@ -68,10 +74,10 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
 
               DropdownButtonFormField<String>(
                 value: selectedAccount,
-                items: DataStore.accounts
-                    .map((acc) => DropdownMenuItem(
-                        value: acc,
-                        child: Text(acc)))
+                items: filteredAccounts
+                    .map((acc) => DropdownMenuItem<String>(
+                        value: acc["name"],
+                        child: Text(acc["name"]!)))
                     .toList(),
                 onChanged: (value) {
                   setState(() {
@@ -87,7 +93,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 value: selectedCategory,
                 items: DataStore.categories
                     .where((cat) => cat["type"] == transactionType)
-                    .map((cat) => DropdownMenuItem(
+                    .map((cat) => DropdownMenuItem<String>(
                         value: cat["name"],
                         child: Text(cat["name"]!)))
                     .toList(),
@@ -136,14 +142,13 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                     return;
                   }
 
-                  final title = commentController.text;
                   final amount = double.tryParse(amountController.text) ?? 0;
 
                   Navigator.pop(context, {
-                "title": selectedCategory,
-                "amount": amount,
-                "date": selectedDate
-});
+                    "title": selectedCategory,
+                    "amount": amount,
+                    "date": selectedDate
+                  });
 
                 },
                 child: Text("Save"),
