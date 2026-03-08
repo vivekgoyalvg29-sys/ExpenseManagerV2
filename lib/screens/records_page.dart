@@ -62,6 +62,10 @@ class _RecordsPageState extends State<RecordsPage> {
   @override
   Widget build(BuildContext context) {
 
+    final filteredTransactions = transactions.where((tx) =>
+        tx.date.month == currentMonth.month &&
+        tx.date.year == currentMonth.year).toList();
+
     return Scaffold(
 
       floatingActionButton: FloatingActionButton(
@@ -114,13 +118,13 @@ class _RecordsPageState extends State<RecordsPage> {
           ),
 
           Expanded(
-            child: transactions.isEmpty
-                ? Center(child: Text("No transactions yet"))
+            child: filteredTransactions.isEmpty
+                ? Center(child: Text("No transactions for this month"))
                 : ListView.builder(
-                    itemCount: transactions.length,
+                    itemCount: filteredTransactions.length,
                     itemBuilder: (context, index) {
 
-                      final tx = transactions[index];
+                      final tx = filteredTransactions[index];
 
                       return ListTile(
 
