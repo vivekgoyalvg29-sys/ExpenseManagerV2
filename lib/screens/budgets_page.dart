@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/month_header.dart';
 import '../services/data_store.dart';
+import '../services/database_service.dart';
 
 class BudgetsPage extends StatefulWidget {
   @override
@@ -10,6 +11,27 @@ class BudgetsPage extends StatefulWidget {
 class _BudgetsPageState extends State<BudgetsPage> {
 
   DateTime currentMonth = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    loadBudgets();
+  }
+
+  Future<void> loadBudgets() async {
+
+    final data = await DatabaseService.getBudgets();
+
+    setState(() {
+      DataStore.budgets = data.map((b) => {
+        "category": b["category"],
+        "amount": b["amount"],
+        "month": b["month"],
+        "year": b["year"]
+      }).toList();
+    });
+
+  }
 
   void showAddBudgetDialog() {
 
@@ -37,9 +59,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                 onChanged: (value) {
                   selectedCategory = value;
                 },
-                decoration: InputDecoration(
-                  labelText: "Category",
-                ),
+                decoration: InputDecoration(labelText: "Category"),
               ),
 
               const SizedBox(height: 10),
@@ -47,9 +67,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
               TextField(
                 controller: amountController,
                 keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: "Amount",
-                ),
+                decoration: InputDecoration(labelText: "Amount"),
               ),
 
             ],
@@ -65,23 +83,32 @@ class _BudgetsPageState extends State<BudgetsPage> {
             ),
 
             TextButton(
-              onPressed: () {
+              onPressed: () async {
 
                 if (selectedCategory == null ||
                     amountController.text.isEmpty) {
                   return;
                 }
 
+                double amount = double.parse(amountController.text);
+
                 setState(() {
 
                   DataStore.budgets.add({
                     "category": selectedCategory,
-                    "amount": double.parse(amountController.text),
+                    "amount": amount,
                     "month": currentMonth.month,
                     "year": currentMonth.year
                   });
 
                 });
+
+                await DatabaseService.insertBudget(
+                  selectedCategory!,
+                  amount,
+                  currentMonth.month,
+                  currentMonth.year,
+                );
 
                 Navigator.pop(context);
 
