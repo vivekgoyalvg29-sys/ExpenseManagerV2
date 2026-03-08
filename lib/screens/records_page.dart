@@ -22,11 +22,7 @@ class _RecordsPageState extends State<RecordsPage> {
 
   DateTime currentMonth = DateTime.now();
 
-  List<Transaction> transactions = [
-    Transaction(title: "Eat Out", amount: 120, date: DateTime.now()),
-    Transaction(title: "Trips Outings", amount: 300, date: DateTime.now()),
-    Transaction(title: "Medicines", amount: 500, date: DateTime.now()),
-  ];
+  List<Transaction> transactions = [];
 
   void deleteTransaction(int index) {
     setState(() {
