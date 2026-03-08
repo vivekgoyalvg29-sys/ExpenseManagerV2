@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/month_header.dart';
 
 class Transaction {
   final String title;
@@ -18,6 +19,8 @@ class RecordsPage extends StatefulWidget {
 }
 
 class _RecordsPageState extends State<RecordsPage> {
+
+  DateTime currentMonth = DateTime.now();
 
   List<Transaction> transactions = [
     Transaction(title: "Eat Out", amount: 120, date: DateTime.now()),
@@ -62,42 +65,64 @@ class _RecordsPageState extends State<RecordsPage> {
   @override
   Widget build(BuildContext context) {
 
-    if (transactions.isEmpty) {
-      return Center(child: Text("No transactions yet"));
-    }
+    return Column(
+      children: [
 
-    return ListView.builder(
-      itemCount: transactions.length,
-
-      itemBuilder: (context, index) {
-
-        final tx = transactions[index];
-
-        return ListTile(
-
-          leading: CircleAvatar(
-            child: Icon(Icons.money_off),
-          ),
-
-          title: Text(tx.title),
-
-          subtitle: Text(
-              "${tx.date.day}/${tx.date.month}/${tx.date.year}"
-          ),
-
-          trailing: Text(
-            "₹${tx.amount}",
-            style: TextStyle(
-              color: Colors.red,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          onLongPress: () {
-            confirmDelete(index);
+        MonthHeader(
+          currentMonth: currentMonth,
+          onPrev: () {
+            setState(() {
+              currentMonth =
+                  DateTime(currentMonth.year, currentMonth.month - 1);
+            });
           },
-        );
-      },
+          onNext: () {
+            setState(() {
+              currentMonth =
+                  DateTime(currentMonth.year, currentMonth.month + 1);
+            });
+          },
+        ),
+
+        Expanded(
+          child: transactions.isEmpty
+              ? Center(child: Text("No transactions yet"))
+              : ListView.builder(
+                  itemCount: transactions.length,
+
+                  itemBuilder: (context, index) {
+
+                    final tx = transactions[index];
+
+                    return ListTile(
+
+                      leading: CircleAvatar(
+                        child: Icon(Icons.money_off),
+                      ),
+
+                      title: Text(tx.title),
+
+                      subtitle: Text(
+                          "${tx.date.day}/${tx.date.month}/${tx.date.year}"
+                      ),
+
+                      trailing: Text(
+                        "₹${tx.amount}",
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      onLongPress: () {
+                        confirmDelete(index);
+                      },
+                    );
+                  },
+                ),
+        ),
+
+      ],
     );
   }
 }
