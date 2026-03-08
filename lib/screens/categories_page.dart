@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/data_store.dart';
+import '../services/database_service.dart';
 
 class CategoriesPage extends StatefulWidget {
   @override
@@ -8,15 +9,24 @@ class CategoriesPage extends StatefulWidget {
 
 class _CategoriesPageState extends State<CategoriesPage> {
 
+  @override
+  void initState() {
+    super.initState();
+    loadCategories();
+  }
 
-  void addCategory(String name, String type) {
-  setState(() {
-    DataStore.categories.add({
-      "name": name,
-      "type": type,
+  Future<void> loadCategories() async {
+
+    final data = await DatabaseService.getCategories();
+
+    setState(() {
+      DataStore.categories = data.map((c) => {
+        "name": c["name"],
+        "type": c["type"]
+      }).toList();
     });
-  });
-}
+
+  }
 
   void showAddCategoryDialog() {
 
@@ -34,25 +44,31 @@ class _CategoriesPageState extends State<CategoriesPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
 
-              TextField(
-                controller: controller,
+              DropdownButtonFormField<String>(
+                value: selectedType,
+                items: const [
+                  DropdownMenuItem(
+                      value: "expense",
+                      child: Text("Expense")),
+                  DropdownMenuItem(
+                      value: "income",
+                      child: Text("Income")),
+                ],
+                onChanged: (value) {
+                  selectedType = value!;
+                },
                 decoration: InputDecoration(
-                  labelText: "Category Name",
+                  labelText: "Transaction Type",
                 ),
               ),
 
               const SizedBox(height: 10),
 
-              DropdownButtonFormField(
-                value: selectedType,
-                items: const [
-                  DropdownMenuItem(value: "expense", child: Text("Expense")),
-                  DropdownMenuItem(value: "income", child: Text("Income")),
-                ],
-                onChanged: (value) {
-                  selectedType = value!;
-                },
-                decoration: InputDecoration(labelText: "Transaction Type"),
+              TextField(
+                controller: controller,
+                decoration: InputDecoration(
+                  labelText: "Category Name",
+                ),
               ),
 
             ],
@@ -68,10 +84,22 @@ class _CategoriesPageState extends State<CategoriesPage> {
             ),
 
             TextButton(
-              onPressed: () {
+              onPressed: () async {
 
                 if (controller.text.isNotEmpty) {
-                  addCategory(controller.text, selectedType);
+
+                  setState(() {
+                    DataStore.categories.add({
+                      "name": controller.text,
+                      "type": selectedType
+                    });
+                  });
+
+                  await DatabaseService.insertCategory(
+                    controller.text,
+                    selectedType,
+                  );
+
                 }
 
                 Navigator.pop(context);
