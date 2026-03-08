@@ -27,6 +27,30 @@ class _RecordsPageState extends State<RecordsPage> {
 
   List<Transaction> transactions = [];
 
+  @override
+  void initState() {
+    super.initState();
+    loadTransactions();
+  }
+
+  Future<void> loadTransactions() async {
+
+    final data = await DatabaseService.getTransactions();
+
+    setState(() {
+
+      transactions = data.map((t) => Transaction(
+        title: t["title"],
+        amount: t["amount"],
+        date: DateTime.parse(t["date"]),
+      )).toList();
+
+      DataStore.transactions = data;
+
+    });
+
+  }
+
   void deleteTransaction(int index) {
     setState(() {
       transactions.removeAt(index);
