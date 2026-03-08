@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/data_store.dart';
+import '../services/database_service.dart';
 
 class AccountsPage extends StatefulWidget {
   @override
@@ -7,6 +8,25 @@ class AccountsPage extends StatefulWidget {
 }
 
 class _AccountsPageState extends State<AccountsPage> {
+
+  @override
+  void initState() {
+    super.initState();
+    loadAccounts();
+  }
+
+  Future<void> loadAccounts() async {
+
+    final data = await DatabaseService.getAccounts();
+
+    setState(() {
+      DataStore.accounts = data.map((a) => {
+        "name": a["name"],
+        "type": a["type"]
+      }).toList();
+    });
+
+  }
 
   void showAddAccountDialog() {
 
@@ -64,7 +84,7 @@ class _AccountsPageState extends State<AccountsPage> {
             ),
 
             TextButton(
-              onPressed: () {
+              onPressed: () async {
 
                 if (controller.text.isNotEmpty) {
 
@@ -74,6 +94,11 @@ class _AccountsPageState extends State<AccountsPage> {
                       "type": selectedType
                     });
                   });
+
+                  await DatabaseService.insertAccount(
+                    controller.text,
+                    selectedType,
+                  );
 
                 }
 
