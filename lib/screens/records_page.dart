@@ -66,6 +66,11 @@ class _RecordsPageState extends State<RecordsPage> {
         tx.date.month == currentMonth.month &&
         tx.date.year == currentMonth.year).toList();
 
+    double totalSpent = filteredTransactions.fold(
+      0,
+      (sum, tx) => sum + tx.amount,
+    );
+
     return Scaffold(
 
       floatingActionButton: FloatingActionButton(
@@ -115,6 +120,33 @@ class _RecordsPageState extends State<RecordsPage> {
                     DateTime(currentMonth.year, currentMonth.month + 1);
               });
             },
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+
+                Text(
+                  "Total Spent",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[700],
+                  ),
+                ),
+
+                const SizedBox(height: 4),
+
+                Text(
+                  "₹${totalSpent.toStringAsFixed(0)}",
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+              ],
+            ),
           ),
 
           Expanded(
