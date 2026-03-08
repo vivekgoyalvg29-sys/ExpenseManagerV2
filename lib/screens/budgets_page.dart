@@ -11,7 +11,6 @@ class _BudgetsPageState extends State<BudgetsPage> {
 
   DateTime currentMonth = DateTime.now();
 
-
   List<Map<String, dynamic>> budgets = [];
 
   void showAddBudgetDialog() {
@@ -32,10 +31,10 @@ class _BudgetsPageState extends State<BudgetsPage> {
 
               DropdownButtonFormField<String>(
                 items: DataStore.categories
-    .map((cat) => DropdownMenuItem(
-        value: cat["name"],
-        child: Text(cat["name"]!)))
-    .toList(),
+                    .map((cat) => DropdownMenuItem(
+                        value: cat["name"],
+                        child: Text(cat["name"]!)))
+                    .toList(),
                 onChanged: (value) {
                   selectedCategory = value;
                 },
@@ -104,6 +103,11 @@ class _BudgetsPageState extends State<BudgetsPage> {
         b["month"] == currentMonth.month &&
         b["year"] == currentMonth.year).toList();
 
+    double totalBudget = filteredBudgets.fold(
+      0,
+      (sum, b) => sum + b["amount"],
+    );
+
     return Scaffold(
 
       floatingActionButton: FloatingActionButton(
@@ -128,6 +132,33 @@ class _BudgetsPageState extends State<BudgetsPage> {
                     DateTime(currentMonth.year, currentMonth.month + 1);
               });
             },
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+
+                Text(
+                  "Total Budget",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[700],
+                  ),
+                ),
+
+                const SizedBox(height: 4),
+
+                Text(
+                  "₹${totalBudget.toStringAsFixed(0)}",
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+              ],
+            ),
           ),
 
           Expanded(
