@@ -10,13 +10,13 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
 
   void addCategory(String name, String type) {
-    setState(() {
-      categories.add({
-        "name": name,
-        "type": type,
-      });
+  setState(() {
+    DataStore.categories.add({
+      "name": name,
+      "type": type,
     });
-  }
+  });
+}
 
   void showAddCategoryDialog() {
 
