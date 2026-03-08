@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/month_header.dart';
+import '../services/data_store.dart';
 
 class BudgetsPage extends StatefulWidget {
   @override
@@ -10,11 +11,6 @@ class _BudgetsPageState extends State<BudgetsPage> {
 
   DateTime currentMonth = DateTime.now();
 
-  List<String> categories = [
-    "Food",
-    "Transport",
-    "Shopping",
-  ];
 
   List<Map<String, dynamic>> budgets = [];
 
@@ -35,10 +31,11 @@ class _BudgetsPageState extends State<BudgetsPage> {
             children: [
 
               DropdownButtonFormField<String>(
-                items: categories
-                    .map((cat) =>
-                        DropdownMenuItem(value: cat, child: Text(cat)))
-                    .toList(),
+                items: DataStore.categories
+    .map((cat) => DropdownMenuItem(
+        value: cat["name"],
+        child: Text(cat["name"]!)))
+    .toList(),
                 onChanged: (value) {
                   selectedCategory = value;
                 },
