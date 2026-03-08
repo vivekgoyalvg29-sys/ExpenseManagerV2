@@ -136,7 +136,7 @@ class _RecordsPageState extends State<RecordsPage> {
               result["amount"],
               result["date"],
             );
-
+            await loadTransactions();
           }
 
         },
