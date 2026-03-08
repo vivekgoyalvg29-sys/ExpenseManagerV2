@@ -4,7 +4,6 @@ import 'analysis_page.dart';
 import 'budgets_page.dart';
 import 'accounts_page.dart';
 import 'categories_page.dart';
-import 'add_transaction_page.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -15,42 +14,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int currentIndex = 0;
 
-  final RecordsPage recordsPage = RecordsPage();
-
-  late final List<Widget> pages;
-
-  @override
-  void initState() {
-    super.initState();
-
-    pages = [
-      recordsPage,
-      AnalysisPage(),
-      BudgetsPage(),
-      AccountsPage(),
-      CategoriesPage(),
-    ];
-  }
-
-  void openAddTransaction() async {
-
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AddTransactionPage(),
-      ),
-    );
-
-    if (result != null) {
-
-      final title = result["title"];
-      final amount = result["amount"];
-
-      final state = recordsPage.createState();
-      state.addTransaction(title, amount);
-
-    }
-  }
+  final List<Widget> pages = [
+    RecordsPage(),
+    AnalysisPage(),
+    BudgetsPage(),
+    AccountsPage(),
+    CategoriesPage(),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -60,11 +30,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
 
       body: pages[currentIndex],
-
-      floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add),
-        onPressed: openAddTransaction,
-      ),
 
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: currentIndex,
