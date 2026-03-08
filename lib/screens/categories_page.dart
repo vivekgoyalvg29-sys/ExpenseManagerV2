@@ -96,7 +96,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
         onPressed: showAddCategoryDialog,
       ),
 
-      body: categories.isEmpty
+      body: DataStore.categories.isEmpty
           ? Center(child: Text("No categories yet"))
           : ListView.builder(
               itemCount: DataStore.categories.length,
