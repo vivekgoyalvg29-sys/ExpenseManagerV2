@@ -71,7 +71,7 @@ class _AccountsPageState extends State<AccountsPage> {
         onPressed: showAddAccountDialog,
       ),
 
-      body: accounts.isEmpty
+      body: DataStore.accounts.isEmpty
           ? Center(child: Text("No accounts yet"))
           : ListView.builder(
               itemCount: DataStore.accounts.length,
@@ -79,7 +79,7 @@ class _AccountsPageState extends State<AccountsPage> {
 
                 return ListTile(
                   leading: Icon(Icons.account_balance_wallet),
-                  title: Text(DateStore.accounts[index]),
+                  title: Text(DataStore.accounts[index]),
                 );
               },
             ),
