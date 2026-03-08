@@ -37,4 +37,22 @@ class DatabaseService {
     );
   }
 
+  static Future<void> insertTransaction(
+      String title,
+      double amount,
+      DateTime date,
+  ) async {
+
+    final db = await database;
+
+    await db.insert(
+      "transactions",
+      {
+        "title": title,
+        "amount": amount,
+        "date": date.toIso8601String(),
+      },
+    );
+  }
+
 }
