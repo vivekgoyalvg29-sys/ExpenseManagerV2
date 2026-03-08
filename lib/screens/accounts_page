@@ -1,1 +1,13 @@
+import 'package:flutter/material.dart';
 
+class AccountsPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        "Accounts",
+        style: TextStyle(fontSize: 22),
+      ),
+    );
+  }
+}
