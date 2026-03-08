@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/month_header.dart';
 import 'add_transaction_page.dart';
+import '../services/data_store.dart';
 
 class Transaction {
   final String title;
@@ -28,6 +29,7 @@ class _RecordsPageState extends State<RecordsPage> {
   void deleteTransaction(int index) {
     setState(() {
       transactions.removeAt(index);
+      DataStore.transactions.removeAt(index);
     });
   }
 
@@ -95,6 +97,12 @@ class _RecordsPageState extends State<RecordsPage> {
                   date: result["date"],
                 ),
               );
+
+              DataStore.transactions.add({
+                "title": result["title"],
+                "amount": result["amount"],
+                "date": result["date"],
+              });
 
             });
 
