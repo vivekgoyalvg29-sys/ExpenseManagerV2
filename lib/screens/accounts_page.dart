@@ -44,10 +44,13 @@ class _AccountsPageState extends State<AccountsPage> {
 
             TextButton(
               onPressed: () {
+
                 if (controller.text.isNotEmpty) {
                   addAccount(controller.text);
                 }
+
                 Navigator.pop(context);
+
               },
               child: Text("Add"),
             ),
@@ -63,6 +66,11 @@ class _AccountsPageState extends State<AccountsPage> {
 
     return Scaffold(
 
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.add),
+        onPressed: showAddAccountDialog,
+      ),
+
       body: accounts.isEmpty
           ? Center(child: Text("No accounts yet"))
           : ListView.builder(
@@ -75,11 +83,6 @@ class _AccountsPageState extends State<AccountsPage> {
                 );
               },
             ),
-
-      floatingActionButton: FloatingActionButton(
-        onPressed: showAddAccountDialog,
-        child: Icon(Icons.add),
-      ),
     );
   }
 }
