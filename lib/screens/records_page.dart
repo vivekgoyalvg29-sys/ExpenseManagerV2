@@ -24,6 +24,19 @@ class _RecordsPageState extends State<RecordsPage> {
 
   List<Transaction> transactions = [];
 
+  // ✅ ADD TRANSACTION FUNCTION
+  void addTransaction(String title, double amount) {
+    setState(() {
+      transactions.add(
+        Transaction(
+          title: title,
+          amount: amount,
+          date: DateTime.now(),
+        ),
+      );
+    });
+  }
+
   void deleteTransaction(int index) {
     setState(() {
       transactions.removeAt(index);
