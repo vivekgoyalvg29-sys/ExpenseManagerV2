@@ -10,6 +10,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
 
   DateTime selectedDate = DateTime.now();
 
+  final commentController = TextEditingController();
+  final amountController = TextEditingController();
+
   Future<void> pickDate() async {
 
     final DateTime? picked = await showDatePicker(
@@ -57,10 +60,12 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
             ),
 
             TextField(
+              controller: commentController,
               decoration: InputDecoration(labelText: "Comments"),
             ),
 
             TextField(
+              controller: amountController,
               decoration: InputDecoration(labelText: "Amount"),
               keyboardType: TextInputType.number,
             ),
@@ -79,7 +84,18 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
             const SizedBox(height: 20),
 
             ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+
+                final title = commentController.text;
+                final amount = double.tryParse(amountController.text) ?? 0;
+
+                Navigator.pop(context, {
+                  "title": title,
+                  "amount": amount,
+                  "date": selectedDate
+                });
+
+              },
               child: Text("Save"),
             )
           ],
