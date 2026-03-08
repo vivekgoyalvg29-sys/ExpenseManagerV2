@@ -15,13 +15,42 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int currentIndex = 0;
 
-  final pages = [
-    RecordsPage(),
-    AnalysisPage(),
-    BudgetsPage(),
-    AccountsPage(),
-    CategoriesPage(),
-  ];
+  final RecordsPage recordsPage = RecordsPage();
+
+  late final List<Widget> pages;
+
+  @override
+  void initState() {
+    super.initState();
+
+    pages = [
+      recordsPage,
+      AnalysisPage(),
+      BudgetsPage(),
+      AccountsPage(),
+      CategoriesPage(),
+    ];
+  }
+
+  void openAddTransaction() async {
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddTransactionPage(),
+      ),
+    );
+
+    if (result != null) {
+
+      final title = result["title"];
+      final amount = result["amount"];
+
+      final state = recordsPage.createState();
+      state.addTransaction(title, amount);
+
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,14 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       floatingActionButton: FloatingActionButton(
         child: Icon(Icons.add),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AddTransactionPage(),
-            ),
-          );
-        },
+        onPressed: openAddTransaction,
       ),
 
       bottomNavigationBar: BottomNavigationBar(
