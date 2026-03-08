@@ -52,10 +52,12 @@ class DBHelper {
 
         await db.execute('''
         CREATE TABLE budgets(
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          category TEXT,
-          amount REAL
-        )
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  category TEXT,
+  amount REAL,
+  month INTEGER,
+  year INTEGER
+)
         ''');
       },
     );
