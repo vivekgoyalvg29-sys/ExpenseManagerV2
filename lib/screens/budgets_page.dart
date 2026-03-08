@@ -75,7 +75,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
 
                 setState(() {
 
-                  budgets.add({
+                  DataStore.budgets.add({
                     "category": selectedCategory,
                     "amount": double.parse(amountController.text),
                     "month": currentMonth.month,
