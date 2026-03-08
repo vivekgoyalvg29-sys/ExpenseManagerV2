@@ -4,4 +4,6 @@ class DataStore {
 
   static List<String> accounts = [];
 
+  static List<Map<String, dynamic>> transactions = [];
+
 }
