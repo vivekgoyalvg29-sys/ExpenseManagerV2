@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../services/data_store.dart';
 
 class AddTransactionPage extends StatefulWidget {
   @override
@@ -13,6 +14,10 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   final commentController = TextEditingController();
   final amountController = TextEditingController();
 
+  String transactionType = "expense";
+  String? selectedAccount;
+  String? selectedCategory;
+
   Future<void> pickDate() async {
 
     final DateTime? picked = await showDatePicker(
@@ -22,7 +27,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
       lastDate: DateTime(2100),
     );
 
-    if (picked != null && picked != selectedDate) {
+    if (picked != null) {
       setState(() {
         selectedDate = picked;
       });
@@ -39,66 +44,113 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
 
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
 
-            DropdownButtonFormField(
-              items: const [
-                DropdownMenuItem(child: Text("Expense"), value: "expense"),
-                DropdownMenuItem(child: Text("Income"), value: "income"),
-              ],
-              onChanged: (v) {},
-              decoration: InputDecoration(labelText: "Type"),
-            ),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
 
-            TextField(
-              decoration: InputDecoration(labelText: "Account"),
-            ),
-
-            TextField(
-              decoration: InputDecoration(labelText: "Category"),
-            ),
-
-            TextField(
-              controller: commentController,
-              decoration: InputDecoration(labelText: "Comments"),
-            ),
-
-            TextField(
-              controller: amountController,
-              decoration: InputDecoration(labelText: "Amount"),
-              keyboardType: TextInputType.number,
-            ),
-
-            const SizedBox(height: 20),
-
-            ListTile(
-              title: Text("Date"),
-              subtitle: Text(
-                DateFormat('dd MMM yyyy').format(selectedDate),
+              DropdownButtonFormField<String>(
+                value: transactionType,
+                items: const [
+                  DropdownMenuItem(child: Text("Expense"), value: "expense"),
+                  DropdownMenuItem(child: Text("Income"), value: "income"),
+                ],
+                onChanged: (v) {
+                  setState(() {
+                    transactionType = v!;
+                    selectedCategory = null;
+                  });
+                },
+                decoration: InputDecoration(labelText: "Type"),
               ),
-              trailing: Icon(Icons.calendar_today),
-              onTap: pickDate,
-            ),
 
-            const SizedBox(height: 20),
+              const SizedBox(height: 10),
 
-            ElevatedButton(
-              onPressed: () {
+              DropdownButtonFormField<String>(
+                value: selectedAccount,
+                items: DataStore.accounts
+                    .map((acc) => DropdownMenuItem(
+                        value: acc,
+                        child: Text(acc)))
+                    .toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedAccount = value;
+                  });
+                },
+                decoration: InputDecoration(labelText: "Account"),
+              ),
 
-                final title = commentController.text;
-                final amount = double.tryParse(amountController.text) ?? 0;
+              const SizedBox(height: 10),
 
-                Navigator.pop(context, {
-                  "title": title,
-                  "amount": amount,
-                  "date": selectedDate
-                });
+              DropdownButtonFormField<String>(
+                value: selectedCategory,
+                items: DataStore.categories
+                    .where((cat) => cat["type"] == transactionType)
+                    .map((cat) => DropdownMenuItem(
+                        value: cat["name"],
+                        child: Text(cat["name"]!)))
+                    .toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedCategory = value;
+                  });
+                },
+                decoration: InputDecoration(labelText: "Category"),
+              ),
 
-              },
-              child: Text("Save"),
-            )
-          ],
+              const SizedBox(height: 10),
+
+              TextField(
+                controller: commentController,
+                decoration: InputDecoration(labelText: "Comments"),
+              ),
+
+              const SizedBox(height: 10),
+
+              TextField(
+                controller: amountController,
+                decoration: InputDecoration(labelText: "Amount"),
+                keyboardType: TextInputType.number,
+              ),
+
+              const SizedBox(height: 20),
+
+              ListTile(
+                title: Text("Date"),
+                subtitle: Text(
+                  DateFormat('dd MMM yyyy').format(selectedDate),
+                ),
+                trailing: Icon(Icons.calendar_today),
+                onTap: pickDate,
+              ),
+
+              const SizedBox(height: 20),
+
+              ElevatedButton(
+                onPressed: () {
+
+                  if (selectedAccount == null ||
+                      selectedCategory == null ||
+                      amountController.text.isEmpty) {
+                    return;
+                  }
+
+                  final title = commentController.text;
+                  final amount = double.tryParse(amountController.text) ?? 0;
+
+                  Navigator.pop(context, {
+                    "title": title,
+                    "amount": amount,
+                    "date": selectedDate
+                  });
+
+                },
+                child: Text("Save"),
+              )
+
+            ],
+          ),
         ),
       ),
     );
