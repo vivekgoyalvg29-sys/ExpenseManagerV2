@@ -11,7 +11,10 @@ class _AccountsPageState extends State<AccountsPage> {
 
   void addAccount(String name) {
     setState(() {
-      DataStore.accounts.add(name);
+      DataStore.accounts.add({
+  "name": name,
+  "type": selectedType
+});
     });
   }
 
