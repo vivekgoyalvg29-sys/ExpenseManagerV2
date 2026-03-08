@@ -21,9 +21,9 @@ class _AccountsPageState extends State<AccountsPage> {
 
     setState(() {
       DataStore.accounts = data.map((a) => {
-        "name": a["name"],
-        "type": a["type"]
-      }).toList();
+  "name": a["name"].toString(),
+  "type": a["type"].toString(),
+}).toList();
     });
 
   }
