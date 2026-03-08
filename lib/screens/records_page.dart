@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/month_header.dart';
 import 'add_transaction_page.dart';
 import '../services/data_store.dart';
+import '../services/database_service.dart';
 
 class Transaction {
   final String title;
@@ -105,6 +106,12 @@ class _RecordsPageState extends State<RecordsPage> {
               });
 
             });
+
+            await DatabaseService.insertTransaction(
+              result["title"],
+              result["amount"],
+              result["date"],
+            );
 
           }
 
