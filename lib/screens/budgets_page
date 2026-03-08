@@ -1,1 +1,14 @@
 
+import 'package:flutter/material.dart';
+
+class BudgetsPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        "Budgets",
+        style: TextStyle(fontSize: 22),
+      ),
+    );
+  }
+}
