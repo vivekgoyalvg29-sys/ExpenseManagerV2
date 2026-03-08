@@ -140,10 +140,10 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                   final amount = double.tryParse(amountController.text) ?? 0;
 
                   Navigator.pop(context, {
-                    "title": title,
-                    "amount": amount,
-                    "date": selectedDate
-                  });
+                "title": selectedCategory,
+                "amount": amount,
+                "date": selectedDate
+});
 
                 },
                 child: Text("Save"),
