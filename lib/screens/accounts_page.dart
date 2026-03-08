@@ -8,19 +8,10 @@ class AccountsPage extends StatefulWidget {
 
 class _AccountsPageState extends State<AccountsPage> {
 
-
-  void addAccount(String name) {
-    setState(() {
-      DataStore.accounts.add({
-  "name": name,
-  "type": selectedType
-});
-    });
-  }
-
   void showAddAccountDialog() {
 
     TextEditingController controller = TextEditingController();
+    String selectedType = "expense";
 
     showDialog(
       context: context,
@@ -29,11 +20,38 @@ class _AccountsPageState extends State<AccountsPage> {
         return AlertDialog(
           title: Text("Create Account"),
 
-          content: TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              labelText: "Account Name",
-            ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+
+              DropdownButtonFormField<String>(
+                value: selectedType,
+                items: const [
+                  DropdownMenuItem(
+                      value: "expense",
+                      child: Text("Expense")),
+                  DropdownMenuItem(
+                      value: "income",
+                      child: Text("Income")),
+                ],
+                onChanged: (value) {
+                  selectedType = value!;
+                },
+                decoration: InputDecoration(
+                  labelText: "Transaction Type",
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              TextField(
+                controller: controller,
+                decoration: InputDecoration(
+                  labelText: "Account Name",
+                ),
+              ),
+
+            ],
           ),
 
           actions: [
@@ -49,7 +67,14 @@ class _AccountsPageState extends State<AccountsPage> {
               onPressed: () {
 
                 if (controller.text.isNotEmpty) {
-                  addAccount(controller.text);
+
+                  setState(() {
+                    DataStore.accounts.add({
+                      "name": controller.text,
+                      "type": selectedType
+                    });
+                  });
+
                 }
 
                 Navigator.pop(context);
@@ -80,9 +105,12 @@ class _AccountsPageState extends State<AccountsPage> {
               itemCount: DataStore.accounts.length,
               itemBuilder: (context, index) {
 
+                final account = DataStore.accounts[index];
+
                 return ListTile(
                   leading: Icon(Icons.account_balance_wallet),
-                  title: Text(DataStore.accounts[index]),
+                  title: Text(account["name"]!),
+                  subtitle: Text(account["type"]!),
                 );
               },
             ),
