@@ -21,9 +21,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
     setState(() {
       DataStore.categories = data.map((c) => {
-        "name": c["name"],
-        "type": c["type"]
-      }).toList();
+  "name": c["name"].toString(),
+  "type": c["type"].toString(),
+}).toList();
     });
 
   }
