@@ -1,0 +1,19 @@
+name: expense_manager
+description: Personal Expense Manager
+
+publish_to: "none"
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  sqflite: ^2.3.0
+  path: ^1.9.0
+  intl: ^0.18.1
+  fl_chart: ^0.66.0
+
+flutter:
+  uses-material-design: true
