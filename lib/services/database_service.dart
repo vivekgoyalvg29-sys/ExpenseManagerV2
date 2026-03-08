@@ -38,9 +38,9 @@ class DatabaseService {
   }
 
   static Future<void> insertTransaction(
-      String title,
-      double amount,
-      DateTime date,
+    String title,
+    double amount,
+    DateTime date,
   ) async {
 
     final db = await database;
@@ -52,6 +52,16 @@ class DatabaseService {
         "amount": amount,
         "date": date.toIso8601String(),
       },
+    );
+  }
+
+  static Future<List<Map<String, dynamic>>> getTransactions() async {
+
+    final db = await database;
+
+    return await db.query(
+      "transactions",
+      orderBy: "date DESC",
     );
   }
 
