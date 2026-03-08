@@ -11,8 +11,6 @@ class _BudgetsPageState extends State<BudgetsPage> {
 
   DateTime currentMonth = DateTime.now();
 
-  List<Map<String, dynamic>> budgets = [];
-
   void showAddBudgetDialog() {
 
     String? selectedCategory;
@@ -31,6 +29,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
 
               DropdownButtonFormField<String>(
                 items: DataStore.categories
+                    .where((cat) => cat["type"] == "expense")
                     .map((cat) => DropdownMenuItem(
                         value: cat["name"],
                         child: Text(cat["name"]!)))
@@ -99,7 +98,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
   @override
   Widget build(BuildContext context) {
 
-    final filteredBudgets = budgets.where((b) =>
+    final filteredBudgets = DataStore.budgets.where((b) =>
         b["month"] == currentMonth.month &&
         b["year"] == currentMonth.year).toList();
 
