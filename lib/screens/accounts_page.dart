@@ -1,12 +1,84 @@
 import 'package:flutter/material.dart';
 
-class AccountsPage extends StatelessWidget {
+class AccountsPage extends StatefulWidget {
+  @override
+  _AccountsPageState createState() => _AccountsPageState();
+}
+
+class _AccountsPageState extends State<AccountsPage> {
+
+  List<String> accounts = [];
+
+  void addAccount(String name) {
+    setState(() {
+      accounts.add(name);
+    });
+  }
+
+  void showAddAccountDialog() {
+
+    TextEditingController controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+
+        return AlertDialog(
+          title: Text("Create Account"),
+
+          content: TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              labelText: "Account Name",
+            ),
+          ),
+
+          actions: [
+
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: Text("Cancel"),
+            ),
+
+            TextButton(
+              onPressed: () {
+                if (controller.text.isNotEmpty) {
+                  addAccount(controller.text);
+                }
+                Navigator.pop(context);
+              },
+              child: Text("Add"),
+            ),
+
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        "Accounts",
-        style: TextStyle(fontSize: 22),
+
+    return Scaffold(
+
+      body: accounts.isEmpty
+          ? Center(child: Text("No accounts yet"))
+          : ListView.builder(
+              itemCount: accounts.length,
+              itemBuilder: (context, index) {
+
+                return ListTile(
+                  leading: Icon(Icons.account_balance_wallet),
+                  title: Text(accounts[index]),
+                );
+              },
+            ),
+
+      floatingActionButton: FloatingActionButton(
+        onPressed: showAddAccountDialog,
+        child: Icon(Icons.add),
       ),
     );
   }
