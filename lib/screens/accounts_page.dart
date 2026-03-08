@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/data_store.dart';
 
 class AccountsPage extends StatefulWidget {
   @override
@@ -7,11 +8,10 @@ class AccountsPage extends StatefulWidget {
 
 class _AccountsPageState extends State<AccountsPage> {
 
-  List<String> accounts = [];
 
   void addAccount(String name) {
     setState(() {
-      accounts.add(name);
+      DataStore.accounts.add(name);
     });
   }
 
