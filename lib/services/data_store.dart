@@ -6,4 +6,6 @@ class DataStore {
 
   static List<Map<String, dynamic>> transactions = [];
 
+  static List<Map<String, dynamic>> budgets = [];
+
 }
