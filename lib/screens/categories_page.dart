@@ -28,7 +28,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
       builder: (context) {
 
         return AlertDialog(
-          title: Text("Add Category"),
+          title: Text("Create Category"),
 
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -52,7 +52,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 onChanged: (value) {
                   selectedType = value!;
                 },
-                decoration: InputDecoration(labelText: "Type"),
+                decoration: InputDecoration(labelText: "Transaction Type"),
               ),
 
             ],
@@ -75,6 +75,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 }
 
                 Navigator.pop(context);
+
               },
               child: Text("Add"),
             ),
@@ -89,6 +90,11 @@ class _CategoriesPageState extends State<CategoriesPage> {
   Widget build(BuildContext context) {
 
     return Scaffold(
+
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.add),
+        onPressed: showAddCategoryDialog,
+      ),
 
       body: categories.isEmpty
           ? Center(child: Text("No categories yet"))
@@ -105,11 +111,6 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 );
               },
             ),
-
-      floatingActionButton: FloatingActionButton(
-        onPressed: showAddCategoryDialog,
-        child: Icon(Icons.add),
-      ),
     );
   }
 }
