@@ -1,20 +1,8 @@
 import 'package:flutter/material.dart';
 import '../widgets/month_header.dart';
+import '../widgets/month_summary.dart';
 import 'add_transaction_page.dart';
-import '../services/data_store.dart';
 import '../services/database_service.dart';
-
-class Transaction {
-  final String title;
-  final double amount;
-  final DateTime date;
-
-  Transaction({
-    required this.title,
-    required this.amount,
-    required this.date,
-  });
-}
 
 class RecordsPage extends StatefulWidget {
   @override
@@ -49,7 +37,7 @@ class _RecordsPageState extends State<RecordsPage> {
   void deleteSelected() async {
 
     final idsToDelete = selectedIndexes
-        .map((i) => transactions[i]["id"])
+        .map((i) => filteredTransactions[i]["id"])
         .toList();
 
     for (var id in idsToDelete) {
@@ -59,46 +47,12 @@ class _RecordsPageState extends State<RecordsPage> {
     selectedIndexes.clear();
     selectionMode = false;
 
-    await loadTransactions();
+    loadTransactions();
   }
 
-  void confirmDelete(int index) {
+  List<Map<String, dynamic>> get filteredTransactions {
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Delete Transaction"),
-        content: Text("Are you sure you want to delete this record?"),
-        actions: [
-
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: Text("Cancel"),
-          ),
-
-          TextButton(
-            onPressed: () async {
-
-              await DatabaseService.deleteTransaction(
-                  transactions[index]["id"]);
-
-              Navigator.pop(context);
-              loadTransactions();
-
-            },
-            child: Text("Delete"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-
-    final filteredTransactions = transactions.where((tx) {
+    return transactions.where((tx) {
 
       DateTime date = DateTime.parse(tx["date"]);
 
@@ -107,10 +61,24 @@ class _RecordsPageState extends State<RecordsPage> {
 
     }).toList();
 
-    double totalSpent = filteredTransactions.fold(
-      0,
-      (sum, tx) => sum + (tx["amount"] as num).toDouble(),
-    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+
+    double income = 0;
+    double expense = 0;
+
+    for (var tx in filteredTransactions) {
+
+      double amount = (tx["amount"] as num).toDouble();
+
+      if (amount >= 0)
+        income += amount;
+      else
+        expense += amount.abs();
+
+    }
 
     return Scaffold(
 
@@ -119,7 +87,7 @@ class _RecordsPageState extends State<RecordsPage> {
         title: Text(
             selectionMode
                 ? "${selectedIndexes.length} selected"
-                : "MyExp"
+                : "Records"
         ),
 
         actions: [
@@ -178,36 +146,14 @@ class _RecordsPageState extends State<RecordsPage> {
             },
           ),
 
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-
-                Text(
-                  "Total Spent",
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[700],
-                  ),
-                ),
-
-                const SizedBox(height: 4),
-
-                Text(
-                  "₹${totalSpent.toStringAsFixed(0)}",
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-              ],
-            ),
+          MonthSummary(
+            income: income,
+            expense: expense,
           ),
 
           Expanded(
             child: filteredTransactions.isEmpty
-                ? Center(child: Text("No transactions for this month"))
+                ? Center(child: Text("No transactions"))
                 : ListView.builder(
                     itemCount: filteredTransactions.length,
                     itemBuilder: (context, index) {
@@ -234,19 +180,18 @@ class _RecordsPageState extends State<RecordsPage> {
                                 },
                               )
                             : CircleAvatar(
-                                child: Icon(Icons.money_off),
+                                child: Icon(Icons.money),
                               ),
 
                         title: Text(tx["title"]),
 
                         subtitle: Text(
-                            "${date.day}/${date.month}/${date.year}"
+                          "${date.day}/${date.month}/${date.year}"
                         ),
 
                         trailing: Text(
                           "₹${tx["amount"]}",
-                          style: TextStyle(
-                            color: Colors.red,
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -262,46 +207,22 @@ class _RecordsPageState extends State<RecordsPage> {
 
                         },
 
-                        onTap: () async {
+                        onTap: () {
 
-  if (selectionMode) {
+                          if (selectionMode) {
 
-    setState(() {
+                            setState(() {
 
-      if (selectedIndexes.contains(index))
-        selectedIndexes.remove(index);
-      else
-        selectedIndexes.add(index);
+                              if (selectedIndexes.contains(index))
+                                selectedIndexes.remove(index);
+                              else
+                                selectedIndexes.add(index);
 
-    });
+                            });
 
-  } else {
+                          }
 
-    final tx = filteredTransactions[index];
-
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AddTransactionPage(
-          existingTransaction: tx,
-        ),
-      ),
-    );
-
-    if (result != null) {
-
-      await DatabaseService.updateTransaction(
-        tx["id"],
-        result["title"],
-        result["amount"],
-        result["date"],
-      );
-
-      loadTransactions();
-    }
-  }
-
-},
+                        },
 
                       );
                     },
