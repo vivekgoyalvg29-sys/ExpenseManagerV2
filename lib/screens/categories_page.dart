@@ -49,15 +49,21 @@ class _CategoriesPageState extends State<CategoriesPage> {
                   DropdownMenuItem(value: "expense", child: Text("Expense")),
                   DropdownMenuItem(value: "income", child: Text("Income")),
                 ],
-                onChanged: (v) {
-                  selectedType = v!;
+                onChanged: (value) {
+                  selectedType = value!;
                 },
-                decoration: InputDecoration(labelText: "Transaction Type"),
+                decoration: InputDecoration(
+                  labelText: "Transaction Type",
+                ),
               ),
+
+              const SizedBox(height: 10),
 
               TextField(
                 controller: controller,
-                decoration: InputDecoration(labelText: "Category Name"),
+                decoration: InputDecoration(
+                  labelText: "Category Name",
+                ),
               ),
 
             ],
@@ -66,7 +72,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
           actions: [
 
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                Navigator.pop(context);
+              },
               child: Text("Cancel"),
             ),
 
@@ -91,6 +99,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
               },
               child: Text("Add"),
             ),
+
           ],
         );
       },
@@ -100,13 +109,11 @@ class _CategoriesPageState extends State<CategoriesPage> {
   @override
   Widget build(BuildContext context) {
 
-    final expenseCategories = DataStore.categories
-        .where((c) => c["type"] == "expense")
-        .toList();
+    final expenseCategories =
+        DataStore.categories.where((c) => c["type"] == "expense").toList();
 
-    final incomeCategories = DataStore.categories
-        .where((c) => c["type"] == "income")
-        .toList();
+    final incomeCategories =
+        DataStore.categories.where((c) => c["type"] == "income").toList();
 
     return Scaffold(
 
@@ -119,7 +126,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
         children: [
 
           ExpansionTile(
-            title: Text("Expense"),
+            title: Text("Expense Categories"),
             initiallyExpanded: true,
             children: expenseCategories.map((cat) {
 
@@ -132,7 +139,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
           ),
 
           ExpansionTile(
-            title: Text("Income"),
+            title: Text("Income Categories"),
             initiallyExpanded: true,
             children: incomeCategories.map((cat) {
 
