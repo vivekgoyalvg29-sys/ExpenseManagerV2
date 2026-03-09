@@ -58,18 +58,17 @@ class DatabaseService {
           year INTEGER
         )
         ''');
-
       },
     );
   }
 
-  // TRANSACTIONS
+  // ---------------- TRANSACTIONS ----------------
 
   static Future<void> insertTransaction(
-    String title,
-    double amount,
-    DateTime date,
-  ) async {
+      String title,
+      double amount,
+      DateTime date,
+      ) async {
 
     final db = await database;
 
@@ -87,22 +86,54 @@ class DatabaseService {
 
     final db = await database;
 
-    return await db.query(
+    return await db.query("transactions", orderBy: "date DESC");
+  }
+
+  static Future<void> deleteTransaction(int id) async {
+
+    final db = await database;
+
+    await db.delete(
       "transactions",
-      orderBy: "date DESC",
+      where: "id = ?",
+      whereArgs: [id],
     );
   }
 
-  // ACCOUNTS
+  static Future<void> updateTransaction(
+      int id,
+      String title,
+      double amount,
+      DateTime date,
+      ) async {
+
+    final db = await database;
+
+    await db.update(
+      "transactions",
+      {
+        "title": title,
+        "amount": amount,
+        "date": date.toIso8601String(),
+      },
+      where: "id = ?",
+      whereArgs: [id],
+    );
+  }
+
+  // ---------------- ACCOUNTS ----------------
 
   static Future<void> insertAccount(String name, String type) async {
 
     final db = await database;
 
-    await db.insert("accounts", {
-      "name": name,
-      "type": type
-    });
+    await db.insert(
+      "accounts",
+      {
+        "name": name,
+        "type": type,
+      },
+    );
   }
 
   static Future<List<Map<String, dynamic>>> getAccounts() async {
@@ -112,16 +143,45 @@ class DatabaseService {
     return await db.query("accounts");
   }
 
-  // CATEGORIES
+  static Future<void> updateAccount(int id, String name, String type) async {
+
+    final db = await database;
+
+    await db.update(
+      "accounts",
+      {
+        "name": name,
+        "type": type,
+      },
+      where: "id = ?",
+      whereArgs: [id],
+    );
+  }
+
+  static Future<void> deleteAccount(int id) async {
+
+    final db = await database;
+
+    await db.delete(
+      "accounts",
+      where: "id = ?",
+      whereArgs: [id],
+    );
+  }
+
+  // ---------------- CATEGORIES ----------------
 
   static Future<void> insertCategory(String name, String type) async {
 
     final db = await database;
 
-    await db.insert("categories", {
-      "name": name,
-      "type": type
-    });
+    await db.insert(
+      "categories",
+      {
+        "name": name,
+        "type": type,
+      },
+    );
   }
 
   static Future<List<Map<String, dynamic>>> getCategories() async {
@@ -131,22 +191,52 @@ class DatabaseService {
     return await db.query("categories");
   }
 
-  // BUDGETS
+  static Future<void> updateCategory(int id, String name, String type) async {
+
+    final db = await database;
+
+    await db.update(
+      "categories",
+      {
+        "name": name,
+        "type": type,
+      },
+      where: "id = ?",
+      whereArgs: [id],
+    );
+  }
+
+  static Future<void> deleteCategory(int id) async {
+
+    final db = await database;
+
+    await db.delete(
+      "categories",
+      where: "id = ?",
+      whereArgs: [id],
+    );
+  }
+
+  // ---------------- BUDGETS ----------------
 
   static Future<void> insertBudget(
       String category,
       double amount,
       int month,
-      int year) async {
+      int year,
+      ) async {
 
     final db = await database;
 
-    await db.insert("budgets", {
-      "category": category,
-      "amount": amount,
-      "month": month,
-      "year": year
-    });
+    await db.insert(
+      "budgets",
+      {
+        "category": category,
+        "amount": amount,
+        "month": month,
+        "year": year,
+      },
+    );
   }
 
   static Future<List<Map<String, dynamic>>> getBudgets() async {
@@ -156,24 +246,37 @@ class DatabaseService {
     return await db.query("budgets");
   }
 
-}
-static Future<void> updateTransaction(
-  int id,
-  String title,
-  double amount,
-  DateTime date,
-) async {
+  static Future<void> updateBudget(
+      int id,
+      String category,
+      double amount,
+      int month,
+      int year,
+      ) async {
 
-  final db = await database;
+    final db = await database;
 
-  await db.update(
-    "transactions",
-    {
-      "title": title,
-      "amount": amount,
-      "date": date.toIso8601String(),
-    },
-    where: "id = ?",
-    whereArgs: [id],
-  );
+    await db.update(
+      "budgets",
+      {
+        "category": category,
+        "amount": amount,
+        "month": month,
+        "year": year,
+      },
+      where: "id = ?",
+      whereArgs: [id],
+    );
+  }
+
+  static Future<void> deleteBudget(int id) async {
+
+    final db = await database;
+
+    await db.delete(
+      "budgets",
+      where: "id = ?",
+      whereArgs: [id],
+    );
+  }
 }
