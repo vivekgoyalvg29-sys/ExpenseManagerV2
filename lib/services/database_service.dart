@@ -157,3 +157,23 @@ class DatabaseService {
   }
 
 }
+static Future<void> updateTransaction(
+  int id,
+  String title,
+  double amount,
+  DateTime date,
+) async {
+
+  final db = await database;
+
+  await db.update(
+    "transactions",
+    {
+      "title": title,
+      "amount": amount,
+      "date": date.toIso8601String(),
+    },
+    where: "id = ?",
+    whereArgs: [id],
+  );
+}
