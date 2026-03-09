@@ -23,11 +23,15 @@ class _AccountsPageState extends State<AccountsPage> {
     final data = await DatabaseService.getAccounts();
 
     setState(() {
-      DataStore.accounts = data.map((a) => {
-        "id": a["id"],
-        "name": a["name"].toString(),
-        "type": a["type"].toString(),
+
+      DataStore.accounts = data.map<Map<String, dynamic>>((a) {
+        return {
+          "id": a["id"],
+          "name": a["name"].toString(),
+          "type": a["type"].toString(),
+        };
       }).toList();
+
     });
   }
 
@@ -58,14 +62,18 @@ class _AccountsPageState extends State<AccountsPage> {
                 onChanged: (value) {
                   selectedType = value!;
                 },
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: "Transaction Type",
                 ),
               ),
 
+              const SizedBox(height: 10),
+
               TextField(
                 controller: controller,
-                decoration: InputDecoration(labelText: "Account Name"),
+                decoration: const InputDecoration(
+                  labelText: "Account Name",
+                ),
               ),
 
             ],
@@ -75,7 +83,7 @@ class _AccountsPageState extends State<AccountsPage> {
 
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text("Cancel"),
+              child: const Text("Cancel"),
             ),
 
             TextButton(
@@ -98,7 +106,7 @@ class _AccountsPageState extends State<AccountsPage> {
                 Navigator.pop(context);
                 loadAccounts();
               },
-              child: Text("Save"),
+              child: const Text("Save"),
             ),
 
           ],
@@ -145,7 +153,7 @@ class _AccountsPageState extends State<AccountsPage> {
 
           if (selectionMode)
             IconButton(
-              icon: Icon(Icons.delete),
+              icon: const Icon(Icons.delete),
               onPressed: deleteSelected,
             )
 
@@ -153,7 +161,7 @@ class _AccountsPageState extends State<AccountsPage> {
       ),
 
       floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
         onPressed: () => showAddAccountDialog(),
       ),
 
@@ -161,7 +169,7 @@ class _AccountsPageState extends State<AccountsPage> {
         children: [
 
           ExpansionTile(
-            title: Text("Expense Accounts"),
+            title: const Text("Expense Accounts"),
             initiallyExpanded: true,
             children: expenseAccounts.map((acc) {
 
@@ -185,9 +193,9 @@ class _AccountsPageState extends State<AccountsPage> {
 
                         },
                       )
-                    : Icon(Icons.account_balance_wallet),
+                    : const Icon(Icons.account_balance_wallet),
 
-                title: Text(acc["name"]!),
+                title: Text(acc["name"]),
 
                 onLongPress: () {
 
@@ -227,7 +235,7 @@ class _AccountsPageState extends State<AccountsPage> {
           ),
 
           ExpansionTile(
-            title: Text("Income Accounts"),
+            title: const Text("Income Accounts"),
             initiallyExpanded: true,
             children: incomeAccounts.map((acc) {
 
@@ -251,9 +259,9 @@ class _AccountsPageState extends State<AccountsPage> {
 
                         },
                       )
-                    : Icon(Icons.account_balance_wallet),
+                    : const Icon(Icons.account_balance_wallet),
 
-                title: Text(acc["name"]!),
+                title: Text(acc["name"]),
 
                 onLongPress: () {
 
