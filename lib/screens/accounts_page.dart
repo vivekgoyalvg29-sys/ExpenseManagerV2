@@ -2,42 +2,48 @@ import 'package:flutter/material.dart';
 import '../services/data_store.dart';
 import '../services/database_service.dart';
 
-class CategoriesPage extends StatefulWidget {
+class AccountsPage extends StatefulWidget {
   @override
-  _CategoriesPageState createState() => _CategoriesPageState();
+  _AccountsPageState createState() => _AccountsPageState();
 }
 
-class _CategoriesPageState extends State<CategoriesPage> {
+class _AccountsPageState extends State<AccountsPage> {
+
+  Set<int> selectedIndexes = {};
+  bool selectionMode = false;
 
   @override
   void initState() {
     super.initState();
-    loadCategories();
+    loadAccounts();
   }
 
-  Future<void> loadCategories() async {
+  Future<void> loadAccounts() async {
 
-    final data = await DatabaseService.getCategories();
+    final data = await DatabaseService.getAccounts();
 
     setState(() {
-      DataStore.categories = data.map((c) => {
-        "name": c["name"].toString(),
-        "type": c["type"].toString(),
+      DataStore.accounts = data.map((a) => {
+        "id": a["id"],
+        "name": a["name"].toString(),
+        "type": a["type"].toString(),
       }).toList();
     });
   }
 
-  void showAddCategoryDialog() {
+  void showAddAccountDialog({Map<String, dynamic>? account}) {
 
-    TextEditingController controller = TextEditingController();
-    String selectedType = "expense";
+    TextEditingController controller =
+        TextEditingController(text: account?["name"]);
+
+    String selectedType = account?["type"] ?? "expense";
 
     showDialog(
       context: context,
       builder: (context) {
 
         return AlertDialog(
-          title: Text("Create Category"),
+          title: Text(account == null ? "Create Account" : "Edit Account"),
 
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -49,15 +55,17 @@ class _CategoriesPageState extends State<CategoriesPage> {
                   DropdownMenuItem(value: "expense", child: Text("Expense")),
                   DropdownMenuItem(value: "income", child: Text("Income")),
                 ],
-                onChanged: (v) {
-                  selectedType = v!;
+                onChanged: (value) {
+                  selectedType = value!;
                 },
-                decoration: InputDecoration(labelText: "Transaction Type"),
+                decoration: InputDecoration(
+                  labelText: "Transaction Type",
+                ),
               ),
 
               TextField(
                 controller: controller,
-                decoration: InputDecoration(labelText: "Category Name"),
+                decoration: InputDecoration(labelText: "Account Name"),
               ),
 
             ],
@@ -73,72 +81,212 @@ class _CategoriesPageState extends State<CategoriesPage> {
             TextButton(
               onPressed: () async {
 
-                if (controller.text.isNotEmpty) {
+                if (controller.text.isEmpty) return;
 
-                  setState(() {
-                    DataStore.categories.add({
-                      "name": controller.text,
-                      "type": selectedType
-                    });
-                  });
+                if (account == null) {
 
-                  await DatabaseService.insertCategory(
-                      controller.text,
-                      selectedType);
+                  await DatabaseService.insertAccount(
+                      controller.text, selectedType);
+
+                } else {
+
+                  await DatabaseService.updateAccount(
+                      account["id"], controller.text, selectedType);
+
                 }
 
                 Navigator.pop(context);
+                loadAccounts();
               },
-              child: Text("Add"),
+              child: Text("Save"),
             ),
+
           ],
         );
       },
     );
   }
 
+  void deleteSelected() async {
+
+    for (var index in selectedIndexes) {
+
+      final id = DataStore.accounts[index]["id"];
+
+      await DatabaseService.deleteAccount(id);
+    }
+
+    selectedIndexes.clear();
+    selectionMode = false;
+
+    loadAccounts();
+  }
+
   @override
   Widget build(BuildContext context) {
 
-    final expenseCategories = DataStore.categories
-        .where((c) => c["type"] == "expense")
-        .toList();
+    final expenseAccounts =
+        DataStore.accounts.where((a) => a["type"] == "expense").toList();
 
-    final incomeCategories = DataStore.categories
-        .where((c) => c["type"] == "income")
-        .toList();
+    final incomeAccounts =
+        DataStore.accounts.where((a) => a["type"] == "income").toList();
 
     return Scaffold(
 
+      appBar: AppBar(
+
+        title: Text(
+            selectionMode
+                ? "${selectedIndexes.length} selected"
+                : "Accounts"
+        ),
+
+        actions: [
+
+          if (selectionMode)
+            IconButton(
+              icon: Icon(Icons.delete),
+              onPressed: deleteSelected,
+            )
+
+        ],
+      ),
+
       floatingActionButton: FloatingActionButton(
         child: Icon(Icons.add),
-        onPressed: showAddCategoryDialog,
+        onPressed: () => showAddAccountDialog(),
       ),
 
       body: ListView(
         children: [
 
           ExpansionTile(
-            title: Text("Expense"),
+            title: Text("Expense Accounts"),
             initiallyExpanded: true,
-            children: expenseCategories.map((cat) {
+            children: expenseAccounts.map((acc) {
+
+              int index = DataStore.accounts.indexOf(acc);
 
               return ListTile(
-                leading: Icon(Icons.category),
-                title: Text(cat["name"]!),
+
+                leading: selectionMode
+                    ? Checkbox(
+                        value: selectedIndexes.contains(index),
+                        onChanged: (v) {
+
+                          setState(() {
+
+                            if (v == true)
+                              selectedIndexes.add(index);
+                            else
+                              selectedIndexes.remove(index);
+
+                          });
+
+                        },
+                      )
+                    : Icon(Icons.account_balance_wallet),
+
+                title: Text(acc["name"]!),
+
+                onLongPress: () {
+
+                  setState(() {
+
+                    selectionMode = true;
+                    selectedIndexes.add(index);
+
+                  });
+
+                },
+
+                onTap: () {
+
+                  if (selectionMode) {
+
+                    setState(() {
+
+                      if (selectedIndexes.contains(index))
+                        selectedIndexes.remove(index);
+                      else
+                        selectedIndexes.add(index);
+
+                    });
+
+                  } else {
+
+                    showAddAccountDialog(account: acc);
+
+                  }
+
+                },
+
               );
 
             }).toList(),
           ),
 
           ExpansionTile(
-            title: Text("Income"),
+            title: Text("Income Accounts"),
             initiallyExpanded: true,
-            children: incomeCategories.map((cat) {
+            children: incomeAccounts.map((acc) {
+
+              int index = DataStore.accounts.indexOf(acc);
 
               return ListTile(
-                leading: Icon(Icons.category),
-                title: Text(cat["name"]!),
+
+                leading: selectionMode
+                    ? Checkbox(
+                        value: selectedIndexes.contains(index),
+                        onChanged: (v) {
+
+                          setState(() {
+
+                            if (v == true)
+                              selectedIndexes.add(index);
+                            else
+                              selectedIndexes.remove(index);
+
+                          });
+
+                        },
+                      )
+                    : Icon(Icons.account_balance_wallet),
+
+                title: Text(acc["name"]!),
+
+                onLongPress: () {
+
+                  setState(() {
+
+                    selectionMode = true;
+                    selectedIndexes.add(index);
+
+                  });
+
+                },
+
+                onTap: () {
+
+                  if (selectionMode) {
+
+                    setState(() {
+
+                      if (selectedIndexes.contains(index))
+                        selectedIndexes.remove(index);
+                      else
+                        selectedIndexes.add(index);
+
+                    });
+
+                  } else {
+
+                    showAddAccountDialog(account: acc);
+
+                  }
+
+                },
+
               );
 
             }).toList(),
