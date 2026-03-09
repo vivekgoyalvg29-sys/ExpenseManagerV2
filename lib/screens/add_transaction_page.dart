@@ -11,9 +11,6 @@ class AddTransactionPage extends StatefulWidget {
   @override
   _AddTransactionPageState createState() => _AddTransactionPageState();
 }
-  @override
-  _AddTransactionPageState createState() => _AddTransactionPageState();
-}
 
 class _AddTransactionPageState extends State<AddTransactionPage> {
 
@@ -25,6 +22,27 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   String transactionType = "expense";
   String? selectedAccount;
   String? selectedCategory;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.existingTransaction != null) {
+
+      commentController.text =
+          widget.existingTransaction!["title"] ?? "";
+
+      amountController.text =
+          widget.existingTransaction!["amount"].toString();
+
+      selectedDate =
+          DateTime.parse(widget.existingTransaction!["date"]);
+
+      selectedCategory =
+          widget.existingTransaction!["title"];
+
+    }
+  }
 
   Future<void> pickDate() async {
 
@@ -52,7 +70,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Add Transaction"),
+        title: Text(widget.existingTransaction == null
+            ? "Add Transaction"
+            : "Edit Transaction"),
       ),
 
       body: Padding(
