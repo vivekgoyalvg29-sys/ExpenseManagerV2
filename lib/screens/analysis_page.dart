@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../widgets/month_header.dart';
 import '../services/database_service.dart';
 
@@ -12,6 +13,16 @@ class _AnalysisPageState extends State<AnalysisPage> {
   DateTime currentMonth = DateTime.now();
 
   List<Map<String, dynamic>> analysisData = [];
+
+  final List<Color> pieColors = [
+    Colors.blue,
+    Colors.red,
+    Colors.green,
+    Colors.orange,
+    Colors.purple,
+    Colors.teal,
+    Colors.brown,
+  ];
 
   @override
   void initState() {
@@ -27,7 +38,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     Map<String, double> categorySpent = {};
     Map<String, double> categoryBudget = {};
 
-    // Calculate spent per category for selected month
+    // Calculate spending
     for (var t in transactions) {
 
       DateTime date = DateTime.parse(t["date"]);
@@ -43,7 +54,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       }
     }
 
-    // Load budgets for selected month
+    // Load budgets
     for (var b in budgets) {
 
       if (b["month"] == currentMonth.month &&
@@ -72,6 +83,48 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   }
 
+  Widget buildPieChart() {
+
+    double totalSpent = analysisData.fold(
+        0, (sum, item) => sum + item["spent"]);
+
+    if (totalSpent == 0) {
+      return Padding(
+        padding: const EdgeInsets.all(20),
+        child: Text("No spending this month"),
+      );
+    }
+
+    return SizedBox(
+      height: 220,
+      child: PieChart(
+        PieChartData(
+          sections: analysisData.asMap().entries.map((entry) {
+
+            int index = entry.key;
+            var data = entry.value;
+
+            double value = data["spent"];
+            double percent = (value / totalSpent) * 100;
+
+            return PieChartSectionData(
+              color: pieColors[index % pieColors.length],
+              value: value,
+              title: "${percent.toStringAsFixed(0)}%",
+              radius: 80,
+              titleStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            );
+
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
 
@@ -97,6 +150,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
               loadAnalysis();
             },
           ),
+
+          const SizedBox(height: 10),
+
+          buildPieChart(),
+
+          const SizedBox(height: 10),
 
           Expanded(
             child: analysisData.isEmpty
@@ -129,7 +188,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
                                 Text(
                                   data["category"],
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -137,7 +196,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
                                 Text(
                                   "₹${spent.toStringAsFixed(0)} / ₹${budget.toStringAsFixed(0)}",
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
