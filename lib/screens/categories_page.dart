@@ -23,11 +23,15 @@ class _CategoriesPageState extends State<CategoriesPage> {
     final data = await DatabaseService.getCategories();
 
     setState(() {
-      DataStore.categories = data.map((c) => {
-        "id": c["id"],
-        "name": c["name"].toString(),
-        "type": c["type"].toString(),
+
+      DataStore.categories = data.map<Map<String, dynamic>>((c) {
+        return {
+          "id": c["id"],
+          "name": c["name"].toString(),
+          "type": c["type"].toString(),
+        };
       }).toList();
+
     });
   }
 
@@ -58,14 +62,18 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 onChanged: (value) {
                   selectedType = value!;
                 },
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: "Transaction Type",
                 ),
               ),
 
+              const SizedBox(height: 10),
+
               TextField(
                 controller: controller,
-                decoration: InputDecoration(labelText: "Category Name"),
+                decoration: const InputDecoration(
+                  labelText: "Category Name",
+                ),
               ),
 
             ],
@@ -75,7 +83,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text("Cancel"),
+              child: const Text("Cancel"),
             ),
 
             TextButton(
@@ -98,7 +106,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 Navigator.pop(context);
                 loadCategories();
               },
-              child: Text("Save"),
+              child: const Text("Save"),
             ),
 
           ],
@@ -145,7 +153,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
           if (selectionMode)
             IconButton(
-              icon: Icon(Icons.delete),
+              icon: const Icon(Icons.delete),
               onPressed: deleteSelected,
             )
 
@@ -153,7 +161,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
       ),
 
       floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
         onPressed: () => showAddCategoryDialog(),
       ),
 
@@ -161,7 +169,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
         children: [
 
           ExpansionTile(
-            title: Text("Expense Categories"),
+            title: const Text("Expense Categories"),
             initiallyExpanded: true,
             children: expenseCategories.map((cat) {
 
@@ -185,9 +193,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
                         },
                       )
-                    : Icon(Icons.category),
+                    : const Icon(Icons.category),
 
-                title: Text(cat["name"]!),
+                title: Text(cat["name"]),
 
                 onLongPress: () {
 
@@ -227,7 +235,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
           ),
 
           ExpansionTile(
-            title: Text("Income Categories"),
+            title: const Text("Income Categories"),
             initiallyExpanded: true,
             children: incomeCategories.map((cat) {
 
@@ -251,9 +259,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
                         },
                       )
-                    : Icon(Icons.category),
+                    : const Icon(Icons.category),
 
-                title: Text(cat["name"]!),
+                title: Text(cat["name"]),
 
                 onLongPress: () {
 
