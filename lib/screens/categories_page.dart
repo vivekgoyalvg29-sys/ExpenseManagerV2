@@ -195,7 +195,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                       )
                     : const Icon(Icons.category),
 
-                title: Text(cat["name"]),
+                title: Text(cat["name"] ?? ""),
 
                 onLongPress: () {
 
