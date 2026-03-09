@@ -34,6 +34,19 @@ class _RecordsPageState extends State<RecordsPage> {
 
   }
 
+  List<Map<String, dynamic>> get filteredTransactions {
+
+    return transactions.where((tx) {
+
+      DateTime date = DateTime.parse(tx["date"]);
+
+      return date.month == currentMonth.month &&
+          date.year == currentMonth.year;
+
+    }).toList();
+
+  }
+
   void deleteSelected() async {
 
     final idsToDelete = selectedIndexes
@@ -50,19 +63,6 @@ class _RecordsPageState extends State<RecordsPage> {
     loadTransactions();
   }
 
-  List<Map<String, dynamic>> get filteredTransactions {
-
-    return transactions.where((tx) {
-
-      DateTime date = DateTime.parse(tx["date"]);
-
-      return date.month == currentMonth.month &&
-          date.year == currentMonth.year;
-
-    }).toList();
-
-  }
-
   @override
   Widget build(BuildContext context) {
 
@@ -73,10 +73,11 @@ class _RecordsPageState extends State<RecordsPage> {
 
       double amount = (tx["amount"] as num).toDouble();
 
-      if (amount >= 0)
+      if (tx["type"] == "income") {
         income += amount;
-      else
-        expense += amount.abs();
+      } else {
+        expense += amount;
+      }
 
     }
 
@@ -94,7 +95,7 @@ class _RecordsPageState extends State<RecordsPage> {
 
           if (selectionMode)
             IconButton(
-              icon: Icon(Icons.delete),
+              icon: const Icon(Icons.delete),
               onPressed: deleteSelected,
             )
 
@@ -102,7 +103,7 @@ class _RecordsPageState extends State<RecordsPage> {
       ),
 
       floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
 
         onPressed: () async {
 
@@ -154,13 +155,15 @@ class _RecordsPageState extends State<RecordsPage> {
 
           Expanded(
             child: filteredTransactions.isEmpty
-                ? Center(child: Text("No transactions"))
+                ? const Center(child: Text("No transactions"))
                 : ListView.builder(
                     itemCount: filteredTransactions.length,
                     itemBuilder: (context, index) {
 
                       final tx = filteredTransactions[index];
                       DateTime date = DateTime.parse(tx["date"]);
+
+                      bool isIncome = tx["type"] == "income";
 
                       return ListTile(
 
@@ -181,7 +184,14 @@ class _RecordsPageState extends State<RecordsPage> {
                                 },
                               )
                             : CircleAvatar(
-                                child: Icon(Icons.money),
+                                backgroundColor:
+                                    isIncome ? Colors.green : Colors.red,
+                                child: Icon(
+                                  isIncome
+                                      ? Icons.arrow_downward
+                                      : Icons.arrow_upward,
+                                  color: Colors.white,
+                                ),
                               ),
 
                         title: Text(tx["title"]),
@@ -192,8 +202,9 @@ class _RecordsPageState extends State<RecordsPage> {
 
                         trailing: Text(
                           "₹${tx["amount"]}",
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
+                            color: isIncome ? Colors.green : Colors.red,
                           ),
                         ),
 
