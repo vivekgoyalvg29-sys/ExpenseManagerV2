@@ -21,11 +21,10 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
     setState(() {
       DataStore.categories = data.map((c) => {
-  "name": c["name"].toString(),
-  "type": c["type"].toString(),
-}).toList();
+        "name": c["name"].toString(),
+        "type": c["type"].toString(),
+      }).toList();
     });
-
   }
 
   void showAddCategoryDialog() {
@@ -47,28 +46,18 @@ class _CategoriesPageState extends State<CategoriesPage> {
               DropdownButtonFormField<String>(
                 value: selectedType,
                 items: const [
-                  DropdownMenuItem(
-                      value: "expense",
-                      child: Text("Expense")),
-                  DropdownMenuItem(
-                      value: "income",
-                      child: Text("Income")),
+                  DropdownMenuItem(value: "expense", child: Text("Expense")),
+                  DropdownMenuItem(value: "income", child: Text("Income")),
                 ],
-                onChanged: (value) {
-                  selectedType = value!;
+                onChanged: (v) {
+                  selectedType = v!;
                 },
-                decoration: InputDecoration(
-                  labelText: "Transaction Type",
-                ),
+                decoration: InputDecoration(labelText: "Transaction Type"),
               ),
-
-              const SizedBox(height: 10),
 
               TextField(
                 controller: controller,
-                decoration: InputDecoration(
-                  labelText: "Category Name",
-                ),
+                decoration: InputDecoration(labelText: "Category Name"),
               ),
 
             ],
@@ -77,9 +66,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
           actions: [
 
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               child: Text("Cancel"),
             ),
 
@@ -96,18 +83,14 @@ class _CategoriesPageState extends State<CategoriesPage> {
                   });
 
                   await DatabaseService.insertCategory(
-                    controller.text,
-                    selectedType,
-                  );
-
+                      controller.text,
+                      selectedType);
                 }
 
                 Navigator.pop(context);
-
               },
               child: Text("Add"),
             ),
-
           ],
         );
       },
@@ -117,6 +100,14 @@ class _CategoriesPageState extends State<CategoriesPage> {
   @override
   Widget build(BuildContext context) {
 
+    final expenseCategories = DataStore.categories
+        .where((c) => c["type"] == "expense")
+        .toList();
+
+    final incomeCategories = DataStore.categories
+        .where((c) => c["type"] == "income")
+        .toList();
+
     return Scaffold(
 
       floatingActionButton: FloatingActionButton(
@@ -124,21 +115,37 @@ class _CategoriesPageState extends State<CategoriesPage> {
         onPressed: showAddCategoryDialog,
       ),
 
-      body: DataStore.categories.isEmpty
-          ? Center(child: Text("No categories yet"))
-          : ListView.builder(
-              itemCount: DataStore.categories.length,
-              itemBuilder: (context, index) {
+      body: ListView(
+        children: [
 
-                final category = DataStore.categories[index];
+          ExpansionTile(
+            title: Text("Expense"),
+            initiallyExpanded: true,
+            children: expenseCategories.map((cat) {
 
-                return ListTile(
-                  leading: Icon(Icons.category),
-                  title: Text(category["name"]!),
-                  subtitle: Text(category["type"]!),
-                );
-              },
-            ),
+              return ListTile(
+                leading: Icon(Icons.category),
+                title: Text(cat["name"]!),
+              );
+
+            }).toList(),
+          ),
+
+          ExpansionTile(
+            title: Text("Income"),
+            initiallyExpanded: true,
+            children: incomeCategories.map((cat) {
+
+              return ListTile(
+                leading: Icon(Icons.category),
+                title: Text(cat["name"]!),
+              );
+
+            }).toList(),
+          ),
+
+        ],
+      ),
     );
   }
 }
