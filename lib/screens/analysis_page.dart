@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/month_header.dart';
-import '../services/data_store.dart';
+import '../services/database_service.dart';
 
 class AnalysisPage extends StatefulWidget {
   @override
@@ -11,37 +11,69 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   DateTime currentMonth = DateTime.now();
 
+  List<Map<String, dynamic>> analysisData = [];
+
   @override
-  Widget build(BuildContext context) {
+  void initState() {
+    super.initState();
+    loadAnalysis();
+  }
 
-    List<Map<String, dynamic>> analysisData = [];
+  Future<void> loadAnalysis() async {
 
-    for (var category in DataStore.categories) {
+    final transactions = await DatabaseService.getTransactions();
+    final budgets = await DatabaseService.getBudgets();
 
-      String name = category["name"]!;
+    Map<String, double> categorySpent = {};
+    Map<String, double> categoryBudget = {};
 
-      double spent = DataStore.transactions
-          .where((t) =>
-              t["title"] == name &&
-              t["date"].month == currentMonth.month &&
-              t["date"].year == currentMonth.year)
-          .fold(0, (sum, t) => sum + t["amount"]);
+    // Calculate spent per category for selected month
+    for (var t in transactions) {
 
-      double budget = DataStore.budgets
-          .where((b) =>
-              b["category"] == name &&
-              b["month"] == currentMonth.month &&
-              b["year"] == currentMonth.year)
-          .fold(0, (sum, b) => sum + b["amount"]);
+      DateTime date = DateTime.parse(t["date"]);
 
-      if (spent > 0 || budget > 0) {
-        analysisData.add({
-          "category": name,
-          "spent": spent,
-          "budget": budget
-        });
+      if (date.month == currentMonth.month &&
+          date.year == currentMonth.year) {
+
+        String category = t["title"];
+        double amount = (t["amount"] as num).toDouble();
+
+        categorySpent[category] =
+            (categorySpent[category] ?? 0) + amount;
       }
     }
+
+    // Load budgets for selected month
+    for (var b in budgets) {
+
+      if (b["month"] == currentMonth.month &&
+          b["year"] == currentMonth.year) {
+
+        categoryBudget[b["category"]] =
+            (b["amount"] as num).toDouble();
+      }
+    }
+
+    List<Map<String, dynamic>> result = [];
+
+    for (var category in categoryBudget.keys) {
+
+      result.add({
+        "category": category,
+        "spent": categorySpent[category] ?? 0,
+        "budget": categoryBudget[category] ?? 0
+      });
+
+    }
+
+    setState(() {
+      analysisData = result;
+    });
+
+  }
+
+  @override
+  Widget build(BuildContext context) {
 
     return Scaffold(
 
@@ -55,18 +87,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 currentMonth =
                     DateTime(currentMonth.year, currentMonth.month - 1);
               });
+              loadAnalysis();
             },
             onNext: () {
               setState(() {
                 currentMonth =
                     DateTime(currentMonth.year, currentMonth.month + 1);
               });
+              loadAnalysis();
             },
           ),
 
           Expanded(
             child: analysisData.isEmpty
-                ? Center(child: Text("No data available"))
+                ? Center(child: Text("No analysis data"))
                 : ListView.builder(
                     itemCount: analysisData.length,
                     itemBuilder: (context, index) {
