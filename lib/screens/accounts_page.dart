@@ -2,33 +2,32 @@ import 'package:flutter/material.dart';
 import '../services/data_store.dart';
 import '../services/database_service.dart';
 
-class AccountsPage extends StatefulWidget {
+class CategoriesPage extends StatefulWidget {
   @override
-  _AccountsPageState createState() => _AccountsPageState();
+  _CategoriesPageState createState() => _CategoriesPageState();
 }
 
-class _AccountsPageState extends State<AccountsPage> {
+class _CategoriesPageState extends State<CategoriesPage> {
 
   @override
   void initState() {
     super.initState();
-    loadAccounts();
+    loadCategories();
   }
 
-  Future<void> loadAccounts() async {
+  Future<void> loadCategories() async {
 
-    final data = await DatabaseService.getAccounts();
+    final data = await DatabaseService.getCategories();
 
     setState(() {
-      DataStore.accounts = data.map((a) => {
-  "name": a["name"].toString(),
-  "type": a["type"].toString(),
-}).toList();
+      DataStore.categories = data.map((c) => {
+        "name": c["name"].toString(),
+        "type": c["type"].toString(),
+      }).toList();
     });
-
   }
 
-  void showAddAccountDialog() {
+  void showAddCategoryDialog() {
 
     TextEditingController controller = TextEditingController();
     String selectedType = "expense";
@@ -38,7 +37,7 @@ class _AccountsPageState extends State<AccountsPage> {
       builder: (context) {
 
         return AlertDialog(
-          title: Text("Create Account"),
+          title: Text("Create Category"),
 
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -47,28 +46,18 @@ class _AccountsPageState extends State<AccountsPage> {
               DropdownButtonFormField<String>(
                 value: selectedType,
                 items: const [
-                  DropdownMenuItem(
-                      value: "expense",
-                      child: Text("Expense")),
-                  DropdownMenuItem(
-                      value: "income",
-                      child: Text("Income")),
+                  DropdownMenuItem(value: "expense", child: Text("Expense")),
+                  DropdownMenuItem(value: "income", child: Text("Income")),
                 ],
-                onChanged: (value) {
-                  selectedType = value!;
+                onChanged: (v) {
+                  selectedType = v!;
                 },
-                decoration: InputDecoration(
-                  labelText: "Transaction Type",
-                ),
+                decoration: InputDecoration(labelText: "Transaction Type"),
               ),
-
-              const SizedBox(height: 10),
 
               TextField(
                 controller: controller,
-                decoration: InputDecoration(
-                  labelText: "Account Name",
-                ),
+                decoration: InputDecoration(labelText: "Category Name"),
               ),
 
             ],
@@ -77,9 +66,7 @@ class _AccountsPageState extends State<AccountsPage> {
           actions: [
 
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               child: Text("Cancel"),
             ),
 
@@ -89,25 +76,21 @@ class _AccountsPageState extends State<AccountsPage> {
                 if (controller.text.isNotEmpty) {
 
                   setState(() {
-                    DataStore.accounts.add({
+                    DataStore.categories.add({
                       "name": controller.text,
                       "type": selectedType
                     });
                   });
 
-                  await DatabaseService.insertAccount(
-                    controller.text,
-                    selectedType,
-                  );
-
+                  await DatabaseService.insertCategory(
+                      controller.text,
+                      selectedType);
                 }
 
                 Navigator.pop(context);
-
               },
               child: Text("Add"),
             ),
-
           ],
         );
       },
@@ -117,28 +100,52 @@ class _AccountsPageState extends State<AccountsPage> {
   @override
   Widget build(BuildContext context) {
 
+    final expenseCategories = DataStore.categories
+        .where((c) => c["type"] == "expense")
+        .toList();
+
+    final incomeCategories = DataStore.categories
+        .where((c) => c["type"] == "income")
+        .toList();
+
     return Scaffold(
 
       floatingActionButton: FloatingActionButton(
         child: Icon(Icons.add),
-        onPressed: showAddAccountDialog,
+        onPressed: showAddCategoryDialog,
       ),
 
-      body: DataStore.accounts.isEmpty
-          ? Center(child: Text("No accounts yet"))
-          : ListView.builder(
-              itemCount: DataStore.accounts.length,
-              itemBuilder: (context, index) {
+      body: ListView(
+        children: [
 
-                final account = DataStore.accounts[index];
+          ExpansionTile(
+            title: Text("Expense"),
+            initiallyExpanded: true,
+            children: expenseCategories.map((cat) {
 
-                return ListTile(
-                  leading: Icon(Icons.account_balance_wallet),
-                  title: Text(account["name"]!),
-                  subtitle: Text(account["type"]!),
-                );
-              },
-            ),
+              return ListTile(
+                leading: Icon(Icons.category),
+                title: Text(cat["name"]!),
+              );
+
+            }).toList(),
+          ),
+
+          ExpansionTile(
+            title: Text("Income"),
+            initiallyExpanded: true,
+            children: incomeCategories.map((cat) {
+
+              return ListTile(
+                leading: Icon(Icons.category),
+                title: Text(cat["name"]!),
+              );
+
+            }).toList(),
+          ),
+
+        ],
+      ),
     );
   }
 }
