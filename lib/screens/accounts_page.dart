@@ -195,7 +195,7 @@ class _AccountsPageState extends State<AccountsPage> {
                       )
                     : const Icon(Icons.account_balance_wallet),
 
-                title: Text(acc["name"]),
+                title: Text(acc["name"] ?? ""),
 
                 onLongPress: () {
 
