@@ -12,6 +12,11 @@ class _BudgetsPageState extends State<BudgetsPage> {
 
   DateTime currentMonth = DateTime.now();
 
+  List<Map<String, dynamic>> budgets = [];
+
+  Set<int> selectedIndexes = {};
+  bool selectionMode = false;
+
   @override
   void initState() {
     super.initState();
@@ -23,36 +28,32 @@ class _BudgetsPageState extends State<BudgetsPage> {
     final data = await DatabaseService.getBudgets();
 
     setState(() {
-      DataStore.budgets = data.map((b) => {
-        "category": b["category"],
-        "amount": b["amount"],
-        "month": b["month"],
-        "year": b["year"]
-      }).toList();
+      budgets = data;
     });
-
   }
 
-  void showAddBudgetDialog() {
+  void showAddBudgetDialog({Map<String, dynamic>? budget}) {
 
-    String? selectedCategory;
-    TextEditingController amountController = TextEditingController();
+    String? selectedCategory = budget?["category"];
+    TextEditingController amountController =
+        TextEditingController(text: budget?["amount"]?.toString());
 
     showDialog(
       context: context,
       builder: (context) {
 
         return AlertDialog(
-          title: Text("Create Budget"),
+          title: Text(budget == null ? "Create Budget" : "Edit Budget"),
 
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
 
               DropdownButtonFormField<String>(
+                value: selectedCategory,
                 items: DataStore.categories
                     .where((cat) => cat["type"] == "expense")
-                    .map((cat) => DropdownMenuItem(
+                    .map((cat) => DropdownMenuItem<String>(
                         value: cat["name"],
                         child: Text(cat["name"]!)))
                     .toList(),
@@ -76,9 +77,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
           actions: [
 
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               child: Text("Cancel"),
             ),
 
@@ -86,32 +85,33 @@ class _BudgetsPageState extends State<BudgetsPage> {
               onPressed: () async {
 
                 if (selectedCategory == null ||
-                    amountController.text.isEmpty) {
-                  return;
-                }
+                    amountController.text.isEmpty) return;
 
                 double amount = double.parse(amountController.text);
 
-                setState(() {
+                if (budget == null) {
 
-                  DataStore.budgets.add({
-                    "category": selectedCategory,
-                    "amount": amount,
-                    "month": currentMonth.month,
-                    "year": currentMonth.year
-                  });
+                  await DatabaseService.insertBudget(
+                    selectedCategory!,
+                    amount,
+                    currentMonth.month,
+                    currentMonth.year,
+                  );
 
-                });
+                } else {
 
-                await DatabaseService.insertBudget(
-                  selectedCategory!,
-                  amount,
-                  currentMonth.month,
-                  currentMonth.year,
-                );
+                  await DatabaseService.updateBudget(
+                    budget["id"],
+                    selectedCategory!,
+                    amount,
+                    currentMonth.month,
+                    currentMonth.year,
+                  );
+
+                }
 
                 Navigator.pop(context);
-
+                loadBudgets();
               },
               child: Text("Save"),
             ),
@@ -122,23 +122,61 @@ class _BudgetsPageState extends State<BudgetsPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  void deleteSelected() async {
 
-    final filteredBudgets = DataStore.budgets.where((b) =>
+    for (var index in selectedIndexes) {
+
+      final id = filteredBudgets[index]["id"];
+
+      await DatabaseService.deleteBudget(id);
+    }
+
+    selectedIndexes.clear();
+    selectionMode = false;
+
+    loadBudgets();
+  }
+
+  List<Map<String, dynamic>> get filteredBudgets {
+
+    return budgets.where((b) =>
         b["month"] == currentMonth.month &&
         b["year"] == currentMonth.year).toList();
 
+  }
+
+  @override
+  Widget build(BuildContext context) {
+
     double totalBudget = filteredBudgets.fold(
       0,
-      (sum, b) => sum + b["amount"],
+      (sum, b) => sum + (b["amount"] as num).toDouble(),
     );
 
     return Scaffold(
 
+      appBar: AppBar(
+
+        title: Text(
+            selectionMode
+                ? "${selectedIndexes.length} selected"
+                : "Budgets"
+        ),
+
+        actions: [
+
+          if (selectionMode)
+            IconButton(
+              icon: Icon(Icons.delete),
+              onPressed: deleteSelected,
+            )
+
+        ],
+      ),
+
       floatingActionButton: FloatingActionButton(
         child: Icon(Icons.add),
-        onPressed: showAddBudgetDialog,
+        onPressed: () => showAddBudgetDialog(),
       ),
 
       body: Column(
@@ -197,14 +235,64 @@ class _BudgetsPageState extends State<BudgetsPage> {
                       final budget = filteredBudgets[index];
 
                       return ListTile(
-                        leading: Icon(Icons.account_balance),
+
+                        leading: selectionMode
+                            ? Checkbox(
+                                value: selectedIndexes.contains(index),
+                                onChanged: (v) {
+
+                                  setState(() {
+
+                                    if (v == true)
+                                      selectedIndexes.add(index);
+                                    else
+                                      selectedIndexes.remove(index);
+
+                                  });
+
+                                },
+                              )
+                            : Icon(Icons.account_balance),
+
                         title: Text(budget["category"]),
+
                         trailing: Text(
                           "₹${budget["amount"]}",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
+
+                        onLongPress: () {
+
+                          setState(() {
+
+                            selectionMode = true;
+                            selectedIndexes.add(index);
+
+                          });
+
+                        },
+
+                        onTap: () {
+
+                          if (selectionMode) {
+
+                            setState(() {
+
+                              if (selectedIndexes.contains(index))
+                                selectedIndexes.remove(index);
+                              else
+                                selectedIndexes.add(index);
+
+                            });
+
+                          } else {
+
+                            showAddBudgetDialog(budget: budget);
+
+                          }
+
+                        },
+
                       );
                     },
                   ),
