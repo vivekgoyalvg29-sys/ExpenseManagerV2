@@ -119,7 +119,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
     for (var index in selectedIndexes) {
 
-      final id = DataStore.categories[index]["id"];
+      final id = DataStore.categories[index]["id"] as int;
 
       await DatabaseService.deleteCategory(id);
     }
