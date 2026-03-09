@@ -9,6 +9,9 @@ class CategoriesPage extends StatefulWidget {
 
 class _CategoriesPageState extends State<CategoriesPage> {
 
+  Set<int> selectedIndexes = {};
+  bool selectionMode = false;
+
   @override
   void initState() {
     super.initState();
@@ -21,23 +24,26 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
     setState(() {
       DataStore.categories = data.map((c) => {
+        "id": c["id"],
         "name": c["name"].toString(),
         "type": c["type"].toString(),
       }).toList();
     });
   }
 
-  void showAddCategoryDialog() {
+  void showAddCategoryDialog({Map<String, dynamic>? category}) {
 
-    TextEditingController controller = TextEditingController();
-    String selectedType = "expense";
+    TextEditingController controller =
+        TextEditingController(text: category?["name"]);
+
+    String selectedType = category?["type"] ?? "expense";
 
     showDialog(
       context: context,
       builder: (context) {
 
         return AlertDialog(
-          title: Text("Create Category"),
+          title: Text(category == null ? "Create Category" : "Edit Category"),
 
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -57,13 +63,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 ),
               ),
 
-              const SizedBox(height: 10),
-
               TextField(
                 controller: controller,
-                decoration: InputDecoration(
-                  labelText: "Category Name",
-                ),
+                decoration: InputDecoration(labelText: "Category Name"),
               ),
 
             ],
@@ -72,38 +74,52 @@ class _CategoriesPageState extends State<CategoriesPage> {
           actions: [
 
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               child: Text("Cancel"),
             ),
 
             TextButton(
               onPressed: () async {
 
-                if (controller.text.isNotEmpty) {
+                if (controller.text.isEmpty) return;
 
-                  setState(() {
-                    DataStore.categories.add({
-                      "name": controller.text,
-                      "type": selectedType
-                    });
-                  });
+                if (category == null) {
 
                   await DatabaseService.insertCategory(
-                      controller.text,
-                      selectedType);
+                      controller.text, selectedType);
+
+                } else {
+
+                  await DatabaseService.updateCategory(
+                      category["id"], controller.text, selectedType);
+
                 }
 
                 Navigator.pop(context);
+                loadCategories();
               },
-              child: Text("Add"),
+              child: Text("Save"),
             ),
 
           ],
         );
       },
     );
+  }
+
+  void deleteSelected() async {
+
+    for (var index in selectedIndexes) {
+
+      final id = DataStore.categories[index]["id"];
+
+      await DatabaseService.deleteCategory(id);
+    }
+
+    selectedIndexes.clear();
+    selectionMode = false;
+
+    loadCategories();
   }
 
   @override
@@ -117,9 +133,28 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
     return Scaffold(
 
+      appBar: AppBar(
+
+        title: Text(
+            selectionMode
+                ? "${selectedIndexes.length} selected"
+                : "Categories"
+        ),
+
+        actions: [
+
+          if (selectionMode)
+            IconButton(
+              icon: Icon(Icons.delete),
+              onPressed: deleteSelected,
+            )
+
+        ],
+      ),
+
       floatingActionButton: FloatingActionButton(
         child: Icon(Icons.add),
-        onPressed: showAddCategoryDialog,
+        onPressed: () => showAddCategoryDialog(),
       ),
 
       body: ListView(
@@ -130,9 +165,62 @@ class _CategoriesPageState extends State<CategoriesPage> {
             initiallyExpanded: true,
             children: expenseCategories.map((cat) {
 
+              int index = DataStore.categories.indexOf(cat);
+
               return ListTile(
-                leading: Icon(Icons.category),
+
+                leading: selectionMode
+                    ? Checkbox(
+                        value: selectedIndexes.contains(index),
+                        onChanged: (v) {
+
+                          setState(() {
+
+                            if (v == true)
+                              selectedIndexes.add(index);
+                            else
+                              selectedIndexes.remove(index);
+
+                          });
+
+                        },
+                      )
+                    : Icon(Icons.category),
+
                 title: Text(cat["name"]!),
+
+                onLongPress: () {
+
+                  setState(() {
+
+                    selectionMode = true;
+                    selectedIndexes.add(index);
+
+                  });
+
+                },
+
+                onTap: () {
+
+                  if (selectionMode) {
+
+                    setState(() {
+
+                      if (selectedIndexes.contains(index))
+                        selectedIndexes.remove(index);
+                      else
+                        selectedIndexes.add(index);
+
+                    });
+
+                  } else {
+
+                    showAddCategoryDialog(category: cat);
+
+                  }
+
+                },
+
               );
 
             }).toList(),
@@ -143,9 +231,62 @@ class _CategoriesPageState extends State<CategoriesPage> {
             initiallyExpanded: true,
             children: incomeCategories.map((cat) {
 
+              int index = DataStore.categories.indexOf(cat);
+
               return ListTile(
-                leading: Icon(Icons.category),
+
+                leading: selectionMode
+                    ? Checkbox(
+                        value: selectedIndexes.contains(index),
+                        onChanged: (v) {
+
+                          setState(() {
+
+                            if (v == true)
+                              selectedIndexes.add(index);
+                            else
+                              selectedIndexes.remove(index);
+
+                          });
+
+                        },
+                      )
+                    : Icon(Icons.category),
+
                 title: Text(cat["name"]!),
+
+                onLongPress: () {
+
+                  setState(() {
+
+                    selectionMode = true;
+                    selectedIndexes.add(index);
+
+                  });
+
+                },
+
+                onTap: () {
+
+                  if (selectionMode) {
+
+                    setState(() {
+
+                      if (selectedIndexes.contains(index))
+                        selectedIndexes.remove(index);
+                      else
+                        selectedIndexes.add(index);
+
+                    });
+
+                  } else {
+
+                    showAddCategoryDialog(category: cat);
+
+                  }
+
+                },
+
               );
 
             }).toList(),
