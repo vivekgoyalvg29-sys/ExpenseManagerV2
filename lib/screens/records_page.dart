@@ -262,22 +262,46 @@ class _RecordsPageState extends State<RecordsPage> {
 
                         },
 
-                        onTap: () {
+                        onTap: () async {
 
-                          if (selectionMode) {
+  if (selectionMode) {
 
-                            setState(() {
+    setState(() {
 
-                              if (selectedIndexes.contains(index))
-                                selectedIndexes.remove(index);
-                              else
-                                selectedIndexes.add(index);
+      if (selectedIndexes.contains(index))
+        selectedIndexes.remove(index);
+      else
+        selectedIndexes.add(index);
 
-                            });
+    });
 
-                          }
+  } else {
 
-                        },
+    final tx = filteredTransactions[index];
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddTransactionPage(
+          existingTransaction: tx,
+        ),
+      ),
+    );
+
+    if (result != null) {
+
+      await DatabaseService.updateTransaction(
+        tx["id"],
+        result["title"],
+        result["amount"],
+        result["date"],
+      );
+
+      loadTransactions();
+    }
+  }
+
+},
 
                       );
                     },
