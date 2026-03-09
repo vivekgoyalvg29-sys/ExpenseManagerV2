@@ -175,7 +175,8 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                   Navigator.pop(context, {
                     "title": selectedCategory,
                     "amount": amount,
-                    "date": selectedDate
+                    "date": selectedDate,
+                    "type": transactionType
                   });
 
                 },
