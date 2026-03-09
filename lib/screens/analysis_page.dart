@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../widgets/month_header.dart';
 import '../widgets/month_summary.dart';
 import '../services/database_service.dart';
@@ -31,7 +32,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     Map<String, double> spent = {};
     Map<String, double> budget = {};
 
-    // Calculate category spending (ONLY expenses)
     for (var t in tx) {
 
       DateTime date = DateTime.parse(t["date"]);
@@ -47,7 +47,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
       }
     }
 
-    // Load budgets
     for (var b in budgets) {
 
       if (b["month"] == currentMonth.month &&
@@ -74,6 +73,37 @@ class _AnalysisPageState extends State<AnalysisPage> {
       analysisData = result;
     });
 
+  }
+
+  List<PieChartSectionData> buildPieSections() {
+
+    final colors = [
+      Colors.blue,
+      Colors.orange,
+      Colors.green,
+      Colors.purple,
+      Colors.red,
+      Colors.teal,
+      Colors.amber
+    ];
+
+    int i = 0;
+
+    return analysisData
+        .where((d) => d["spent"] > 0)
+        .map((data) {
+
+      final color = colors[i % colors.length];
+      i++;
+
+      return PieChartSectionData(
+        color: color,
+        value: data["spent"],
+        title: "",
+        radius: 70,
+      );
+
+    }).toList();
   }
 
   @override
@@ -126,6 +156,21 @@ class _AnalysisPageState extends State<AnalysisPage> {
           MonthSummary(
             income: income,
             expense: expense,
+          ),
+
+          if (analysisData.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: SizedBox(
+              height: 200,
+              child: PieChart(
+                PieChartData(
+                  sections: buildPieSections(),
+                  centerSpaceRadius: 40,
+                  sectionsSpace: 2,
+                ),
+              ),
+            ),
           ),
 
           Expanded(
