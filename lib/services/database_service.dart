@@ -65,10 +65,11 @@ class DatabaseService {
   // ---------------- TRANSACTIONS ----------------
 
   static Future<void> insertTransaction(
-      String title,
-      double amount,
-      DateTime date,
-      ) async {
+  String title,
+  double amount,
+  DateTime date,
+  String type,
+) async {
 
     final db = await database;
 
@@ -78,6 +79,7 @@ class DatabaseService {
         "title": title,
         "amount": amount,
         "date": date.toIso8601String(),
+        "type": type,
       },
     );
   }
