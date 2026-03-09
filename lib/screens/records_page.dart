@@ -119,6 +119,7 @@ class _RecordsPageState extends State<RecordsPage> {
               result["title"],
               result["amount"],
               result["date"],
+              result["type"],
             );
 
             loadTransactions();
