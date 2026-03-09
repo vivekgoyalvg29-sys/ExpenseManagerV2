@@ -119,7 +119,7 @@ class _AccountsPageState extends State<AccountsPage> {
 
     for (var index in selectedIndexes) {
 
-      final id = DataStore.accounts[index]["id"];
+      final id = DataStore.accounts[index]["id"] as int;
 
       await DatabaseService.deleteAccount(id);
     }
