@@ -29,7 +29,8 @@ class DatabaseService {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           title TEXT,
           amount REAL,
-          date TEXT
+          date TEXT,
+          type TEXT
         )
         ''');
 
