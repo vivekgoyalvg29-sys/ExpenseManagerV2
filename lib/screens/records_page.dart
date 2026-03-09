@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/month_header.dart';
 import 'add_transaction_page.dart';
+import '../services/data_store.dart';
 import '../services/database_service.dart';
 
 class Transaction {
@@ -24,7 +25,10 @@ class _RecordsPageState extends State<RecordsPage> {
 
   DateTime currentMonth = DateTime.now();
 
-  List<Transaction> transactions = [];
+  List<Map<String, dynamic>> transactions = [];
+
+  Set<int> selectedIndexes = {};
+  bool selectionMode = false;
 
   @override
   void initState() {
@@ -37,13 +41,25 @@ class _RecordsPageState extends State<RecordsPage> {
     final data = await DatabaseService.getTransactions();
 
     setState(() {
-      transactions = data.map((t) => Transaction(
-        title: t["title"].toString(),
-        amount: (t["amount"] as num).toDouble(),
-        date: DateTime.parse(t["date"]),
-      )).toList();
+      transactions = data;
     });
 
+  }
+
+  void deleteSelected() async {
+
+    final idsToDelete = selectedIndexes
+        .map((i) => transactions[i]["id"])
+        .toList();
+
+    for (var id in idsToDelete) {
+      await DatabaseService.deleteTransaction(id);
+    }
+
+    selectedIndexes.clear();
+    selectionMode = false;
+
+    await loadTransactions();
   }
 
   void confirmDelete(int index) {
@@ -65,11 +81,11 @@ class _RecordsPageState extends State<RecordsPage> {
           TextButton(
             onPressed: () async {
 
-              // simple refresh for now
-              transactions.removeAt(index);
-              setState(() {});
+              await DatabaseService.deleteTransaction(
+                  transactions[index]["id"]);
 
               Navigator.pop(context);
+              loadTransactions();
 
             },
             child: Text("Delete"),
@@ -82,19 +98,44 @@ class _RecordsPageState extends State<RecordsPage> {
   @override
   Widget build(BuildContext context) {
 
-    final filteredTransactions = transactions.where((tx) =>
-        tx.date.month == currentMonth.month &&
-        tx.date.year == currentMonth.year).toList();
+    final filteredTransactions = transactions.where((tx) {
+
+      DateTime date = DateTime.parse(tx["date"]);
+
+      return date.month == currentMonth.month &&
+          date.year == currentMonth.year;
+
+    }).toList();
 
     double totalSpent = filteredTransactions.fold(
       0,
-      (sum, tx) => sum + tx.amount,
+      (sum, tx) => sum + (tx["amount"] as num).toDouble(),
     );
 
     return Scaffold(
 
+      appBar: AppBar(
+
+        title: Text(
+            selectionMode
+                ? "${selectedIndexes.length} selected"
+                : "MyExp"
+        ),
+
+        actions: [
+
+          if (selectionMode)
+            IconButton(
+              icon: Icon(Icons.delete),
+              onPressed: deleteSelected,
+            )
+
+        ],
+      ),
+
       floatingActionButton: FloatingActionButton(
         child: Icon(Icons.add),
+
         onPressed: () async {
 
           final result = await Navigator.push(
@@ -112,8 +153,7 @@ class _RecordsPageState extends State<RecordsPage> {
               result["date"],
             );
 
-            await loadTransactions();
-
+            loadTransactions();
           }
 
         },
@@ -173,21 +213,38 @@ class _RecordsPageState extends State<RecordsPage> {
                     itemBuilder: (context, index) {
 
                       final tx = filteredTransactions[index];
+                      DateTime date = DateTime.parse(tx["date"]);
 
                       return ListTile(
 
-                        leading: CircleAvatar(
-                          child: Icon(Icons.money_off),
-                        ),
+                        leading: selectionMode
+                            ? Checkbox(
+                                value: selectedIndexes.contains(index),
+                                onChanged: (v) {
 
-                        title: Text(tx.title),
+                                  setState(() {
+
+                                    if (v == true)
+                                      selectedIndexes.add(index);
+                                    else
+                                      selectedIndexes.remove(index);
+
+                                  });
+
+                                },
+                              )
+                            : CircleAvatar(
+                                child: Icon(Icons.money_off),
+                              ),
+
+                        title: Text(tx["title"]),
 
                         subtitle: Text(
-                          "${tx.date.day}/${tx.date.month}/${tx.date.year}"
+                            "${date.day}/${date.month}/${date.year}"
                         ),
 
                         trailing: Text(
-                          "₹${tx.amount}",
+                          "₹${tx["amount"]}",
                           style: TextStyle(
                             color: Colors.red,
                             fontWeight: FontWeight.bold,
@@ -195,8 +252,33 @@ class _RecordsPageState extends State<RecordsPage> {
                         ),
 
                         onLongPress: () {
-                          confirmDelete(index);
+
+                          setState(() {
+
+                            selectionMode = true;
+                            selectedIndexes.add(index);
+
+                          });
+
                         },
+
+                        onTap: () {
+
+                          if (selectionMode) {
+
+                            setState(() {
+
+                              if (selectedIndexes.contains(index))
+                                selectedIndexes.remove(index);
+                              else
+                                selectedIndexes.add(index);
+
+                            });
+
+                          }
+
+                        },
+
                       );
                     },
                   ),
