@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/month_header.dart';
 import 'add_transaction_page.dart';
-import '../services/data_store.dart';
 import '../services/database_service.dart';
 
 class Transaction {
@@ -38,24 +37,13 @@ class _RecordsPageState extends State<RecordsPage> {
     final data = await DatabaseService.getTransactions();
 
     setState(() {
-
       transactions = data.map((t) => Transaction(
-        title: t["title"],
-        amount: t["amount"],
+        title: t["title"].toString(),
+        amount: (t["amount"] as num).toDouble(),
         date: DateTime.parse(t["date"]),
       )).toList();
-
-      DataStore.transactions = data;
-
     });
 
-  }
-
-  void deleteTransaction(int index) {
-    setState(() {
-      transactions.removeAt(index);
-      DataStore.transactions.removeAt(index);
-    });
   }
 
   void confirmDelete(int index) {
@@ -75,9 +63,14 @@ class _RecordsPageState extends State<RecordsPage> {
           ),
 
           TextButton(
-            onPressed: () {
-              deleteTransaction(index);
+            onPressed: () async {
+
+              // simple refresh for now
+              transactions.removeAt(index);
+              setState(() {});
+
               Navigator.pop(context);
+
             },
             child: Text("Delete"),
           ),
@@ -113,30 +106,14 @@ class _RecordsPageState extends State<RecordsPage> {
 
           if (result != null) {
 
-            setState(() {
-
-              transactions.add(
-                Transaction(
-                  title: result["title"],
-                  amount: result["amount"],
-                  date: result["date"],
-                ),
-              );
-
-              DataStore.transactions.add({
-                "title": result["title"],
-                "amount": result["amount"],
-                "date": result["date"],
-              });
-
-            });
-
             await DatabaseService.insertTransaction(
               result["title"],
               result["amount"],
               result["date"],
             );
+
             await loadTransactions();
+
           }
 
         },
