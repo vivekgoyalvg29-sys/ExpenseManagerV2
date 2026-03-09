@@ -3,6 +3,14 @@ import 'package:intl/intl.dart';
 import '../services/data_store.dart';
 
 class AddTransactionPage extends StatefulWidget {
+
+  final Map<String, dynamic>? existingTransaction;
+
+  AddTransactionPage({this.existingTransaction});
+
+  @override
+  _AddTransactionPageState createState() => _AddTransactionPageState();
+}
   @override
   _AddTransactionPageState createState() => _AddTransactionPageState();
 }
