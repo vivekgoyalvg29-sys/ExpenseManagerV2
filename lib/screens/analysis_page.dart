@@ -31,12 +31,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
     Map<String, double> spent = {};
     Map<String, double> budget = {};
 
+    // Calculate category spending (ONLY expenses)
     for (var t in tx) {
 
       DateTime date = DateTime.parse(t["date"]);
 
       if (date.month == currentMonth.month &&
-          date.year == currentMonth.year) {
+          date.year == currentMonth.year &&
+          t["type"] == "expense") {
 
         String category = t["title"];
         double amount = (t["amount"] as num).toDouble();
@@ -45,6 +47,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       }
     }
 
+    // Load budgets
     for (var b in budgets) {
 
       if (b["month"] == currentMonth.month &&
@@ -88,10 +91,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
         double amount = (t["amount"] as num).toDouble();
 
-        if (amount >= 0)
+        if (t["type"] == "income") {
           income += amount;
-        else
-          expense += amount.abs();
+        } else {
+          expense += amount;
+        }
 
       }
     }
@@ -126,7 +130,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
           Expanded(
             child: analysisData.isEmpty
-                ? Center(child: Text("No analysis data"))
+                ? const Center(child: Text("No analysis data"))
                 : ListView.builder(
                     itemCount: analysisData.length,
                     itemBuilder: (context, index) {
@@ -170,6 +174,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                             LinearProgressIndicator(
                               value: progress,
                               minHeight: 8,
+                              backgroundColor: Colors.grey[300],
+                              color: progress > 1
+                                  ? Colors.red
+                                  : Colors.blue,
                             ),
 
                           ],
