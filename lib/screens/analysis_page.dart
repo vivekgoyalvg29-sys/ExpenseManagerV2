@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import '../services/data_store.dart';
+import '../services/database_service.dart';
+import '../widgets/icon_utils.dart';
 import '../widgets/month_header.dart';
 import '../widgets/month_summary.dart';
-import '../services/database_service.dart';
 
 enum AnalysisMode {
   selectedMonth,
@@ -17,11 +19,11 @@ class AnalysisPage extends StatefulWidget {
 
 class _AnalysisPageState extends State<AnalysisPage> {
   DateTime currentMonth = DateTime.now();
-
   AnalysisMode analysisMode = AnalysisMode.selectedMonth;
 
   List<Map<String, dynamic>> analysisData = [];
   List<Map<String, dynamic>> transactions = [];
+  List<Map<String, dynamic>> budgets = [];
 
   @override
   void initState() {
@@ -31,9 +33,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   Future<void> loadAnalysis() async {
     final tx = await DatabaseService.getTransactions();
-    final budgets = await DatabaseService.getBudgets();
+    final budgetData = await DatabaseService.getBudgets();
+    final categories = await DatabaseService.getCategories();
 
     transactions = tx;
+    budgets = budgetData;
+    DataStore.categories = categories;
 
     Map<String, double> spent = {};
     Map<String, double> budget = {};
@@ -44,12 +49,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
       if (_isDateInActiveRange(date) && t["type"] == "expense") {
         String category = t["title"];
         double amount = (t["amount"] as num).toDouble();
-
         spent[category] = (spent[category] ?? 0) + amount;
       }
     }
 
-    for (var b in budgets) {
+    for (var b in budgetData) {
       if (_isBudgetInActiveRange(b)) {
         String category = b["category"];
         double amount = (b["amount"] as num).toDouble();
@@ -58,10 +62,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     List<Map<String, dynamic>> result = [];
+    final categoriesUnion = <String>{...budget.keys, ...spent.keys};
 
-    final categories = <String>{...budget.keys, ...spent.keys};
-
-    for (var category in categories) {
+    for (var category in categoriesUnion) {
       result.add({
         "category": category,
         "spent": spent[category] ?? 0,
@@ -77,9 +80,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   bool _isDateInActiveRange(DateTime date) {
-    if (date.year != currentMonth.year) {
-      return false;
-    }
+    if (date.year != currentMonth.year) return false;
 
     if (analysisMode == AnalysisMode.selectedMonth) {
       return date.month == currentMonth.month;
@@ -93,9 +94,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   bool _isBudgetInActiveRange(Map<String, dynamic> budgetData) {
-    if (budgetData["year"] != currentMonth.year) {
-      return false;
-    }
+    if (budgetData["year"] != currentMonth.year) return false;
 
     int month = budgetData["month"];
 
@@ -108,6 +107,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     return true;
+  }
+
+  IconData _categoryIcon(String categoryName) {
+    final category = DataStore.categories.cast<Map<String, dynamic>?>().firstWhere(
+          (c) => c?["name"] == categoryName,
+          orElse: () => null,
+        );
+    return iconFromCodePoint(category?["icon"], fallback: Icons.category);
   }
 
   List<PieChartSectionData> buildPieSections() {
@@ -126,11 +133,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return analysisData.where((d) => d["spent"] > 0).map((data) {
       final color = colors[i % colors.length];
       i++;
+      final icon = _categoryIcon(data["category"]);
 
       return PieChartSectionData(
         color: color,
         value: data["spent"],
-        title: "",
+        title: String.fromCharCode(icon.codePoint),
+        titleStyle: const TextStyle(
+          fontFamily: 'MaterialIcons',
+          fontSize: 16,
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
         radius: 70,
       );
     }).toList();
@@ -156,22 +170,19 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   @override
   Widget build(BuildContext context) {
-    double income = 0;
     double expense = 0;
 
     for (var t in transactions) {
       DateTime date = DateTime.parse(t["date"]);
 
-      if (_isDateInActiveRange(date)) {
-        double amount = (t["amount"] as num).toDouble();
-
-        if (t["type"] == "income") {
-          income += amount;
-        } else {
-          expense += amount;
-        }
+      if (_isDateInActiveRange(date) && t["type"] == "expense") {
+        expense += (t["amount"] as num).toDouble();
       }
     }
+
+    final budgetTotal = budgets
+        .where((b) => _isBudgetInActiveRange(b))
+        .fold(0.0, (sum, b) => sum + (b["amount"] as num).toDouble());
 
     return Scaffold(
       body: Column(
@@ -209,24 +220,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
               ],
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               _modeLabel(),
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.black54,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black54),
             ),
           ),
-
           MonthSummary(
-            income: income,
+            budget: budgetTotal,
             expense: expense,
           ),
-
-          if (analysisData.isNotEmpty)
+          if (analysisData.any((d) => d["spent"] > 0))
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: SizedBox(
@@ -240,7 +245,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 ),
               ),
             ),
-
           Expanded(
             child: analysisData.isEmpty
                 ? const Center(child: Text("No analysis data"))
@@ -251,7 +255,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
                       double spent = data["spent"];
                       double budget = data["budget"];
-
                       double progress = budget == 0 ? 0 : (spent / budget).clamp(0, 1);
 
                       return Padding(
@@ -262,13 +265,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  data["category"],
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                Row(
+                                  children: [
+                                    Icon(_categoryIcon(data["category"]), size: 18),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      data["category"],
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  "₹${spent.toStringAsFixed(0)} / ₹${budget.toStringAsFixed(0)}",
-                                ),
+                                Text("₹${spent.toStringAsFixed(0)} / ₹${budget.toStringAsFixed(0)}"),
                               ],
                             ),
                             const SizedBox(height: 6),
@@ -276,7 +283,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                               value: progress,
                               minHeight: 8,
                               backgroundColor: Colors.grey[300],
-                              color: progress > 1 ? Colors.red : Colors.blue,
+                              color: progress >= 1 ? Colors.red : Colors.blue,
                             ),
                           ],
                         ),

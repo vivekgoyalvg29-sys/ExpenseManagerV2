@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/data_store.dart';
+import '../services/database_service.dart';
 
 class AddTransactionPage extends StatefulWidget {
-
   final Map<String, dynamic>? existingTransaction;
 
   AddTransactionPage({this.existingTransaction});
@@ -13,7 +13,6 @@ class AddTransactionPage extends StatefulWidget {
 }
 
 class _AddTransactionPageState extends State<AddTransactionPage> {
-
   DateTime selectedDate = DateTime.now();
 
   final commentController = TextEditingController();
@@ -26,26 +25,27 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   @override
   void initState() {
     super.initState();
+    _loadData();
 
     if (widget.existingTransaction != null) {
-
-      commentController.text =
-          widget.existingTransaction!["title"] ?? "";
-
-      amountController.text =
-          widget.existingTransaction!["amount"].toString();
-
-      selectedDate =
-          DateTime.parse(widget.existingTransaction!["date"]);
-
-      selectedCategory =
-          widget.existingTransaction!["title"];
-
+      commentController.text = widget.existingTransaction!["title"] ?? "";
+      amountController.text = widget.existingTransaction!["amount"].toString();
+      selectedDate = DateTime.parse(widget.existingTransaction!["date"]);
+      selectedCategory = widget.existingTransaction!["title"];
     }
   }
 
-  Future<void> pickDate() async {
+  Future<void> _loadData() async {
+    final accounts = await DatabaseService.getAccounts();
+    final categories = await DatabaseService.getCategories();
 
+    setState(() {
+      DataStore.accounts = accounts;
+      DataStore.categories = categories;
+    });
+  }
+
+  Future<void> pickDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: selectedDate,
@@ -62,26 +62,18 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
 
   @override
   Widget build(BuildContext context) {
-
-    // Filter accounts based on transaction type
-    final filteredAccounts = DataStore.accounts
-        .where((acc) => acc["type"] == transactionType)
-        .toList();
+    final filteredAccounts =
+        DataStore.accounts.where((acc) => acc["type"] == transactionType).toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.existingTransaction == null
-            ? "Add Transaction"
-            : "Edit Transaction"),
+        title: Text(widget.existingTransaction == null ? "Add Transaction" : "Edit Transaction"),
       ),
-
       body: Padding(
         padding: const EdgeInsets.all(16),
-
         child: SingleChildScrollView(
           child: Column(
             children: [
-
               DropdownButtonFormField<String>(
                 value: transactionType,
                 items: const [
@@ -97,15 +89,11 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 },
                 decoration: InputDecoration(labelText: "Type"),
               ),
-
               const SizedBox(height: 10),
-
               DropdownButtonFormField<String>(
                 value: selectedAccount,
                 items: filteredAccounts
-                    .map((acc) => DropdownMenuItem<String>(
-                        value: acc["name"],
-                        child: Text(acc["name"]!)))
+                    .map((acc) => DropdownMenuItem<String>(value: acc["name"], child: Text(acc["name"])))
                     .toList(),
                 onChanged: (value) {
                   setState(() {
@@ -114,16 +102,12 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 },
                 decoration: InputDecoration(labelText: "Account"),
               ),
-
               const SizedBox(height: 10),
-
               DropdownButtonFormField<String>(
                 value: selectedCategory,
                 items: DataStore.categories
                     .where((cat) => cat["type"] == transactionType)
-                    .map((cat) => DropdownMenuItem<String>(
-                        value: cat["name"],
-                        child: Text(cat["name"]!)))
+                    .map((cat) => DropdownMenuItem<String>(value: cat["name"], child: Text(cat["name"])))
                     .toList(),
                 onChanged: (value) {
                   setState(() {
@@ -132,41 +116,28 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 },
                 decoration: InputDecoration(labelText: "Category"),
               ),
-
               const SizedBox(height: 10),
-
               TextField(
                 controller: commentController,
                 decoration: InputDecoration(labelText: "Comments"),
               ),
-
               const SizedBox(height: 10),
-
               TextField(
                 controller: amountController,
                 decoration: InputDecoration(labelText: "Amount"),
                 keyboardType: TextInputType.number,
               ),
-
               const SizedBox(height: 20),
-
               ListTile(
                 title: Text("Date"),
-                subtitle: Text(
-                  DateFormat('dd MMM yyyy').format(selectedDate),
-                ),
+                subtitle: Text(DateFormat('dd MMM yyyy').format(selectedDate)),
                 trailing: Icon(Icons.calendar_today),
                 onTap: pickDate,
               ),
-
               const SizedBox(height: 20),
-
               ElevatedButton(
                 onPressed: () {
-
-                  if (selectedAccount == null ||
-                      selectedCategory == null ||
-                      amountController.text.isEmpty) {
+                  if (selectedAccount == null || selectedCategory == null || amountController.text.isEmpty) {
                     return;
                   }
 
@@ -176,13 +147,11 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                     "title": selectedCategory,
                     "amount": amount,
                     "date": selectedDate,
-                    "type": transactionType
+                    "type": transactionType,
                   });
-
                 },
                 child: Text("Save"),
               )
-
             ],
           ),
         ),
