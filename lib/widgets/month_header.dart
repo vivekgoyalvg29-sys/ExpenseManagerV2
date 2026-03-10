@@ -6,11 +6,13 @@ class MonthHeader extends StatelessWidget {
   final DateTime currentMonth;
   final Function onPrev;
   final Function onNext;
+  final Widget? trailing;
 
   MonthHeader({
     required this.currentMonth,
     required this.onPrev,
     required this.onNext,
+    this.trailing,
   });
 
   @override
@@ -35,9 +37,14 @@ class MonthHeader extends StatelessWidget {
             ),
           ),
 
-          IconButton(
-            icon: Icon(Icons.arrow_right),
-            onPressed: () => onNext(),
+          Row(
+            children: [
+              IconButton(
+                icon: Icon(Icons.arrow_right),
+                onPressed: () => onNext(),
+              ),
+              if (trailing != null) trailing!,
+            ],
           ),
 
         ],
