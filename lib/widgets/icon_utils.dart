@@ -25,7 +25,11 @@ const List<IconData> selectableIcons = [
 
 IconData iconFromCodePoint(dynamic codePoint, {IconData fallback = Icons.category}) {
   if (codePoint is int) {
-    return IconData(codePoint, fontFamily: 'MaterialIcons');
+    for (final icon in selectableIcons) {
+      if (icon.codePoint == codePoint) {
+        return icon;
+      }
+    }
   }
 
   return fallback;
