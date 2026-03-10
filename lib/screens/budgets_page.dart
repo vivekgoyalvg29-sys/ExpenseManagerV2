@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/data_store.dart';
 import '../services/database_service.dart';
+import '../services/widget_sync_service.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_header.dart';
 
@@ -30,6 +31,8 @@ class _BudgetsPageState extends State<BudgetsPage> {
       budgets = data;
       DataStore.categories = categories;
     });
+
+    await WidgetSyncService.syncFromStoredConfiguration();
   }
 
   void showAddBudgetDialog({Map<String, dynamic>? budget}) {

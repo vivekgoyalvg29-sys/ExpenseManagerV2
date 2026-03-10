@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import '../services/data_store.dart';
 import '../services/database_service.dart';
+import '../services/widget_sync_service.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_header.dart';
 import '../widgets/month_summary.dart';
@@ -77,6 +78,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
     setState(() {
       analysisData = result;
     });
+
+    await WidgetSyncService.updateConfiguration(
+      mode: _widgetMode(),
+      month: currentMonth.month,
+      year: currentMonth.year,
+    );
   }
 
   bool _isDateInActiveRange(DateTime date) {
@@ -157,6 +164,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
     loadAnalysis();
   }
 
+
+  String _widgetMode() {
+    switch (analysisMode) {
+      case AnalysisMode.cumulativeToSelectedMonth:
+        return WidgetSyncService.cumulativeToSelectedMonth;
+      case AnalysisMode.cumulativeYear:
+        return WidgetSyncService.cumulativeYear;
+      case AnalysisMode.selectedMonth:
+        return WidgetSyncService.selectedMonth;
+    }
+  }
   String _modeLabel() {
     switch (analysisMode) {
       case AnalysisMode.selectedMonth:

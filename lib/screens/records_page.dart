@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/data_store.dart';
 import '../services/database_service.dart';
+import '../services/widget_sync_service.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_header.dart';
 import '../widgets/month_summary.dart';
@@ -35,6 +36,8 @@ class _RecordsPageState extends State<RecordsPage> {
       budgets = budgetData;
       DataStore.categories = categoryData;
     });
+
+    await WidgetSyncService.syncFromStoredConfiguration();
   }
 
   List<Map<String, dynamic>> get filteredTransactions {
