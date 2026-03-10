@@ -5,6 +5,7 @@ import '../services/widget_sync_service.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_header.dart';
 import '../widgets/month_summary.dart';
+import '../widgets/section_tile.dart';
 import 'add_transaction_page.dart';
 
 class RecordsPage extends StatefulWidget {
@@ -85,6 +86,7 @@ class _RecordsPageState extends State<RecordsPage> {
     }
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF3F5F9),
       floatingActionButton: FloatingActionButton(
         child: const Icon(Icons.add),
         onPressed: () async {
@@ -133,15 +135,16 @@ class _RecordsPageState extends State<RecordsPage> {
             expense: expense,
           ),
           Expanded(
-            child: filteredTransactions.isEmpty
-                ? const Center(child: Text("No transactions"))
-                : ListView.builder(
-                    itemCount: filteredTransactions.length,
-                    itemBuilder: (context, index) {
-                      final tx = filteredTransactions[index];
-                      DateTime date = DateTime.parse(tx["date"]);
+            child: SectionTile(
+              child: filteredTransactions.isEmpty
+                  ? const Center(child: Text("No transactions"))
+                  : ListView.builder(
+                      itemCount: filteredTransactions.length,
+                      itemBuilder: (context, index) {
+                        final tx = filteredTransactions[index];
+                        DateTime date = DateTime.parse(tx["date"]);
 
-                      return ListTile(
+                        return ListTile(
                         leading: selectionMode
                             ? Checkbox(
                                 value: selectedIndexes.contains(index),
@@ -187,9 +190,10 @@ class _RecordsPageState extends State<RecordsPage> {
                             });
                           }
                         },
-                      );
-                    },
-                  ),
+                        );
+                      },
+                    ),
+            ),
           ),
         ],
       ),

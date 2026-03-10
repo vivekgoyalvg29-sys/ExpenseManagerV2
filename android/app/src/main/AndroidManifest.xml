@@ -2,7 +2,7 @@
     package="com.example.expense_manager">
 
     <application
-        android:label="expense_manager"
+        android:label="FinTrack"
         android:icon="@mipmap/ic_launcher"
         android:networkSecurityConfig="@xml/network_security_config"
         android:usesCleartextTraffic="false">

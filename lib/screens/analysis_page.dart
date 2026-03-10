@@ -5,6 +5,7 @@ import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_header.dart';
+import '../widgets/section_tile.dart';
 import '../widgets/month_summary.dart';
 
 enum AnalysisMode {
@@ -203,6 +204,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
         .fold(0.0, (sum, b) => sum + (b["amount"] as num).toDouble());
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF3F5F9),
       body: Column(
         children: [
           MonthHeader(
@@ -238,10 +240,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+          SectionTile(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
             child: Text(
               _modeLabel(),
+              textAlign: TextAlign.center,
               style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black54),
             ),
           ),
@@ -250,8 +253,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             expense: expense,
           ),
           if (analysisData.any((d) => d["spent"] > 0))
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
+            SectionTile(
               child: SizedBox(
                 height: 200,
                 child: PieChart(
@@ -264,9 +266,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
               ),
             ),
           Expanded(
-            child: analysisData.isEmpty
-                ? const Center(child: Text("No analysis data"))
-                : ListView.builder(
+            child: SectionTile(
+              child: analysisData.isEmpty
+                  ? const Center(child: Text("No analysis data"))
+                  : ListView.builder(
                     itemCount: analysisData.length,
                     itemBuilder: (context, index) {
                       final data = analysisData[index];
@@ -308,6 +311,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       );
                     },
                   ),
+            ),
           ),
         ],
       ),
