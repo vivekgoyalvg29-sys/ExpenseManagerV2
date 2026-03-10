@@ -14,7 +14,7 @@ dependencies:
   path: ^1.9.0
   intl: ^0.18.1
   fl_chart: ^0.66.2
-  home_widget: ^0.5.0
+  home_widget: ^0.6.0
 
 
 flutter:
