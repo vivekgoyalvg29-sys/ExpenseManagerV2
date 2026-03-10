@@ -20,6 +20,11 @@ jobs:
       - name: Create Flutter Project
         run: flutter create app
 
+      - name: Update Android Kotlin plugin version
+        run: |
+          sed -i "s/ext.kotlin_version = '.*'/ext.kotlin_version = '1.9.22'/" app/android/build.gradle || true
+          sed -i "s/id \"org.jetbrains.kotlin.android\" version \".*\"/id \"org.jetbrains.kotlin.android\" version \"1.9.22\"/" app/android/settings.gradle || true
+
       - name: Copy user code
         run: |
           cp pubspec.yaml app/pubspec.yaml
