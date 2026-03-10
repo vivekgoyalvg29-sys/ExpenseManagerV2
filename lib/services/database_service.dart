@@ -1,12 +1,10 @@
-import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
 
 class DatabaseService {
-
   static Database? _db;
 
   static Future<Database> get database async {
-
     if (_db != null) return _db!;
 
     _db = await initDatabase();
@@ -15,15 +13,13 @@ class DatabaseService {
   }
 
   static Future<Database> initDatabase() async {
-
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, "expense_manager.db");
 
-    return await openDatabase(
+    return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
-
         await db.execute('''
         CREATE TABLE transactions(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,7 +34,8 @@ class DatabaseService {
         CREATE TABLE accounts(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT,
-          type TEXT
+          type TEXT,
+          icon INTEGER
         )
         ''');
 
@@ -46,7 +43,8 @@ class DatabaseService {
         CREATE TABLE categories(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT,
-          type TEXT
+          type TEXT,
+          icon INTEGER
         )
         ''');
 
@@ -60,18 +58,35 @@ class DatabaseService {
         )
         ''');
       },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await _ensureColumn(db, 'accounts', 'icon INTEGER');
+          await _ensureColumn(db, 'categories', 'icon INTEGER');
+        }
+      },
     );
   }
 
-  // ---------------- TRANSACTIONS ----------------
+  static Future<void> _ensureColumn(
+    Database db,
+    String table,
+    String columnDefinition,
+  ) async {
+    final columnName = columnDefinition.split(' ').first;
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    final exists = columns.any((column) => column['name'] == columnName);
+
+    if (!exists) {
+      await db.execute('ALTER TABLE $table ADD COLUMN $columnDefinition');
+    }
+  }
 
   static Future<void> insertTransaction(
-  String title,
-  double amount,
-  DateTime date,
-  String type,
-) async {
-
+    String title,
+    double amount,
+    DateTime date,
+    String type,
+  ) async {
     final db = await database;
 
     await db.insert(
@@ -86,14 +101,11 @@ class DatabaseService {
   }
 
   static Future<List<Map<String, dynamic>>> getTransactions() async {
-
     final db = await database;
-
-    return await db.query("transactions", orderBy: "date DESC");
+    return db.query("transactions", orderBy: "date DESC");
   }
 
   static Future<void> deleteTransaction(int id) async {
-
     final db = await database;
 
     await db.delete(
@@ -104,12 +116,11 @@ class DatabaseService {
   }
 
   static Future<void> updateTransaction(
-      int id,
-      String title,
-      double amount,
-      DateTime date,
-      ) async {
-
+    int id,
+    String title,
+    double amount,
+    DateTime date,
+  ) async {
     final db = await database;
 
     await db.update(
@@ -124,10 +135,7 @@ class DatabaseService {
     );
   }
 
-  // ---------------- ACCOUNTS ----------------
-
-  static Future<void> insertAccount(String name, String type) async {
-
+  static Future<void> insertAccount(String name, String type, int icon) async {
     final db = await database;
 
     await db.insert(
@@ -135,19 +143,23 @@ class DatabaseService {
       {
         "name": name,
         "type": type,
+        "icon": icon,
       },
     );
   }
 
   static Future<List<Map<String, dynamic>>> getAccounts() async {
-
     final db = await database;
 
-    return await db.query("accounts");
+    return db.query("accounts");
   }
 
-  static Future<void> updateAccount(int id, String name, String type) async {
-
+  static Future<void> updateAccount(
+    int id,
+    String name,
+    String type,
+    int icon,
+  ) async {
     final db = await database;
 
     await db.update(
@@ -155,6 +167,7 @@ class DatabaseService {
       {
         "name": name,
         "type": type,
+        "icon": icon,
       },
       where: "id = ?",
       whereArgs: [id],
@@ -162,7 +175,6 @@ class DatabaseService {
   }
 
   static Future<void> deleteAccount(int id) async {
-
     final db = await database;
 
     await db.delete(
@@ -172,10 +184,7 @@ class DatabaseService {
     );
   }
 
-  // ---------------- CATEGORIES ----------------
-
-  static Future<void> insertCategory(String name, String type) async {
-
+  static Future<void> insertCategory(String name, String type, int icon) async {
     final db = await database;
 
     await db.insert(
@@ -183,19 +192,23 @@ class DatabaseService {
       {
         "name": name,
         "type": type,
+        "icon": icon,
       },
     );
   }
 
   static Future<List<Map<String, dynamic>>> getCategories() async {
-
     final db = await database;
 
-    return await db.query("categories");
+    return db.query("categories");
   }
 
-  static Future<void> updateCategory(int id, String name, String type) async {
-
+  static Future<void> updateCategory(
+    int id,
+    String name,
+    String type,
+    int icon,
+  ) async {
     final db = await database;
 
     await db.update(
@@ -203,6 +216,7 @@ class DatabaseService {
       {
         "name": name,
         "type": type,
+        "icon": icon,
       },
       where: "id = ?",
       whereArgs: [id],
@@ -210,7 +224,6 @@ class DatabaseService {
   }
 
   static Future<void> deleteCategory(int id) async {
-
     final db = await database;
 
     await db.delete(
@@ -220,15 +233,12 @@ class DatabaseService {
     );
   }
 
-  // ---------------- BUDGETS ----------------
-
   static Future<void> insertBudget(
-      String category,
-      double amount,
-      int month,
-      int year,
-      ) async {
-
+    String category,
+    double amount,
+    int month,
+    int year,
+  ) async {
     final db = await database;
 
     await db.insert(
@@ -243,20 +253,18 @@ class DatabaseService {
   }
 
   static Future<List<Map<String, dynamic>>> getBudgets() async {
-
     final db = await database;
 
-    return await db.query("budgets");
+    return db.query("budgets");
   }
 
   static Future<void> updateBudget(
-      int id,
-      String category,
-      double amount,
-      int month,
-      int year,
-      ) async {
-
+    int id,
+    String category,
+    double amount,
+    int month,
+    int year,
+  ) async {
     final db = await database;
 
     await db.update(
@@ -273,7 +281,6 @@ class DatabaseService {
   }
 
   static Future<void> deleteBudget(int id) async {
-
     final db = await database;
 
     await db.delete(
