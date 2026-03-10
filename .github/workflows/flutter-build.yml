@@ -24,12 +24,17 @@ jobs:
         run: |
           sed -i "s/ext.kotlin_version = '.*'/ext.kotlin_version = '1.9.22'/" app/android/build.gradle || true
           sed -i "s/id \"org.jetbrains.kotlin.android\" version \".*\"/id \"org.jetbrains.kotlin.android\" version \"1.9.22\"/" app/android/settings.gradle || true
-          sed -i "s/minSdk = flutter.minSdkVersion/minSdk = 21/" app/android/app/build.gradle || true
+          sed -i -E "s/minSdk(Version)?[[:space:]]*=?[[:space:]]*flutter.minSdkVersion/minSdk 21/" app/android/app/build.gradle || true
+          sed -i -E "s/namespace[[:space:]]*=?[[:space:]]*['\" ]*com\\.example\\.app['\" ]*/namespace 'com.example.expense_manager'/" app/android/app/build.gradle || true
+          sed -i -E "s/applicationId[[:space:]]*=?[[:space:]]*['\" ]*com\\.example\\.app['\" ]*/applicationId 'com.example.expense_manager'/" app/android/app/build.gradle || true
 
       - name: Copy user code
         run: |
           cp pubspec.yaml app/pubspec.yaml
           cp -r lib app/
+          cp -r android/app/src/main/* app/android/app/src/main/
+          cp ios/Runner/Info.plist app/ios/Runner/Info.plist
+          cp ios/Runner/Runner.entitlements app/ios/Runner/Runner.entitlements
 
       - name: Build APK
         run: |
