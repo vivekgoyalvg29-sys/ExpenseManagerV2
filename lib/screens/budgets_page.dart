@@ -4,6 +4,7 @@ import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_header.dart';
+import '../widgets/section_tile.dart';
 
 class BudgetsPage extends StatefulWidget {
   @override
@@ -144,6 +145,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
     );
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF3F5F9),
       floatingActionButton: FloatingActionButton(
         child: Icon(Icons.add),
         onPressed: () => showAddBudgetDialog(),
@@ -171,8 +173,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
               });
             },
           ),
-          Padding(
-            padding: const EdgeInsets.all(12),
+          SectionTile(
             child: Column(
               children: [
                 Text(
@@ -188,9 +189,10 @@ class _BudgetsPageState extends State<BudgetsPage> {
             ),
           ),
           Expanded(
-            child: filteredBudgets.isEmpty
-                ? Center(child: Text("No budgets set"))
-                : ListView.builder(
+            child: SectionTile(
+              child: filteredBudgets.isEmpty
+                  ? Center(child: Text("No budgets set"))
+                  : ListView.builder(
                     itemCount: filteredBudgets.length,
                     itemBuilder: (context, index) {
                       final budget = filteredBudgets[index];
@@ -237,6 +239,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                       );
                     },
                   ),
+            ),
           ),
         ],
       ),

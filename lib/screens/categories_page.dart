@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/data_store.dart';
 import '../services/database_service.dart';
 import '../widgets/icon_utils.dart';
+import '../widgets/section_tile.dart';
 
 class CategoriesPage extends StatefulWidget {
   @override
@@ -139,12 +140,14 @@ class _CategoriesPageState extends State<CategoriesPage> {
     final incomeCategories = DataStore.categories.where((c) => c["type"] == "income").toList();
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF3F5F9),
       floatingActionButton: FloatingActionButton(
         child: const Icon(Icons.add),
         onPressed: () => showAddCategoryDialog(),
       ),
-      body: ListView(
-        children: [
+      body: SectionTile(
+        child: ListView(
+          children: [
           if (selectionMode)
             Align(
               alignment: Alignment.centerRight,
@@ -241,7 +244,8 @@ class _CategoriesPageState extends State<CategoriesPage> {
               );
             }).toList(),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
