@@ -54,6 +54,13 @@ class _RecordsPageState extends State<RecordsPage> {
         .fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
   }
 
+  void clearSelection() {
+    setState(() {
+      selectedIndexes.clear();
+      selectionMode = false;
+    });
+  }
+
   void deleteSelected() async {
     final idsToDelete = selectedIndexes.map((i) => filteredTransactions[i]["id"]).toList();
 
@@ -61,8 +68,7 @@ class _RecordsPageState extends State<RecordsPage> {
       await DatabaseService.deleteTransaction(id);
     }
 
-    selectedIndexes.clear();
-    selectionMode = false;
+    clearSelection();
 
     loadTransactions();
   }
@@ -112,9 +118,20 @@ class _RecordsPageState extends State<RecordsPage> {
           if (selectionMode)
             Align(
               alignment: Alignment.centerRight,
-              child: IconButton(
-                icon: const Icon(Icons.delete),
-                onPressed: deleteSelected,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    tooltip: "Cancel selection",
+                    onPressed: clearSelection,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete),
+                    tooltip: "Delete selected",
+                    onPressed: deleteSelected,
+                  ),
+                ],
               ),
             ),
           MonthHeader(

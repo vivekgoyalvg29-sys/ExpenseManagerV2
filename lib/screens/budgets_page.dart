@@ -110,14 +110,20 @@ class _BudgetsPageState extends State<BudgetsPage> {
     );
   }
 
+  void clearSelection() {
+    setState(() {
+      selectedIndexes.clear();
+      selectionMode = false;
+    });
+  }
+
   void deleteSelected() async {
     for (var index in selectedIndexes) {
       final id = filteredBudgets[index]["id"];
       await DatabaseService.deleteBudget(id);
     }
 
-    selectedIndexes.clear();
-    selectionMode = false;
+    clearSelection();
 
     loadBudgets();
   }
@@ -155,9 +161,20 @@ class _BudgetsPageState extends State<BudgetsPage> {
           if (selectionMode)
             Align(
               alignment: Alignment.centerRight,
-              child: IconButton(
-                icon: const Icon(Icons.delete),
-                onPressed: deleteSelected,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    tooltip: "Cancel selection",
+                    onPressed: clearSelection,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete),
+                    tooltip: "Delete selected",
+                    onPressed: deleteSelected,
+                  ),
+                ],
               ),
             ),
           MonthHeader(

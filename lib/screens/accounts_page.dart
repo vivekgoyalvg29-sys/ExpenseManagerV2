@@ -122,14 +122,20 @@ class _AccountsPageState extends State<AccountsPage> {
     );
   }
 
+  void clearSelection() {
+    setState(() {
+      selectedIndexes.clear();
+      selectionMode = false;
+    });
+  }
+
   void deleteSelected() async {
     for (var index in selectedIndexes) {
       final id = DataStore.accounts[index]["id"] as int;
       await DatabaseService.deleteAccount(id);
     }
 
-    selectedIndexes.clear();
-    selectionMode = false;
+    clearSelection();
 
     loadAccounts();
   }
@@ -151,9 +157,20 @@ class _AccountsPageState extends State<AccountsPage> {
           if (selectionMode)
             Align(
               alignment: Alignment.centerRight,
-              child: IconButton(
-                icon: const Icon(Icons.delete),
-                onPressed: deleteSelected,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    tooltip: "Cancel selection",
+                    onPressed: clearSelection,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete),
+                    tooltip: "Delete selected",
+                    onPressed: deleteSelected,
+                  ),
+                ],
               ),
             ),
           ExpansionTile(
