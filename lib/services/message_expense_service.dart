@@ -41,9 +41,9 @@ class MessageExpenseService {
 
     for (final message in messages) {
       final body = message.body;
-      final timestamp = message.date;
+      final rawDate = message.date;
 
-      if (body == null || timestamp == null) {
+      if (body == null || rawDate == null) {
         continue;
       }
 
@@ -51,7 +51,10 @@ class MessageExpenseService {
         continue;
       }
 
-      final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+      final date = _normalizeMessageDate(rawDate);
+      if (date == null) {
+        continue;
+      }
       if (date.isBefore(start) || date.isAfter(end)) {
         continue;
       }
@@ -97,6 +100,15 @@ class MessageExpenseService {
     if (match == null) return 'Bank Message Expense';
 
     return match.group(1)!.trim();
+  }
+
+  static DateTime? _normalizeMessageDate(Object rawDate) {
+    if (rawDate is DateTime) return rawDate;
+    if (rawDate is int) {
+      return DateTime.fromMillisecondsSinceEpoch(rawDate);
+    }
+
+    return null;
   }
 }
 
