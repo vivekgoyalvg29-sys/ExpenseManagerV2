@@ -2,9 +2,11 @@ package com.example.expense_manager
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.net.Uri
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetProvider
 
@@ -27,7 +29,12 @@ class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
             views.setTextViewText(R.id.widget_budget, "Budget: ₹${budget.toInt()}")
             views.setTextViewText(R.id.widget_expense, "Expense: ₹${expense.toInt()}")
 
-            val openAppIntent = Intent(context, MainActivity::class.java).apply {
+            val appComponent = ComponentName(context, MainActivity::class.java)
+            val openAppIntent = (context.packageManager.getLaunchIntentForPackage(context.packageName)
+                ?: Intent()).apply {
+                component = appComponent
+                action = Intent.ACTION_VIEW
+                data = Uri.parse("fintrack://widget/open?widgetId=$widgetId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
 
@@ -38,8 +45,9 @@ class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
 
-            val openTransactionIntent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            val openTransactionIntent = Intent(openAppIntent).apply {
+                action = Intent.ACTION_VIEW
+                data = Uri.parse("fintrack://widget/open-transactions?widgetId=$widgetId")
                 putExtra("open_records", true)
             }
 
