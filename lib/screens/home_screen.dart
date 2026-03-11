@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/section_tile.dart';
+import 'load_expenses_from_messages_page.dart';
 import 'records_page.dart';
 import 'analysis_page.dart';
 import 'budgets_page.dart';
@@ -37,7 +38,25 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
       appBar: AppBar(
-        title: const Text("FinTrack"),
+        title: const SizedBox.shrink(),
+        leading: PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert),
+          position: PopupMenuPosition.under,
+          onSelected: (value) {
+            if (value == 'load_messages') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoadExpensesFromMessagesPage()),
+              );
+            }
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem<String>(
+              value: 'load_messages',
+              child: Text('Load expense from messages'),
+            ),
+          ],
+        ),
       ),
       body: pages[currentIndex],
       bottomNavigationBar: SafeArea(
