@@ -15,13 +15,11 @@ enum AnalysisMode {
 }
 
 class AnalysisPage extends StatefulWidget {
-  const AnalysisPage({super.key});
-
   @override
-  AnalysisPageState createState() => AnalysisPageState();
+  _AnalysisPageState createState() => _AnalysisPageState();
 }
 
-class AnalysisPageState extends State<AnalysisPage> {
+class _AnalysisPageState extends State<AnalysisPage> {
   DateTime currentMonth = DateTime.now();
   AnalysisMode analysisMode = AnalysisMode.selectedMonth;
 
@@ -160,7 +158,7 @@ class AnalysisPageState extends State<AnalysisPage> {
     }).toList();
   }
 
-  void changeMode(AnalysisMode mode) {
+  void _changeMode(AnalysisMode mode) {
     setState(() {
       analysisMode = mode;
     });
@@ -223,6 +221,24 @@ class AnalysisPageState extends State<AnalysisPage> {
               });
               loadAnalysis();
             },
+            trailing: PopupMenuButton<AnalysisMode>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: _changeMode,
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: AnalysisMode.selectedMonth,
+                  child: Text("Selected month analysis"),
+                ),
+                PopupMenuItem(
+                  value: AnalysisMode.cumulativeToSelectedMonth,
+                  child: Text("Cumulative till selected month"),
+                ),
+                PopupMenuItem(
+                  value: AnalysisMode.cumulativeYear,
+                  child: Text("Cumulative full year"),
+                ),
+              ],
+            ),
           ),
           SectionTile(
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
