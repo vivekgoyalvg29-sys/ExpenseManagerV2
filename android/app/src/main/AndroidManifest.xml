@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.expense_manager">
 
+    <uses-permission android:name="android.permission.READ_SMS" />
+
     <application
         android:label="FinTrack"
         android:icon="@mipmap/ic_launcher"
