@@ -18,11 +18,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late int currentIndex;
-  final GlobalKey<AnalysisPageState> analysisPageKey = GlobalKey<AnalysisPageState>();
 
-  late final List<Widget> pages = [
+  final List<Widget> pages = [
     RecordsPage(),
-    AnalysisPage(key: analysisPageKey),
+    AnalysisPage(),
     BudgetsPage(),
     AccountsPage(),
     CategoriesPage(),
@@ -39,62 +38,24 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2E7D32),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          'FinTrack',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
+        title: const SizedBox.shrink(),
         leading: PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
           position: PopupMenuPosition.under,
           onSelected: (value) {
-            switch (value) {
-              case 'load_messages':
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoadExpensesFromMessagesPage()),
-                );
-                break;
-              case 'analysis_selected_month':
-                analysisPageKey.currentState?.changeMode(AnalysisMode.selectedMonth);
-                break;
-              case 'analysis_cumulative_month':
-                analysisPageKey.currentState?.changeMode(AnalysisMode.cumulativeToSelectedMonth);
-                break;
-              case 'analysis_cumulative_year':
-                analysisPageKey.currentState?.changeMode(AnalysisMode.cumulativeYear);
-                break;
+            if (value == 'load_messages') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoadExpensesFromMessagesPage()),
+              );
             }
           },
-          itemBuilder: (context) {
-            final isAnalysisTab = currentIndex == 1;
-
-            return [
-              const PopupMenuItem<String>(
-                value: 'load_messages',
-                child: Text('Load expense from messages'),
-              ),
-              if (isAnalysisTab) const PopupMenuDivider(),
-              if (isAnalysisTab)
-                const PopupMenuItem<String>(
-                  value: 'analysis_selected_month',
-                  child: Text('Selected month analysis'),
-                ),
-              if (isAnalysisTab)
-                const PopupMenuItem<String>(
-                  value: 'analysis_cumulative_month',
-                  child: Text('Cumulative till selected month'),
-                ),
-              if (isAnalysisTab)
-                const PopupMenuItem<String>(
-                  value: 'analysis_cumulative_year',
-                  child: Text('Cumulative full year'),
-                ),
-            ];
-          },
+          itemBuilder: (context) => const [
+            PopupMenuItem<String>(
+              value: 'load_messages',
+              child: Text('Load expense from messages'),
+            ),
+          ],
         ),
       ),
       body: pages[currentIndex],
