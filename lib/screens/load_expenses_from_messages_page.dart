@@ -61,23 +61,32 @@ class _LoadExpensesFromMessagesPageState extends State<LoadExpensesFromMessagesP
 
     setState(() => isLoading = true);
 
-    final expenses = await MessageExpenseService.fetchExpensesFromMessages(start: start, end: end);
+    try {
+      final expenses = await MessageExpenseService.fetchExpensesFromMessages(start: start, end: end);
 
-    setState(() => isLoading = false);
+      if (!mounted) return;
 
-    if (!mounted) return;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MessageExpenseResultsPage(
-          expenses: expenses,
-          rangeLabel: isRangeMode
-              ? '${DateFormat('MMM yyyy').format(rangeStart)} - ${DateFormat('MMM yyyy').format(rangeEnd)}'
-              : DateFormat('MMMM yyyy').format(singleMonth),
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MessageExpenseResultsPage(
+            expenses: expenses,
+            rangeLabel: isRangeMode
+                ? '${DateFormat('MMM yyyy').format(rangeStart)} - ${DateFormat('MMM yyyy').format(rangeEnd)}'
+                : DateFormat('MMMM yyyy').format(singleMonth),
+          ),
         ),
-      ),
-    );
+      );
+    } on MessageExpenseException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
   }
 
   @override

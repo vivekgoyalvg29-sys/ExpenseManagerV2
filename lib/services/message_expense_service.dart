@@ -1,63 +1,95 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class MessageExpenseService {
-  static final RegExp _amountRegex = RegExp(r'(?:INR|Rs\.?|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)');
-  static final RegExp _merchantRegex = RegExp(r'at\s+([A-Za-z0-9\- _&.]+?)(?:\s+on|\.|$)');
+  static final RegExp _amountRegex = RegExp(
+    r'(?:INR|Rs\.?|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)',
+    caseSensitive: false,
+  );
+  static final RegExp _fallbackAmountRegex = RegExp(r'([0-9,]+(?:\.[0-9]{1,2})?)');
+  static final RegExp _merchantRegex = RegExp(
+    r'at\s+([A-Za-z0-9\- _&.]+?)(?:\s+on|\.|$)',
+    caseSensitive: false,
+  );
 
   static Future<List<Map<String, dynamic>>> fetchExpensesFromMessages({
     required DateTime start,
     required DateTime end,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 600));
+    if (!Platform.isAndroid) {
+      throw const MessageExpenseException(
+        'Reading SMS is only supported on Android devices.',
+      );
+    }
 
-    final sampleMessages = <Map<String, dynamic>>[
-      {
-        'date': DateTime(2026, 1, 4),
-        'text': 'INR 245.00 spent on your HDFC card at Zomato on 04-Jan-26.',
-      },
-      {
-        'date': DateTime(2026, 1, 7),
-        'text': 'Rs.1,299 debited via UPI at Amazon on 07-Jan-26.',
-      },
-      {
-        'date': DateTime(2026, 2, 3),
-        'text': '₹499 spent from A/C XXXX2189 at Swiggy on 03-Feb-26.',
-      },
-      {
-        'date': DateTime(2026, 2, 18),
-        'text': 'INR 80.50 spent on your SBI card at Metro on 18-Feb-26.',
-      },
-      {
-        'date': DateTime(2026, 3, 9),
-        'text': 'Rs 2,050 debited from account via IMPS at Blinkit on 09-Mar-26.',
-      },
-    ];
+    final permission = await Permission.sms.request();
+    if (!permission.isGranted) {
+      throw const MessageExpenseException(
+        'SMS permission was denied. Please allow SMS access to load expenses.',
+      );
+    }
 
-    final transactionsInRange = sampleMessages.where((message) {
-      final date = message['date'] as DateTime;
-      return !date.isBefore(start) && !date.isAfter(end);
-    });
+    final query = SmsQuery();
+    final messages = await query.querySms(
+      kinds: <SmsQueryKind>[SmsQueryKind.inbox],
+    );
 
-    return transactionsInRange.map((message) {
-      final sms = message['text'] as String;
-      final amount = _extractAmount(sms);
-      final merchant = _extractMerchant(sms);
+    final expenses = <Map<String, dynamic>>[];
 
-      return {
-        'title': merchant,
+    for (final message in messages) {
+      final body = message.body;
+      final timestamp = message.date;
+
+      if (body == null || timestamp == null) {
+        continue;
+      }
+
+      if (!body.toLowerCase().contains('debited')) {
+        continue;
+      }
+
+      final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+      if (date.isBefore(start) || date.isAfter(end)) {
+        continue;
+      }
+
+      final amount = _extractAmount(body);
+      if (amount <= 0) {
+        continue;
+      }
+
+      expenses.add({
+        'title': _extractMerchant(body),
         'amount': amount,
-        'date': message['date'],
+        'date': date,
         'type': 'expense',
         'icon': Icons.message,
-      };
-    }).toList();
+      });
+    }
+
+    expenses.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+
+    return expenses;
   }
 
   static double _extractAmount(String message) {
-    final match = _amountRegex.firstMatch(message);
-    if (match == null) return 0;
+    final amountMatch = _amountRegex.firstMatch(message);
+    if (amountMatch != null) {
+      return double.tryParse(amountMatch.group(1)!.replaceAll(',', '')) ?? 0;
+    }
 
-    return double.tryParse(match.group(1)!.replaceAll(',', '')) ?? 0;
+    final debitedIndex = message.toLowerCase().indexOf('debited');
+    if (debitedIndex < 0) return 0;
+
+    final leadingText = message.substring(0, debitedIndex);
+    final fallbackMatches = _fallbackAmountRegex.allMatches(leadingText);
+    if (fallbackMatches.isEmpty) return 0;
+
+    final lastMatch = fallbackMatches.last;
+    return double.tryParse(lastMatch.group(1)!.replaceAll(',', '')) ?? 0;
   }
 
   static String _extractMerchant(String message) {
@@ -66,4 +98,13 @@ class MessageExpenseService {
 
     return match.group(1)!.trim();
   }
+}
+
+class MessageExpenseException implements Exception {
+  final String message;
+
+  const MessageExpenseException(this.message);
+
+  @override
+  String toString() => message;
 }
