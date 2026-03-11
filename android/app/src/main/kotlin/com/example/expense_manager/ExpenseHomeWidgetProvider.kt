@@ -30,19 +30,17 @@ class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
             views.setTextViewText(R.id.widget_expense, "Expense: ₹${expense.toInt()}")
 
             val appComponent = ComponentName(context, MainActivity::class.java)
-            val openAppIntent = (context.packageManager.getLaunchIntentForPackage(context.packageName)
-                ?: Intent()).apply {
-                component = appComponent
-                action = Intent.ACTION_VIEW
-                data = Uri.parse("fintrack://widget/open?widgetId=$widgetId")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
+val openAppIntent = Intent(context, MainActivity::class.java).apply {
+    action = Intent.ACTION_VIEW
+    data = Uri.parse("fintrack://widget/open?widgetId=$widgetId")
+    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+}
 
             val openRecordsPendingIntent = PendingIntent.getActivity(
                 context,
                 widgetId,
                 openAppIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
             )
 
             val openTransactionIntent = Intent(openAppIntent).apply {
@@ -55,7 +53,7 @@ class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
                 context,
                 widgetId + 10_000,
                 openTransactionIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
             )
 
             views.setOnClickPendingIntent(R.id.widget_container, openRecordsPendingIntent)
