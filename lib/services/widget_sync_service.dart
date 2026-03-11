@@ -80,12 +80,28 @@ class WidgetSyncService {
 
     final selectedDate = DateTime(year, month, 1);
 
+
+    final now = DateTime.now();
+
+    final currentMonthExpense = tx.where((t) {
+      if (t['type'] != 'expense') return false;
+      final date = DateTime.parse(t['date']);
+      return date.year == now.year && date.month == now.month;
+    }).fold<double>(0.0, (sum, t) => sum + (t['amount'] as num).toDouble());
+
+    final currentMonthBudget = budgets.where((b) {
+      return b['year'] == now.year && b['month'] == now.month;
+    }).fold<double>(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
+
     await HomeWidget.saveWidgetData<String>('title', 'Budget vs Expense');
     await HomeWidget.saveWidgetData<String>('modeLabel', _modeLabel(mode));
     await HomeWidget.saveWidgetData<String>('periodLabel', DateFormat('MMMM yyyy').format(selectedDate));
     await HomeWidget.saveWidgetData<double>('budget', budget);
     await HomeWidget.saveWidgetData<double>('expense', expense);
     await HomeWidget.saveWidgetData<double>('remaining', budget - expense);
+    await HomeWidget.saveWidgetData<String>('currentPeriodLabel', DateFormat('MMMM yyyy').format(now));
+    await HomeWidget.saveWidgetData<double>('currentMonthBudget', currentMonthBudget);
+    await HomeWidget.saveWidgetData<double>('currentMonthExpense', currentMonthExpense);
 
     await HomeWidget.updateWidget(
       androidName: androidWidgetProvider,

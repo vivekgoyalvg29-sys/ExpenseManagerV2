@@ -1,6 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
-import 'dart:io';
+
 import 'screens/home_screen.dart';
 import 'services/widget_sync_service.dart';
 
@@ -16,12 +18,17 @@ void main() async {
 }
 
 class FinTrackApp extends StatelessWidget {
+  const FinTrackApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: "FinTrack",
       theme: ThemeData(primarySwatch: Colors.green),
-      home: HomeScreen(),
+      routes: {
+        '/': (_) => const HomeScreen(),
+        '/transactions': (_) => const HomeScreen(initialIndex: 0),
+      },
       debugShowCheckedModeBanner: false,
     );
   }
