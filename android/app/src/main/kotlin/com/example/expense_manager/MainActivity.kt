@@ -2,4 +2,9 @@ package com.example.expense_manager
 
 import io.flutter.embedding.android.FlutterActivity
 
-class MainActivity : FlutterActivity()
+class MainActivity : FlutterActivity() {
+    override fun getInitialRoute(): String {
+        val openRecords = intent?.getBooleanExtra("open_records", false) ?: false
+        return if (openRecords) "/transactions" else "/"
+    }
+}

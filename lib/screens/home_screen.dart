@@ -7,12 +7,16 @@ import 'accounts_page.dart';
 import 'categories_page.dart';
 
 class HomeScreen extends StatefulWidget {
+  final int initialIndex;
+
+  const HomeScreen({super.key, this.initialIndex = 0});
+
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int currentIndex = 0;
+  late int currentIndex;
 
   final List<Widget> pages = [
     RecordsPage(),
@@ -21,6 +25,12 @@ class _HomeScreenState extends State<HomeScreen> {
     AccountsPage(),
     CategoriesPage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    currentIndex = widget.initialIndex;
+  }
 
   @override
   Widget build(BuildContext context) {
