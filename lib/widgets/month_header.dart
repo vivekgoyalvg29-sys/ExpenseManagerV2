@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'section_tile.dart';
 
 class MonthHeader extends StatelessWidget {
 
@@ -19,7 +18,8 @@ class MonthHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
 
-    return SectionTile(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
