@@ -45,7 +45,7 @@ jobs:
           flutter build apk --release
 
       - name: Upload APK
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: app-release
           path: app/build/app/outputs/flutter-apk/app-release.apk
