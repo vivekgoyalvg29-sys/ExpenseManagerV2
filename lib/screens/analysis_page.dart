@@ -109,9 +109,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   bool _isBudgetInActiveRange(Map<String, dynamic> budgetData) {
-    if (budgetData['year'] != currentMonth.year) return false;
+    final year = _toInt(budgetData['year']);
+    if (year != currentMonth.year) return false;
 
-    final month = budgetData['month'] as int;
+    final month = _toInt(budgetData['month']);
 
     if (analysisMode == AnalysisMode.selectedMonth) {
       return month == currentMonth.month;
@@ -122,6 +123,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     return true;
+  }
+
+  int _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString()) ?? 0;
   }
 
   IconData _categoryIcon(String categoryName) {
@@ -160,15 +167,22 @@ class _AnalysisPageState extends State<AnalysisPage> {
         : _activeTotalBudget();
 
     var i = 0;
-    return analysisData.where((d) => d['spent'] > 0).map((data) {
+    return analysisData.where((d) {
+      final contribution = pieContributionMode == PieContributionMode.expense
+          ? (d['spent'] as num).toDouble()
+          : (d['budget'] as num).toDouble();
+      return contribution > 0;
+    }).map((data) {
       final color = colors[i % colors.length];
       i++;
-      final spent = (data['spent'] as num).toDouble();
-      final percentage = denominator == 0 ? 0 : (spent / denominator) * 100;
+      final contribution = pieContributionMode == PieContributionMode.expense
+          ? (data['spent'] as num).toDouble()
+          : (data['budget'] as num).toDouble();
+      final percentage = denominator == 0 ? 0 : (contribution / denominator) * 100;
 
       return PieChartSectionData(
         color: color,
-        value: spent,
+        value: contribution,
         title: '${data['category']}\n${percentage.toStringAsFixed(1)}%',
         titleStyle: const TextStyle(
           fontSize: 10,
