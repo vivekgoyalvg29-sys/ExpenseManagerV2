@@ -15,90 +15,19 @@ class _LoadExpensesFromMessagesPageState extends State<LoadExpensesFromMessagesP
   bool isRangeMode = false;
   bool isLoading = false;
 
-  DateTime singleMonth = DateTime(DateTime.now().year, DateTime.now().month);
-  late DateTime singleStartDate = _firstDayOfMonth(singleMonth);
-  late DateTime singleEndDate = _lastDayOfMonth(singleMonth);
+  DateTime singleDate = DateTime.now();
+  DateTime rangeStartDate = DateTime.now();
+  DateTime rangeEndDate = DateTime.now();
 
-  DateTime rangeStart = DateTime(DateTime.now().year, DateTime.now().month);
-  DateTime rangeEnd = DateTime(DateTime.now().year, DateTime.now().month);
-  late DateTime rangeStartDate = _firstDayOfMonth(rangeStart);
-  late DateTime rangeEndDate = _lastDayOfMonth(rangeEnd);
-
-  static DateTime _firstDayOfMonth(DateTime month) => DateTime(month.year, month.month, 1);
-
-  static DateTime _lastDayOfMonth(DateTime month) =>
-      DateTime(month.year, month.month + 1, 0, 23, 59, 59);
-
-  static DateTime _clampDateToMonth(DateTime date, DateTime month) {
-    final lastDay = DateTime(month.year, month.month + 1, 0).day;
-    final clampedDay = date.day > lastDay ? lastDay : date.day;
-
-    return DateTime(
-      month.year,
-      month.month,
-      clampedDay,
-      date.hour,
-      date.minute,
-      date.second,
-    );
-  }
-
-  Future<void> _pickMonth({required bool isStart, bool single = false}) async {
-    final initialDate = single ? singleMonth : (isStart ? rangeStart : rangeEnd);
+  Future<void> _pickDate({required bool isStart, required bool single}) async {
+    final initialDate = single ? singleDate : (isStart ? rangeStartDate : rangeEndDate);
 
     final picked = await showDatePicker(
       context: context,
       initialDate: initialDate,
       firstDate: DateTime(2020, 1),
       lastDate: DateTime(2100, 12),
-      initialDatePickerMode: DatePickerMode.year,
-      helpText: 'Select month and year',
-    );
-
-    if (picked == null) return;
-
-    setState(() {
-      final selected = DateTime(picked.year, picked.month);
-      if (single) {
-        singleMonth = selected;
-        singleStartDate = _firstDayOfMonth(selected);
-        singleEndDate = _lastDayOfMonth(selected);
-      } else if (isStart) {
-        rangeStart = selected;
-        if (rangeStart.isAfter(rangeEnd)) {
-          rangeEnd = rangeStart;
-        }
-        rangeStartDate = _clampDateToMonth(rangeStartDate, rangeStart);
-        rangeEndDate = _clampDateToMonth(rangeEndDate, rangeEnd);
-      } else {
-        rangeEnd = selected;
-        if (rangeEnd.isBefore(rangeStart)) {
-          rangeStart = rangeEnd;
-        }
-        rangeStartDate = _clampDateToMonth(rangeStartDate, rangeStart);
-        rangeEndDate = _clampDateToMonth(rangeEndDate, rangeEnd);
-      }
-
-      if (rangeStartDate.isAfter(rangeEndDate)) {
-        rangeStartDate = _firstDayOfMonth(rangeStart);
-        rangeEndDate = _lastDayOfMonth(rangeEnd);
-      }
-    });
-  }
-
-  Future<void> _pickDate({required bool isStart, required bool single}) async {
-    final selectedDate = single
-        ? (isStart ? singleStartDate : singleEndDate)
-        : (isStart ? rangeStartDate : rangeEndDate);
-    final currentMonth = single
-        ? singleMonth
-        : (isStart ? rangeStart : rangeEnd);
-
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: selectedDate,
-      firstDate: DateTime(currentMonth.year, currentMonth.month, 1),
-      lastDate: DateTime(currentMonth.year, currentMonth.month + 1, 0),
+      initialDatePickerMode: DatePickerMode.day,
       helpText: 'Select date',
     );
 
@@ -106,36 +35,28 @@ class _LoadExpensesFromMessagesPageState extends State<LoadExpensesFromMessagesP
 
     setState(() {
       if (single) {
-        if (isStart) {
-          singleStartDate = DateTime(picked.year, picked.month, picked.day);
-          if (singleStartDate.isAfter(singleEndDate)) {
-            singleEndDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
-          }
-        } else {
-          singleEndDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
-          if (singleEndDate.isBefore(singleStartDate)) {
-            singleStartDate = DateTime(picked.year, picked.month, picked.day);
-          }
+        singleDate = picked;
+      } else if (isStart) {
+        rangeStartDate = picked;
+        if (rangeStartDate.isAfter(rangeEndDate)) {
+          rangeEndDate = picked;
         }
       } else {
-        if (isStart) {
-          rangeStartDate = DateTime(picked.year, picked.month, picked.day);
-          if (rangeStartDate.isAfter(rangeEndDate)) {
-            rangeEndDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
-          }
-        } else {
-          rangeEndDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
-          if (rangeEndDate.isBefore(rangeStartDate)) {
-            rangeStartDate = DateTime(picked.year, picked.month, picked.day);
-          }
+        rangeEndDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+        if (rangeEndDate.isBefore(rangeStartDate)) {
+          rangeStartDate = picked;
         }
       }
     });
   }
 
   Future<void> _loadExpenses() async {
-    final start = isRangeMode ? rangeStartDate : singleStartDate;
-    final end = isRangeMode ? rangeEndDate : singleEndDate;
+    final start = isRangeMode
+        ? DateTime(rangeStartDate.year, rangeStartDate.month, rangeStartDate.day)
+        : DateTime(singleDate.year, singleDate.month, singleDate.day);
+    final end = isRangeMode
+        ? DateTime(rangeEndDate.year, rangeEndDate.month, rangeEndDate.day, 23, 59, 59)
+        : DateTime(singleDate.year, singleDate.month, singleDate.day, 23, 59, 59);
 
     setState(() => isLoading = true);
 
@@ -184,54 +105,26 @@ class _LoadExpensesFromMessagesPageState extends State<LoadExpensesFromMessagesP
                 children: [
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Month'),
-                    subtitle: Text(DateFormat('MMMM yyyy').format(singleMonth)),
+                    title: const Text('Date'),
+                    subtitle: Text(DateFormat('dd MMM yyyy').format(singleDate)),
                     trailing: const Icon(Icons.calendar_month),
-                    onTap: () => _pickMonth(isStart: true, single: true),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('From date'),
-                    subtitle: Text(DateFormat('dd MMM yyyy').format(singleStartDate)),
-                    trailing: const Icon(Icons.calendar_today),
                     onTap: () => _pickDate(isStart: true, single: true),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('To date'),
-                    subtitle: Text(DateFormat('dd MMM yyyy').format(singleEndDate)),
-                    trailing: const Icon(Icons.calendar_today),
-                    onTap: () => _pickDate(isStart: false, single: true),
                   ),
                 ],
               )
             else ...[
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Start month'),
-                subtitle: Text(DateFormat('MMMM yyyy').format(rangeStart)),
-                trailing: const Icon(Icons.calendar_month),
-                onTap: () => _pickMonth(isStart: true),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('End month'),
-                subtitle: Text(DateFormat('MMMM yyyy').format(rangeEnd)),
-                trailing: const Icon(Icons.calendar_month),
-                onTap: () => _pickMonth(isStart: false),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('From date'),
+                title: const Text('Start date'),
                 subtitle: Text(DateFormat('dd MMM yyyy').format(rangeStartDate)),
-                trailing: const Icon(Icons.calendar_today),
+                trailing: const Icon(Icons.calendar_month),
                 onTap: () => _pickDate(isStart: true, single: false),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('To date'),
+                title: const Text('End date'),
                 subtitle: Text(DateFormat('dd MMM yyyy').format(rangeEndDate)),
-                trailing: const Icon(Icons.calendar_today),
+                trailing: const Icon(Icons.calendar_month),
                 onTap: () => _pickDate(isStart: false, single: false),
               ),
             ],
