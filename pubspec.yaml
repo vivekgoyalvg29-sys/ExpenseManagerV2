@@ -17,6 +17,7 @@ dependencies:
   home_widget: ^0.5.0
   flutter_sms_inbox: ^1.0.3
   permission_handler: ^11.3.1
+  shared_preferences: ^2.2.3
 
 
 flutter:
