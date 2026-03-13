@@ -4,11 +4,13 @@ import 'section_tile.dart';
 class MonthSummary extends StatelessWidget {
   final double budget;
   final double expense;
+  final Widget? trailing;
 
   const MonthSummary({
     super.key,
     required this.budget,
     required this.expense,
+    this.trailing,
   });
 
   @override
@@ -21,6 +23,11 @@ class MonthSummary extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Column(
           children: [
+            if (trailing != null)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [trailing!],
+              ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: const [

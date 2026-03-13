@@ -176,17 +176,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
         return WidgetSyncService.selectedMonth;
     }
   }
-  String _modeLabel() {
-    switch (analysisMode) {
-      case AnalysisMode.selectedMonth:
-        return "Selected month";
-      case AnalysisMode.cumulativeToSelectedMonth:
-        return "Cumulative till selected month";
-      case AnalysisMode.cumulativeYear:
-        return "Cumulative full year";
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     double expense = 0;
@@ -221,36 +210,46 @@ class _AnalysisPageState extends State<AnalysisPage> {
               });
               loadAnalysis();
             },
-            trailing: PopupMenuButton<AnalysisMode>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: _changeMode,
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: AnalysisMode.selectedMonth,
-                  child: Text("Selected month analysis"),
-                ),
-                PopupMenuItem(
-                  value: AnalysisMode.cumulativeToSelectedMonth,
-                  child: Text("Cumulative till selected month"),
-                ),
-                PopupMenuItem(
-                  value: AnalysisMode.cumulativeYear,
-                  child: Text("Cumulative full year"),
-                ),
-              ],
-            ),
-          ),
-          SectionTile(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-            child: Text(
-              _modeLabel(),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black54),
-            ),
           ),
           MonthSummary(
             budget: budgetTotal,
             expense: expense,
+            trailing: PopupMenuButton<AnalysisMode>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: _changeMode,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: AnalysisMode.selectedMonth,
+                  child: Row(
+                    children: [
+                      const Expanded(child: Text("Selected month analysis")),
+                      if (analysisMode == AnalysisMode.selectedMonth)
+                        const Icon(Icons.check, size: 18),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: AnalysisMode.cumulativeToSelectedMonth,
+                  child: Row(
+                    children: [
+                      const Expanded(child: Text("Cumulative till selected month")),
+                      if (analysisMode == AnalysisMode.cumulativeToSelectedMonth)
+                        const Icon(Icons.check, size: 18),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: AnalysisMode.cumulativeYear,
+                  child: Row(
+                    children: [
+                      const Expanded(child: Text("Cumulative full year")),
+                      if (analysisMode == AnalysisMode.cumulativeYear)
+                        const Icon(Icons.check, size: 18),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           if (analysisData.any((d) => d["spent"] > 0))
             SectionTile(
