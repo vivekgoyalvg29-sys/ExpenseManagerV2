@@ -12,15 +12,21 @@ class LoadExpensesFromMessagesPage extends StatefulWidget {
 }
 
 class _LoadExpensesFromMessagesPageState extends State<LoadExpensesFromMessagesPage> {
-  bool isRangeMode = false;
   bool isLoading = false;
 
-  DateTime singleDate = DateTime.now();
-  DateTime rangeStartDate = DateTime.now();
-  DateTime rangeEndDate = DateTime.now();
+  late DateTime startDate;
+  late DateTime endDate;
 
-  Future<void> _pickDate({required bool isStart, required bool single}) async {
-    final initialDate = single ? singleDate : (isStart ? rangeStartDate : rangeEndDate);
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    startDate = DateTime(now.year, now.month, 1);
+    endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+  }
+
+  Future<void> _pickDate({required bool isStart}) async {
+    final initialDate = isStart ? startDate : endDate;
 
     final picked = await showDatePicker(
       context: context,
@@ -34,29 +40,23 @@ class _LoadExpensesFromMessagesPageState extends State<LoadExpensesFromMessagesP
     if (picked == null) return;
 
     setState(() {
-      if (single) {
-        singleDate = picked;
-      } else if (isStart) {
-        rangeStartDate = picked;
-        if (rangeStartDate.isAfter(rangeEndDate)) {
-          rangeEndDate = picked;
+      if (isStart) {
+        startDate = picked;
+        if (startDate.isAfter(endDate)) {
+          endDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
         }
       } else {
-        rangeEndDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
-        if (rangeEndDate.isBefore(rangeStartDate)) {
-          rangeStartDate = picked;
+        endDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+        if (endDate.isBefore(startDate)) {
+          startDate = picked;
         }
       }
     });
   }
 
   Future<void> _loadExpenses() async {
-    final start = isRangeMode
-        ? DateTime(rangeStartDate.year, rangeStartDate.month, rangeStartDate.day)
-        : DateTime(singleDate.year, singleDate.month, singleDate.day);
-    final end = isRangeMode
-        ? DateTime(rangeEndDate.year, rangeEndDate.month, rangeEndDate.day, 23, 59, 59)
-        : DateTime(singleDate.year, singleDate.month, singleDate.day, 23, 59, 59);
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
 
     setState(() => isLoading = true);
 
@@ -89,45 +89,20 @@ class _LoadExpensesFromMessagesPageState extends State<LoadExpensesFromMessagesP
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('One month')),
-                ButtonSegment(value: true, label: Text('Range of months')),
-              ],
-              selected: {isRangeMode},
-              onSelectionChanged: (selection) {
-                setState(() => isRangeMode = selection.first);
-              },
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Start date'),
+              subtitle: Text(DateFormat('dd MMM yyyy').format(startDate)),
+              trailing: const Icon(Icons.calendar_month),
+              onTap: () => _pickDate(isStart: true),
             ),
-            const SizedBox(height: 18),
-            if (!isRangeMode)
-              Column(
-                children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Date'),
-                    subtitle: Text(DateFormat('dd MMM yyyy').format(singleDate)),
-                    trailing: const Icon(Icons.calendar_month),
-                    onTap: () => _pickDate(isStart: true, single: true),
-                  ),
-                ],
-              )
-            else ...[
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Start date'),
-                subtitle: Text(DateFormat('dd MMM yyyy').format(rangeStartDate)),
-                trailing: const Icon(Icons.calendar_month),
-                onTap: () => _pickDate(isStart: true, single: false),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('End date'),
-                subtitle: Text(DateFormat('dd MMM yyyy').format(rangeEndDate)),
-                trailing: const Icon(Icons.calendar_month),
-                onTap: () => _pickDate(isStart: false, single: false),
-              ),
-            ],
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('End date'),
+              subtitle: Text(DateFormat('dd MMM yyyy').format(endDate)),
+              trailing: const Icon(Icons.calendar_month),
+              onTap: () => _pickDate(isStart: false),
+            ),
             const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,
