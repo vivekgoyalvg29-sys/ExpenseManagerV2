@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../services/message_expense_service.dart';
+import '../services/data_store.dart';
 
 class LoadExpensesFromMessagesPage extends StatefulWidget {
   const LoadExpensesFromMessagesPage({super.key});
@@ -63,20 +64,10 @@ class _LoadExpensesFromMessagesPageState extends State<LoadExpensesFromMessagesP
 
     try {
       final expenses = await MessageExpenseService.fetchExpensesFromMessages(start: start, end: end);
+      DataStore.replaceSmsTransactions(expenses);
 
       if (!mounted) return;
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => MessageExpenseResultsPage(
-            expenses: expenses,
-            rangeLabel: isRangeMode
-                ? '${DateFormat('MMM yyyy').format(rangeStart)} - ${DateFormat('MMM yyyy').format(rangeEnd)}'
-                : DateFormat('MMMM yyyy').format(singleMonth),
-          ),
-        ),
-      );
+      Navigator.pop(context, true);
     } on MessageExpenseException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -152,55 +143,6 @@ class _LoadExpensesFromMessagesPageState extends State<LoadExpensesFromMessagesP
           ],
         ),
       ),
-    );
-  }
-}
-
-class MessageExpenseResultsPage extends StatelessWidget {
-  final List<Map<String, dynamic>> expenses;
-  final String rangeLabel;
-
-  const MessageExpenseResultsPage({
-    super.key,
-    required this.expenses,
-    required this.rangeLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Messages: $rangeLabel'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
-            child: const Text('Close', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-      body: expenses.isEmpty
-          ? const Center(child: Text('No expenses found in messages for selected range.'))
-          : ListView.separated(
-              itemCount: expenses.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final expense = expenses[index];
-                final date = expense['date'] as DateTime;
-
-                return ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.sms)),
-                  title: Text(expense['title'].toString()),
-                  subtitle: Text(DateFormat('dd MMM yyyy').format(date)),
-                  trailing: Text(
-                    '₹${(expense['amount'] as num).toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
-                  ),
-                );
-              },
-            ),
     );
   }
 }

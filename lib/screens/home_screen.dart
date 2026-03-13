@@ -6,6 +6,7 @@ import 'analysis_page.dart';
 import 'budgets_page.dart';
 import 'accounts_page.dart';
 import 'categories_page.dart';
+import 'sms_page.dart';
 
 class HomeScreen extends StatefulWidget {
   final int initialIndex;
@@ -25,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
     BudgetsPage(),
     AccountsPage(),
     CategoriesPage(),
+    SmsPage(),
   ];
 
   @override
@@ -42,12 +44,18 @@ class _HomeScreenState extends State<HomeScreen> {
         leading: PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
           position: PopupMenuPosition.under,
-          onSelected: (value) {
+          onSelected: (value) async {
             if (value == 'load_messages') {
-              Navigator.push(
+              final loaded = await Navigator.push<bool>(
                 context,
                 MaterialPageRoute(builder: (_) => const LoadExpensesFromMessagesPage()),
               );
+
+              if (loaded == true && mounted) {
+                setState(() {
+                  currentIndex = 5;
+                });
+              }
             }
           },
           itemBuilder: (context) => const [
@@ -85,6 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: "Accounts",
               ),
               BottomNavigationBarItem(icon: Icon(Icons.category), label: "Categories"),
+              BottomNavigationBarItem(icon: Icon(Icons.sms), label: "SMSs"),
             ],
           ),
         ),
