@@ -152,27 +152,29 @@ class _SmsPageState extends State<SmsPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
+      floatingActionButton: _selectionMode
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                FloatingActionButton.small(
+                  heroTag: 'cancelSmsSelection',
+                  onPressed: _clearSelection,
+                  tooltip: 'Cancel selection',
+                  child: const Icon(Icons.close),
+                ),
+                const SizedBox(height: 10),
+                FloatingActionButton.extended(
+                  heroTag: 'deleteSelectedSms',
+                  onPressed: _deleteSelected,
+                  icon: const Icon(Icons.delete),
+                  label: Text('Delete (${_selectedTransactionKeys.length})'),
+                ),
+              ],
+            )
+          : null,
       body: Column(
         children: [
-          if (_selectionMode)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    tooltip: 'Cancel selection',
-                    onPressed: _clearSelection,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete),
-                    tooltip: 'Delete selected',
-                    onPressed: _deleteSelected,
-                  ),
-                ],
-              ),
-            ),
           Expanded(
             child: SectionTile(
               child: _transactions.isEmpty
