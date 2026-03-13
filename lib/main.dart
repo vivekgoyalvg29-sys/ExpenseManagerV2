@@ -26,13 +26,7 @@ class FinTrackApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: "FinTrack",
-      theme: ThemeData(
-        primarySwatch: Colors.green,
-        textTheme: const TextTheme(
-          bodyMedium: TextStyle(fontSize: 14),
-          titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-      ),
+      theme: ThemeData(primarySwatch: Colors.green),
       routes: {
         '/': (_) => const HomeScreen(),
         '/transactions': (_) => const HomeScreen(initialIndex: 0),

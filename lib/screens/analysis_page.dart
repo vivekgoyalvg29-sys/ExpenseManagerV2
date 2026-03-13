@@ -1,23 +1,17 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-
 import '../services/data_store.dart';
 import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_header.dart';
-import '../widgets/month_summary.dart';
 import '../widgets/section_tile.dart';
+import '../widgets/month_summary.dart';
 
 enum AnalysisMode {
   selectedMonth,
   cumulativeToSelectedMonth,
   cumulativeYear,
-}
-
-enum PieContributionMode {
-  expense,
-  budget,
 }
 
 class AnalysisPage extends StatefulWidget {
@@ -28,7 +22,6 @@ class AnalysisPage extends StatefulWidget {
 class _AnalysisPageState extends State<AnalysisPage> {
   DateTime currentMonth = DateTime.now();
   AnalysisMode analysisMode = AnalysisMode.selectedMonth;
-  PieContributionMode pieContributionMode = PieContributionMode.expense;
 
   List<Map<String, dynamic>> analysisData = [];
   List<Map<String, dynamic>> transactions = [];
@@ -49,39 +42,39 @@ class _AnalysisPageState extends State<AnalysisPage> {
     budgets = budgetData;
     DataStore.categories = categories;
 
-    final spent = <String, double>{};
-    final budget = <String, double>{};
+    Map<String, double> spent = {};
+    Map<String, double> budget = {};
 
-    for (final t in tx) {
-      final date = DateTime.parse(t['date']);
+    for (var t in tx) {
+      DateTime date = DateTime.parse(t["date"]);
 
-      if (_isDateInActiveRange(date) && t['type'] == 'expense') {
-        final category = t['title'] as String;
-        final amount = (t['amount'] as num).toDouble();
+      if (_isDateInActiveRange(date) && t["type"] == "expense") {
+        String category = t["title"];
+        double amount = (t["amount"] as num).toDouble();
         spent[category] = (spent[category] ?? 0) + amount;
       }
     }
 
-    for (final b in budgetData) {
+    for (var b in budgetData) {
       if (_isBudgetInActiveRange(b)) {
-        final category = b['category'] as String;
-        final amount = (b['amount'] as num).toDouble();
+        String category = b["category"];
+        double amount = (b["amount"] as num).toDouble();
         budget[category] = (budget[category] ?? 0) + amount;
       }
     }
 
-    final result = <Map<String, dynamic>>[];
+    List<Map<String, dynamic>> result = [];
     final categoriesUnion = <String>{...budget.keys, ...spent.keys};
 
-    for (final category in categoriesUnion) {
+    for (var category in categoriesUnion) {
       result.add({
-        'category': category,
-        'spent': spent[category] ?? 0,
-        'budget': budget[category] ?? 0,
+        "category": category,
+        "spent": spent[category] ?? 0,
+        "budget": budget[category] ?? 0,
       });
     }
 
-    result.sort((a, b) => (b['spent'] as double).compareTo(a['spent'] as double));
+    result.sort((a, b) => (b["spent"] as double).compareTo(a["spent"] as double));
 
     setState(() {
       analysisData = result;
@@ -109,9 +102,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   bool _isBudgetInActiveRange(Map<String, dynamic> budgetData) {
-    if (budgetData['year'] != currentMonth.year) return false;
+    if (budgetData["year"] != currentMonth.year) return false;
 
-    final month = budgetData['month'] as int;
+    int month = budgetData["month"];
 
     if (analysisMode == AnalysisMode.selectedMonth) {
       return month == currentMonth.month;
@@ -126,22 +119,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   IconData _categoryIcon(String categoryName) {
     final category = DataStore.categories.cast<Map<String, dynamic>?>().firstWhere(
-          (c) => c?['name'] == categoryName,
+          (c) => c?["name"] == categoryName,
           orElse: () => null,
         );
-    return iconFromCodePoint(category?['icon'], fallback: Icons.category);
-  }
-
-  double _activeTotalExpense() {
-    return transactions
-        .where((t) => _isDateInActiveRange(DateTime.parse(t['date'])) && t['type'] == 'expense')
-        .fold(0.0, (sum, t) => sum + (t['amount'] as num).toDouble());
-  }
-
-  double _activeTotalBudget() {
-    return budgets
-        .where(_isBudgetInActiveRange)
-        .fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
+    return iconFromCodePoint(category?["icon"], fallback: Icons.category);
   }
 
   List<PieChartSectionData> buildPieSections() {
@@ -155,39 +136,26 @@ class _AnalysisPageState extends State<AnalysisPage> {
       Colors.amber,
     ];
 
-    final denominator = pieContributionMode == PieContributionMode.expense
-        ? _activeTotalExpense()
-        : _activeTotalBudget();
+    int i = 0;
 
-    var i = 0;
-    return analysisData.where((d) => d['spent'] > 0).map((data) {
+    return analysisData.where((d) => d["spent"] > 0).map((data) {
       final color = colors[i % colors.length];
       i++;
-      final spent = (data['spent'] as num).toDouble();
-      final percentage = denominator == 0 ? 0 : (spent / denominator) * 100;
+      final icon = _categoryIcon(data["category"]);
 
       return PieChartSectionData(
         color: color,
-        value: spent,
-        title: '${data['category']}\n${percentage.toStringAsFixed(1)}%',
+        value: data["spent"],
+        title: String.fromCharCode(icon.codePoint),
         titleStyle: const TextStyle(
-          fontSize: 10,
+          fontFamily: 'MaterialIcons',
+          fontSize: 16,
           color: Colors.white,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.bold,
         ),
-        radius: 72,
+        radius: 70,
       );
     }).toList();
-  }
-
-  Color _progressColor(double ratio) {
-    if (ratio <= 0.5) {
-      return const Color(0xFF9CCC65);
-    }
-    if (ratio <= 1) {
-      return const Color(0xFFFFF176);
-    }
-    return const Color(0xFFEF9A9A);
   }
 
   void _changeMode(AnalysisMode mode) {
@@ -196,6 +164,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     });
     loadAnalysis();
   }
+
 
   String _widgetMode() {
     switch (analysisMode) {
@@ -207,11 +176,21 @@ class _AnalysisPageState extends State<AnalysisPage> {
         return WidgetSyncService.selectedMonth;
     }
   }
-
   @override
   Widget build(BuildContext context) {
-    final expense = _activeTotalExpense();
-    final budgetTotal = _activeTotalBudget();
+    double expense = 0;
+
+    for (var t in transactions) {
+      DateTime date = DateTime.parse(t["date"]);
+
+      if (_isDateInActiveRange(date) && t["type"] == "expense") {
+        expense += (t["amount"] as num).toDouble();
+      }
+    }
+
+    final budgetTotal = budgets
+        .where((b) => _isBudgetInActiveRange(b))
+        .fold(0.0, (sum, b) => sum + (b["amount"] as num).toDouble());
 
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
@@ -243,8 +222,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   value: AnalysisMode.selectedMonth,
                   child: Row(
                     children: [
-                      const Expanded(child: Text('Selected month analysis')),
-                      if (analysisMode == AnalysisMode.selectedMonth) const Icon(Icons.check, size: 18),
+                      const Expanded(child: Text("Selected month analysis")),
+                      if (analysisMode == AnalysisMode.selectedMonth)
+                        const Icon(Icons.check, size: 18),
                     ],
                   ),
                 ),
@@ -252,7 +232,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   value: AnalysisMode.cumulativeToSelectedMonth,
                   child: Row(
                     children: [
-                      const Expanded(child: Text('Cumulative till selected month')),
+                      const Expanded(child: Text("Cumulative till selected month")),
                       if (analysisMode == AnalysisMode.cumulativeToSelectedMonth)
                         const Icon(Icons.check, size: 18),
                     ],
@@ -262,125 +242,74 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   value: AnalysisMode.cumulativeYear,
                   child: Row(
                     children: [
-                      const Expanded(child: Text('Cumulative full year')),
-                      if (analysisMode == AnalysisMode.cumulativeYear) const Icon(Icons.check, size: 18),
+                      const Expanded(child: Text("Cumulative full year")),
+                      if (analysisMode == AnalysisMode.cumulativeYear)
+                        const Icon(Icons.check, size: 18),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          if (analysisData.any((d) => d['spent'] > 0))
+          if (analysisData.any((d) => d["spent"] > 0))
             SectionTile(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        pieContributionMode == PieContributionMode.expense
-                            ? 'Contribution vs total expense'
-                            : 'Contribution vs total budget',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                      ),
-                      PopupMenuButton<PieContributionMode>(
-                        icon: const Icon(Icons.more_vert),
-                        onSelected: (mode) {
-                          setState(() {
-                            pieContributionMode = mode;
-                          });
-                        },
-                        itemBuilder: (context) => [
-                          PopupMenuItem(
-                            value: PieContributionMode.expense,
-                            child: Row(
-                              children: [
-                                const Expanded(child: Text('Against total expense')),
-                                if (pieContributionMode == PieContributionMode.expense)
-                                  const Icon(Icons.check, size: 18),
-                              ],
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: PieContributionMode.budget,
-                            child: Row(
-                              children: [
-                                const Expanded(child: Text('Against total budget')),
-                                if (pieContributionMode == PieContributionMode.budget)
-                                  const Icon(Icons.check, size: 18),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+              child: SizedBox(
+                height: 200,
+                child: PieChart(
+                  PieChartData(
+                    sections: buildPieSections(),
+                    centerSpaceRadius: 40,
+                    sectionsSpace: 2,
                   ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 210,
-                    child: PieChart(
-                      PieChartData(
-                        sections: buildPieSections(),
-                        centerSpaceRadius: 32,
-                        sectionsSpace: 2,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           Expanded(
             child: SectionTile(
               child: analysisData.isEmpty
-                  ? const Center(child: Text('No analysis data'))
+                  ? const Center(child: Text("No analysis data"))
                   : ListView.builder(
-                      padding: EdgeInsets.zero,
-                      itemCount: analysisData.length,
-                      itemBuilder: (context, index) {
-                        final data = analysisData[index];
+                    itemCount: analysisData.length,
+                    itemBuilder: (context, index) {
+                      final data = analysisData[index];
 
-                        final spent = (data['spent'] as num).toDouble();
-                        final budget = (data['budget'] as num).toDouble();
-                        final ratio = budget == 0 ? (spent > 0 ? 1.01 : 0) : spent / budget;
-                        final progress = budget == 0 ? (spent > 0 ? 1.0 : 0.0) : ratio.clamp(0.0, 1.0);
+                      double spent = data["spent"];
+                      double budget = data["budget"];
+                      double progress = budget == 0 ? 0 : (spent / budget).clamp(0, 1);
 
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(_categoryIcon(data['category'] as String), size: 18),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        data['category'] as String,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                                      ),
-                                    ],
-                                  ),
-                                  Text(
-                                    '₹${spent.toStringAsFixed(0)} / ₹${budget.toStringAsFixed(0)}',
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              LinearProgressIndicator(
-                                value: progress,
-                                minHeight: 8,
-                                backgroundColor: Colors.grey[300],
-                                color: _progressColor(ratio),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(_categoryIcon(data["category"]), size: 18),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      data["category"],
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                                Text("₹${spent.toStringAsFixed(0)} / ₹${budget.toStringAsFixed(0)}"),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            LinearProgressIndicator(
+                              value: progress,
+                              minHeight: 8,
+                              backgroundColor: Colors.grey[300],
+                              color: progress >= 1 ? Colors.red : Colors.blue,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
             ),
           ),
         ],

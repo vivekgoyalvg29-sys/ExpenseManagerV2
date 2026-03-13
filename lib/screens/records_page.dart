@@ -156,7 +156,6 @@ class _RecordsPageState extends State<RecordsPage> {
               child: filteredTransactions.isEmpty
                   ? const Center(child: Text("No transactions"))
                   : ListView.builder(
-                      padding: EdgeInsets.zero,
                       itemCount: filteredTransactions.length,
                       itemBuilder: (context, index) {
                         final tx = filteredTransactions[index];
@@ -182,19 +181,12 @@ class _RecordsPageState extends State<RecordsPage> {
                                   color: Colors.white,
                                 ),
                               ),
-                        title: Text(
-                          tx["title"],
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Text(
-                          "${date.day}/${date.month}/${date.year}",
-                          style: const TextStyle(fontSize: 13),
-                        ),
+                        title: Text(tx["title"]),
+                        subtitle: Text("${date.day}/${date.month}/${date.year}"),
                         trailing: Text(
                           "₹${tx["amount"]}",
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 14,
                             color: tx["type"] == "income" ? Colors.green : Colors.red,
                           ),
                         ),

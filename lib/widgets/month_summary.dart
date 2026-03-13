@@ -31,9 +31,9 @@ class MonthSummary extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: const [
-                Text("Budget", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                Text("Expense", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                Text("Remaining", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                Text("Budget", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text("Expense", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text("Remaining", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               ],
             ),
             const SizedBox(height: 8),
@@ -44,7 +44,7 @@ class MonthSummary extends StatelessWidget {
                   "₹${budget.toStringAsFixed(0)}",
                   style: const TextStyle(
                     color: Colors.green,
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -52,7 +52,7 @@ class MonthSummary extends StatelessWidget {
                   "₹${expense.toStringAsFixed(0)}",
                   style: const TextStyle(
                     color: Colors.red,
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -60,7 +60,7 @@ class MonthSummary extends StatelessWidget {
                   "₹${remaining.toStringAsFixed(0)}",
                   style: TextStyle(
                     color: remaining >= 0 ? Colors.blue : Colors.red,
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
