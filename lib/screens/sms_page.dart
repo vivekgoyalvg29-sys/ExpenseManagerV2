@@ -155,10 +155,27 @@ class _SmsPageState extends State<SmsPage> {
               child: _transactions.isEmpty
                   ? const Center(
                       child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text(
-                          'No SMS expenses loaded. Use “Load expense from messages” to generate records.',
-                          textAlign: TextAlign.center,
+                        padding: EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.sms_failed_outlined,
+                              size: 72,
+                              color: Colors.black38,
+                            ),
+                            SizedBox(height: 14),
+                            Text(
+                              'No transactions loaded yet',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Use the menu on the top-right to load transactions from SMSs.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.black54),
+                            ),
+                          ],
                         ),
                       ),
                     )
