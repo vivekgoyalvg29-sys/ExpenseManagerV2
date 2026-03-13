@@ -5,6 +5,7 @@ import 'package:home_widget/home_widget.dart';
 
 import 'screens/home_screen.dart';
 import 'services/widget_sync_service.dart';
+import 'services/data_store.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,8 +14,9 @@ void main() async {
     await HomeWidget.setAppGroupId('group.com.example.expense_manager');
   }
   await WidgetSyncService.syncFromStoredConfiguration();
+  await DataStore.initialize();
 
-  runApp(FinTrackApp());
+  runApp(const FinTrackApp());
 }
 
 class FinTrackApp extends StatelessWidget {

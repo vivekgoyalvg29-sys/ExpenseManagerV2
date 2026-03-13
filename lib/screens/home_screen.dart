@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+
+import '../services/data_store.dart';
 import '../widgets/section_tile.dart';
-import 'load_expenses_from_messages_page.dart';
-import 'records_page.dart';
+import 'accounts_page.dart';
 import 'analysis_page.dart';
 import 'budgets_page.dart';
-import 'accounts_page.dart';
 import 'categories_page.dart';
+import 'load_expenses_from_messages_page.dart';
+import 'records_page.dart';
 import 'sms_page.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,19 +22,29 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late int currentIndex;
 
-  final List<Widget> pages = [
-    RecordsPage(),
-    AnalysisPage(),
-    BudgetsPage(),
-    AccountsPage(),
-    CategoriesPage(),
-    SmsPage(),
-  ];
-
   @override
   void initState() {
     super.initState();
     currentIndex = widget.initialIndex;
+  }
+
+  Widget _buildCurrentPage() {
+    switch (currentIndex) {
+      case 0:
+        return RecordsPage();
+      case 1:
+        return AnalysisPage();
+      case 2:
+        return BudgetsPage();
+      case 3:
+        return AccountsPage();
+      case 4:
+        return CategoriesPage();
+      case 5:
+        return SmsPage(key: ValueKey(DataStore.smsTransactionsVersion));
+      default:
+        return RecordsPage();
+    }
   }
 
   @override
@@ -66,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      body: pages[currentIndex],
+      body: _buildCurrentPage(),
       bottomNavigationBar: SafeArea(
         top: false,
         child: SectionTile(
@@ -85,15 +97,15 @@ class _HomeScreenState extends State<HomeScreen> {
               });
             },
             items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.list), label: "Records"),
-              BottomNavigationBarItem(icon: Icon(Icons.pie_chart), label: "Analysis"),
-              BottomNavigationBarItem(icon: Icon(Icons.account_balance), label: "Budgets"),
+              BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Records'),
+              BottomNavigationBarItem(icon: Icon(Icons.pie_chart), label: 'Analysis'),
+              BottomNavigationBarItem(icon: Icon(Icons.account_balance), label: 'Budgets'),
               BottomNavigationBarItem(
                 icon: Icon(Icons.account_balance_wallet),
-                label: "Accounts",
+                label: 'Accounts',
               ),
-              BottomNavigationBarItem(icon: Icon(Icons.category), label: "Categories"),
-              BottomNavigationBarItem(icon: Icon(Icons.sms), label: "SMSs"),
+              BottomNavigationBarItem(icon: Icon(Icons.category), label: 'Categories'),
+              BottomNavigationBarItem(icon: Icon(Icons.sms), label: 'SMSs'),
             ],
           ),
         ),
