@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../services/data_store.dart';
 import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
@@ -37,50 +38,51 @@ class _BudgetsPageState extends State<BudgetsPage> {
   }
 
   void showAddBudgetDialog({Map<String, dynamic>? budget}) {
-    String? selectedCategory = budget?["category"];
-    TextEditingController amountController =
-        TextEditingController(text: budget?["amount"]?.toString());
+    String? selectedCategory = budget?['category'];
+    final amountController = TextEditingController(text: budget?['amount']?.toString());
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(budget == null ? "Create Budget" : "Edit Budget"),
+          title: Text(budget == null ? 'Create Budget' : 'Edit Budget'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
                 value: selectedCategory,
                 items: DataStore.categories
-                    .where((cat) => cat["type"] == "expense")
-                    .map((cat) => DropdownMenuItem<String>(
-                          value: cat["name"],
-                          child: Text(cat["name"]!),
-                        ))
+                    .where((cat) => cat['type'] == 'expense')
+                    .map(
+                      (cat) => DropdownMenuItem<String>(
+                        value: cat['name'],
+                        child: Text(cat['name']!),
+                      ),
+                    )
                     .toList(),
                 onChanged: (value) {
                   selectedCategory = value;
                 },
-                decoration: InputDecoration(labelText: "Category"),
+                decoration: const InputDecoration(labelText: 'Category'),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: amountController,
                 keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: "Amount"),
+                decoration: const InputDecoration(labelText: 'Amount'),
               ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text("Cancel"),
+              child: const Text('Cancel'),
             ),
             TextButton(
               onPressed: () async {
                 if (selectedCategory == null || amountController.text.isEmpty) return;
 
-                double amount = double.parse(amountController.text);
+                final amount = double.parse(amountController.text);
 
                 if (budget == null) {
                   await DatabaseService.insertBudget(
@@ -91,7 +93,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                   );
                 } else {
                   await DatabaseService.updateBudget(
-                    budget["id"],
+                    budget['id'],
                     selectedCategory!,
                     amount,
                     currentMonth.month,
@@ -102,7 +104,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                 Navigator.pop(context);
                 loadBudgets();
               },
-              child: Text("Save"),
+              child: const Text('Save'),
             ),
           ],
         );
@@ -118,42 +120,38 @@ class _BudgetsPageState extends State<BudgetsPage> {
   }
 
   void deleteSelected() async {
-    for (var index in selectedIndexes) {
-      final id = filteredBudgets[index]["id"];
+    for (final index in selectedIndexes) {
+      final id = filteredBudgets[index]['id'];
       await DatabaseService.deleteBudget(id);
     }
 
     clearSelection();
-
     loadBudgets();
   }
 
   List<Map<String, dynamic>> get filteredBudgets {
     return budgets
-        .where((b) => b["month"] == currentMonth.month && b["year"] == currentMonth.year)
+        .where((b) => b['month'] == currentMonth.month && b['year'] == currentMonth.year)
         .toList();
   }
 
   IconData _categoryIcon(String categoryName) {
     final category = DataStore.categories.cast<Map<String, dynamic>?>().firstWhere(
-          (c) => c?["name"] == categoryName,
+          (c) => c?['name'] == categoryName,
           orElse: () => null,
         );
 
-    return iconFromCodePoint(category?["icon"], fallback: Icons.category);
+    return iconFromCodePoint(category?['icon'], fallback: Icons.category);
   }
 
   @override
   Widget build(BuildContext context) {
-    double totalBudget = filteredBudgets.fold(
-      0,
-      (sum, b) => sum + (b["amount"] as num).toDouble(),
-    );
+    final totalBudget = filteredBudgets.fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
 
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
       floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
         onPressed: () => showAddBudgetDialog(),
       ),
       body: Column(
@@ -166,12 +164,12 @@ class _BudgetsPageState extends State<BudgetsPage> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.close),
-                    tooltip: "Cancel selection",
+                    tooltip: 'Cancel selection',
                     onPressed: clearSelection,
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete),
-                    tooltip: "Delete selected",
+                    tooltip: 'Delete selected',
                     onPressed: deleteSelected,
                   ),
                 ],
@@ -192,15 +190,16 @@ class _BudgetsPageState extends State<BudgetsPage> {
           ),
           SectionTile(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  "Total Budget",
-                  style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                  'Total Budget',
+                  style: TextStyle(fontSize: 16, color: Colors.grey[700], fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  "₹${totalBudget.toStringAsFixed(0)}",
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  '₹${totalBudget.toStringAsFixed(0)}',
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -208,54 +207,60 @@ class _BudgetsPageState extends State<BudgetsPage> {
           Expanded(
             child: SectionTile(
               child: filteredBudgets.isEmpty
-                  ? Center(child: Text("No budgets set"))
+                  ? const Center(child: Text('No budgets set'))
                   : ListView.builder(
-                    itemCount: filteredBudgets.length,
-                    itemBuilder: (context, index) {
-                      final budget = filteredBudgets[index];
+                      padding: EdgeInsets.zero,
+                      itemCount: filteredBudgets.length,
+                      itemBuilder: (context, index) {
+                        final budget = filteredBudgets[index];
+                        final amount = (budget['amount'] as num).toDouble();
+                        final percentage = totalBudget == 0 ? 0 : (amount / totalBudget) * 100;
 
-                      return ListTile(
-                        leading: selectionMode
-                            ? Checkbox(
-                                value: selectedIndexes.contains(index),
-                                onChanged: (v) {
-                                  setState(() {
-                                    if (v == true) {
-                                      selectedIndexes.add(index);
-                                    } else {
-                                      selectedIndexes.remove(index);
-                                    }
-                                  });
-                                },
-                              )
-                            : Icon(_categoryIcon(budget["category"])),
-                        title: Text(budget["category"]),
-                        trailing: Text(
-                          "₹${budget["amount"]}",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        onLongPress: () {
-                          setState(() {
-                            selectionMode = true;
-                            selectedIndexes.add(index);
-                          });
-                        },
-                        onTap: () {
-                          if (selectionMode) {
+                        return ListTile(
+                          leading: selectionMode
+                              ? Checkbox(
+                                  value: selectedIndexes.contains(index),
+                                  onChanged: (v) {
+                                    setState(() {
+                                      if (v == true) {
+                                        selectedIndexes.add(index);
+                                      } else {
+                                        selectedIndexes.remove(index);
+                                      }
+                                    });
+                                  },
+                                )
+                              : Icon(_categoryIcon(budget['category'] as String)),
+                          title: Text(
+                            budget['category'] as String,
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                          ),
+                          trailing: Text(
+                            '₹${amount.toStringAsFixed(0)} (${percentage.toStringAsFixed(1)}%)',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          onLongPress: () {
                             setState(() {
-                              if (selectedIndexes.contains(index)) {
-                                selectedIndexes.remove(index);
-                              } else {
-                                selectedIndexes.add(index);
-                              }
+                              selectionMode = true;
+                              selectedIndexes.add(index);
                             });
-                          } else {
-                            showAddBudgetDialog(budget: budget);
-                          }
-                        },
-                      );
-                    },
-                  ),
+                          },
+                          onTap: () {
+                            if (selectionMode) {
+                              setState(() {
+                                if (selectedIndexes.contains(index)) {
+                                  selectedIndexes.remove(index);
+                                } else {
+                                  selectedIndexes.add(index);
+                                }
+                              });
+                            } else {
+                              showAddBudgetDialog(budget: budget);
+                            }
+                          },
+                        );
+                      },
+                    ),
             ),
           ),
         ],
