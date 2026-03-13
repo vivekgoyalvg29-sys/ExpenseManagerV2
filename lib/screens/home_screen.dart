@@ -6,7 +6,6 @@ import 'accounts_page.dart';
 import 'analysis_page.dart';
 import 'budgets_page.dart';
 import 'categories_page.dart';
-import 'load_expenses_from_messages_page.dart';
 import 'records_page.dart';
 import 'sms_page.dart';
 
@@ -49,61 +48,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isSmsPage = currentIndex == 5;
-    final hasSmsTransactions = DataStore.smsTransactions.isNotEmpty;
-    final appBarTitle = isSmsPage
-        ? (hasSmsTransactions ? 'SMSs' : 'Load transactions from SMSs')
-        : 'FinTrack';
-
-    Future<void> handleMenuSelection(String value) async {
-      if (value == 'load_messages') {
-        final loaded = await Navigator.push<bool>(
-          context,
-          MaterialPageRoute(builder: (_) => const LoadExpensesFromMessagesPage()),
-        );
-
-        if (loaded == true && mounted) {
-          setState(() {
-            currentIndex = 5;
-          });
-        }
-      }
-
-      if (value == 'clear_messages') {
-        DataStore.replaceSmsTransactions([]);
-        if (!mounted) return;
-        setState(() {});
-      }
-    }
-
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
-      appBar: AppBar(
-        title: Text(appBarTitle),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        actions: isSmsPage
-            ? [
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
-                  position: PopupMenuPosition.under,
-                  onSelected: handleMenuSelection,
-                  itemBuilder: (context) => [
-                    const PopupMenuItem<String>(
-                      value: 'load_messages',
-                      child: Text('Load expense from messages'),
-                    ),
-                    if (hasSmsTransactions)
-                      const PopupMenuItem<String>(
-                        value: 'clear_messages',
-                        child: Text('Clear loaded transactions'),
-                      ),
-                  ],
-                ),
-              ]
-            : null,
-      ),
       body: _buildCurrentPage(),
       bottomNavigationBar: SafeArea(
         top: false,

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../services/data_store.dart';
 import '../widgets/section_tile.dart';
+import '../services/data_store.dart';
+import 'load_expenses_from_messages_page.dart';
 
 class SmsPage extends StatefulWidget {
   const SmsPage({super.key});
@@ -119,6 +120,28 @@ class _SmsPageState extends State<SmsPage> {
     });
   }
 
+  Future<void> _loadFromMessages() async {
+    final loaded = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const LoadExpensesFromMessagesPage()),
+    );
+
+    if (loaded == true && mounted) {
+      setState(() {
+        _seenVersion = -1;
+        _refreshIfChanged();
+      });
+    }
+  }
+
+  void _clearLoadedTransactions() {
+    DataStore.replaceSmsTransactions([]);
+    setState(() {
+      _seenVersion = -1;
+      _refreshIfChanged();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     _refreshIfChanged();
@@ -153,7 +176,7 @@ class _SmsPageState extends State<SmsPage> {
           Expanded(
             child: SectionTile(
               child: _transactions.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Padding(
                         padding: EdgeInsets.all(24),
                         child: Column(
@@ -171,9 +194,15 @@ class _SmsPageState extends State<SmsPage> {
                             ),
                             SizedBox(height: 8),
                             Text(
-                              'Use the menu on the top-right to load transactions from SMSs.',
+                              'Load transactions from SMSs to see them here.',
                               textAlign: TextAlign.center,
                               style: TextStyle(color: Colors.black54),
+                            ),
+                            SizedBox(height: 16),
+                            FilledButton.icon(
+                              onPressed: _loadFromMessages,
+                              icon: Icon(Icons.sms),
+                              label: Text('Load expense from messages'),
                             ),
                           ],
                         ),
@@ -181,6 +210,25 @@ class _SmsPageState extends State<SmsPage> {
                     )
                   : ListView(
                       children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              FilledButton.icon(
+                                onPressed: _loadFromMessages,
+                                icon: const Icon(Icons.sms),
+                                label: const Text('Load expense from messages'),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: _clearLoadedTransactions,
+                                icon: const Icon(Icons.delete_outline),
+                                label: const Text('Clear loaded transactions'),
+                              ),
+                            ],
+                          ),
+                        ),
                         Container(
                           padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
                           color: Colors.grey.shade50,
