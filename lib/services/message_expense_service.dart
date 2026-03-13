@@ -5,6 +5,14 @@ import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class MessageExpenseService {
+  static final RegExp _debitIndicatorRegex = RegExp(
+    r'\b(debited|debit|spent|purchase|txn|transaction)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _nonExpenseRegex = RegExp(
+    r'(?:\bcredit(?:ed)?\b|\breversal\b|\brefund\b|\bfailed\b|\bdeclined\b|\bpayment request\b|\bcollect request\b|\brequest money\b|\bmoney request\b|\bupi mandate\b|\bautopay\s+request\b|\brequest\b.{0,30}\bpay\b)',
+    caseSensitive: false,
+  );
   static final RegExp _amountRegex = RegExp(
     r'(?:INR|Rs\.?|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)',
     caseSensitive: false,
@@ -38,6 +46,7 @@ class MessageExpenseService {
     );
 
     final expenses = <Map<String, dynamic>>[];
+    final seenExpenseKeys = <String>{};
 
     for (final message in messages) {
       final body = message.body;
@@ -47,7 +56,7 @@ class MessageExpenseService {
         continue;
       }
 
-      if (!body.toLowerCase().contains('debited')) {
+      if (!_looksLikeActualExpense(body)) {
         continue;
       }
 
@@ -64,8 +73,15 @@ class MessageExpenseService {
         continue;
       }
 
+      final title = _extractMerchant(body);
+      final dedupeKey = '${date.millisecondsSinceEpoch}|${amount.toStringAsFixed(2)}|$title';
+      if (seenExpenseKeys.contains(dedupeKey)) {
+        continue;
+      }
+      seenExpenseKeys.add(dedupeKey);
+
       expenses.add({
-        'title': _extractMerchant(body),
+        'title': title,
         'amount': amount,
         'date': date,
         'type': 'expense',
@@ -84,15 +100,32 @@ class MessageExpenseService {
       return double.tryParse(amountMatch.group(1)!.replaceAll(',', '')) ?? 0;
     }
 
-    final debitedIndex = message.toLowerCase().indexOf('debited');
-    if (debitedIndex < 0) return 0;
+    final indicatorMatch = _debitIndicatorRegex.firstMatch(message);
+    if (indicatorMatch == null) return 0;
 
-    final leadingText = message.substring(0, debitedIndex);
+    final leadingText = message.substring(0, indicatorMatch.start);
     final fallbackMatches = _fallbackAmountRegex.allMatches(leadingText);
     if (fallbackMatches.isEmpty) return 0;
 
     final lastMatch = fallbackMatches.last;
     return double.tryParse(lastMatch.group(1)!.replaceAll(',', '')) ?? 0;
+  }
+
+  static bool _looksLikeActualExpense(String message) {
+    if (!_debitIndicatorRegex.hasMatch(message)) {
+      return false;
+    }
+
+    if (_nonExpenseRegex.hasMatch(message)) {
+      return false;
+    }
+
+    final lower = message.toLowerCase();
+    if (lower.contains('debit card') && !lower.contains('debited')) {
+      return false;
+    }
+
+    return true;
   }
 
   static String _extractMerchant(String message) {

@@ -49,34 +49,38 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isSmsPage = currentIndex == 5;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
       appBar: AppBar(
         title: const SizedBox.shrink(),
-        leading: PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert),
-          position: PopupMenuPosition.under,
-          onSelected: (value) async {
-            if (value == 'load_messages') {
-              final loaded = await Navigator.push<bool>(
-                context,
-                MaterialPageRoute(builder: (_) => const LoadExpensesFromMessagesPage()),
-              );
+        leading: isSmsPage
+            ? PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                position: PopupMenuPosition.under,
+                onSelected: (value) async {
+                  if (value == 'load_messages') {
+                    final loaded = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoadExpensesFromMessagesPage()),
+                    );
 
-              if (loaded == true && mounted) {
-                setState(() {
-                  currentIndex = 5;
-                });
-              }
-            }
-          },
-          itemBuilder: (context) => const [
-            PopupMenuItem<String>(
-              value: 'load_messages',
-              child: Text('Load expense from messages'),
-            ),
-          ],
-        ),
+                    if (loaded == true && mounted) {
+                      setState(() {
+                        currentIndex = 5;
+                      });
+                    }
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem<String>(
+                    value: 'load_messages',
+                    child: Text('Load expense from messages'),
+                  ),
+                ],
+              )
+            : null,
       ),
       body: _buildCurrentPage(),
       bottomNavigationBar: SafeArea(
