@@ -93,47 +93,48 @@ class _RecordsPageState extends State<RecordsPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
-      floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.add),
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => AddTransactionPage()),
-          );
+      floatingActionButton: selectionMode
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                FloatingActionButton.small(
+                  heroTag: 'cancelRecordSelection',
+                  onPressed: clearSelection,
+                  tooltip: 'Cancel selection',
+                  child: const Icon(Icons.close),
+                ),
+                const SizedBox(height: 10),
+                FloatingActionButton.extended(
+                  heroTag: 'deleteSelectedRecords',
+                  onPressed: deleteSelected,
+                  icon: const Icon(Icons.delete),
+                  label: Text('Delete (${selectedIndexes.length})'),
+                ),
+              ],
+            )
+          : FloatingActionButton(
+              child: const Icon(Icons.add),
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => AddTransactionPage()),
+                );
 
-          if (result != null) {
-            await DatabaseService.insertTransaction(
-              result["title"],
-              result["amount"],
-              result["date"],
-              result["type"],
-            );
+                if (result != null) {
+                  await DatabaseService.insertTransaction(
+                    result["title"],
+                    result["amount"],
+                    result["date"],
+                    result["type"],
+                  );
 
-            loadTransactions();
-          }
-        },
-      ),
+                  loadTransactions();
+                }
+              },
+            ),
       body: Column(
         children: [
-          if (selectionMode)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    tooltip: "Cancel selection",
-                    onPressed: clearSelection,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete),
-                    tooltip: "Delete selected",
-                    onPressed: deleteSelected,
-                  ),
-                ],
-              ),
-            ),
           MonthHeader(
             currentMonth: currentMonth,
             onPrev: () {
