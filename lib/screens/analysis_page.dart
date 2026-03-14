@@ -70,7 +70,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     final result = <Map<String, dynamic>>[];
-    final categoriesUnion = <String>{...budget.keys, ...spent.keys};
+    final configuredCategories = categories
+        .map((category) => category['name'])
+        .whereType<String>()
+        .toSet();
+    final categoriesUnion = <String>{...configuredCategories, ...budget.keys, ...spent.keys};
 
     for (final category in categoriesUnion) {
       result.add({
