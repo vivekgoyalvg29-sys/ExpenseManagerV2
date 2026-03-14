@@ -5,7 +5,6 @@ import '../services/data_store.dart';
 import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
 import '../widgets/icon_utils.dart';
-import '../widgets/month_header.dart';
 import '../widgets/month_summary.dart';
 import '../widgets/section_tile.dart';
 
@@ -231,7 +230,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       backgroundColor: const Color(0xFFF3F5F9),
       body: Column(
         children: [
-          MonthHeader(
+          MonthSummary(
             currentMonth: currentMonth,
             onPrev: () {
               setState(() {
@@ -245,8 +244,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
               });
               loadAnalysis();
             },
-          ),
-          MonthSummary(
             budget: budgetTotal,
             expense: expense,
             trailing: PopupMenuButton<AnalysisMode>(
