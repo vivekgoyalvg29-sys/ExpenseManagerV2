@@ -5,6 +5,8 @@ import '../widgets/icon_utils.dart';
 import '../widgets/section_tile.dart';
 
 class AccountsPage extends StatefulWidget {
+  const AccountsPage({super.key});
+
   @override
   _AccountsPageState createState() => _AccountsPageState();
 }

@@ -5,6 +5,8 @@ import '../widgets/icon_utils.dart';
 import '../widgets/section_tile.dart';
 
 class CategoriesPage extends StatefulWidget {
+  const CategoriesPage({super.key});
+
   @override
   _CategoriesPageState createState() => _CategoriesPageState();
 }

@@ -8,6 +8,8 @@ import '../widgets/section_tile.dart';
 import 'add_transaction_page.dart';
 
 class RecordsPage extends StatefulWidget {
+  const RecordsPage({super.key});
+
   @override
   _RecordsPageState createState() => _RecordsPageState();
 }

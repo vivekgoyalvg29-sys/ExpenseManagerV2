@@ -8,6 +8,8 @@ import '../widgets/month_navigator_row.dart';
 import '../widgets/section_tile.dart';
 
 class BudgetsPage extends StatefulWidget {
+  const BudgetsPage({super.key});
+
   @override
   _BudgetsPageState createState() => _BudgetsPageState();
 }
