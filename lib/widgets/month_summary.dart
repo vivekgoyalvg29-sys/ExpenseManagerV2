@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
+
+import 'month_navigator_row.dart';
 import 'section_tile.dart';
 
 class MonthSummary extends StatelessWidget {
+  final DateTime currentMonth;
+  final VoidCallback onPrev;
+  final VoidCallback onNext;
   final double budget;
   final double expense;
   final Widget? trailing;
 
   const MonthSummary({
     super.key,
+    required this.currentMonth,
+    required this.onPrev,
+    required this.onNext,
     required this.budget,
     required this.expense,
     this.trailing,
@@ -23,17 +31,27 @@ class MonthSummary extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Column(
           children: [
-            if (trailing != null)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [trailing!],
-              ),
+            MonthNavigatorRow(
+              currentMonth: currentMonth,
+              onPrev: onPrev,
+              onNext: onNext,
+            ),
+            const SizedBox(height: 6),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: const [
-                Text("Budget", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                Text("Expense", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                Text("Remaining", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              children: [
+                const Text('Budget', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const Text('Expense', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Remaining', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    if (trailing != null) ...[
+                      const SizedBox(width: 2),
+                      trailing!,
+                    ],
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -41,7 +59,7 @@ class MonthSummary extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 Text(
-                  "₹${budget.toStringAsFixed(0)}",
+                  '₹${budget.toStringAsFixed(0)}',
                   style: const TextStyle(
                     color: Colors.green,
                     fontSize: 22,
@@ -49,7 +67,7 @@ class MonthSummary extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  "₹${expense.toStringAsFixed(0)}",
+                  '₹${expense.toStringAsFixed(0)}',
                   style: const TextStyle(
                     color: Colors.red,
                     fontSize: 22,
@@ -57,7 +75,7 @@ class MonthSummary extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  "₹${remaining.toStringAsFixed(0)}",
+                  '₹${remaining.toStringAsFixed(0)}',
                   style: TextStyle(
                     color: remaining >= 0 ? Colors.blue : Colors.red,
                     fontSize: 22,

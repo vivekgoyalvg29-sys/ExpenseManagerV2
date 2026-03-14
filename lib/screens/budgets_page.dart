@@ -4,7 +4,7 @@ import '../services/data_store.dart';
 import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
 import '../widgets/icon_utils.dart';
-import '../widgets/month_header.dart';
+import '../widgets/month_navigator_row.dart';
 import '../widgets/section_tile.dart';
 
 class BudgetsPage extends StatefulWidget {
@@ -176,33 +176,38 @@ class _BudgetsPageState extends State<BudgetsPage> {
             ),
       body: Column(
         children: [
-          MonthHeader(
-            currentMonth: currentMonth,
-            onPrev: () {
-              setState(() {
-                currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
-              });
-            },
-            onNext: () {
-              setState(() {
-                currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
-              });
-            },
-          ),
           SectionTile(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  'Total Budget',
-                  style: TextStyle(fontSize: 16, color: Colors.grey[700], fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '₹${totalBudget.toStringAsFixed(0)}',
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-              ],
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  MonthNavigatorRow(
+                    currentMonth: currentMonth,
+                    onPrev: () {
+                      setState(() {
+                        currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
+                      });
+                    },
+                    onNext: () {
+                      setState(() {
+                        currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Total Budget',
+                    style: TextStyle(fontSize: 16, color: Colors.grey[700], fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '₹${totalBudget.toStringAsFixed(0)}',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
             ),
           ),
           Expanded(

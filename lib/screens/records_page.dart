@@ -3,7 +3,6 @@ import '../services/data_store.dart';
 import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
 import '../widgets/icon_utils.dart';
-import '../widgets/month_header.dart';
 import '../widgets/month_summary.dart';
 import '../widgets/section_tile.dart';
 import 'add_transaction_page.dart';
@@ -135,7 +134,7 @@ class _RecordsPageState extends State<RecordsPage> {
             ),
       body: Column(
         children: [
-          MonthHeader(
+          MonthSummary(
             currentMonth: currentMonth,
             onPrev: () {
               setState(() {
@@ -147,8 +146,6 @@ class _RecordsPageState extends State<RecordsPage> {
                 currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
               });
             },
-          ),
-          MonthSummary(
             budget: monthBudgetTotal,
             expense: expense,
           ),
