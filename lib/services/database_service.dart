@@ -233,6 +233,33 @@ class DatabaseService {
     );
   }
 
+
+  static Future<bool> accountExists(String name, String type) async {
+    final db = await database;
+
+    final result = await db.query(
+      'accounts',
+      where: 'LOWER(name) = ? AND type = ?',
+      whereArgs: [name.toLowerCase(), type],
+      limit: 1,
+    );
+
+    return result.isNotEmpty;
+  }
+
+  static Future<bool> categoryExists(String name, String type) async {
+    final db = await database;
+
+    final result = await db.query(
+      'categories',
+      where: 'LOWER(name) = ? AND type = ?',
+      whereArgs: [name.toLowerCase(), type],
+      limit: 1,
+    );
+
+    return result.isNotEmpty;
+  }
+
   static Future<void> insertBudget(
     String category,
     double amount,

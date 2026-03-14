@@ -20,6 +20,8 @@ enum PieContributionMode {
 }
 
 class AnalysisPage extends StatefulWidget {
+  const AnalysisPage({super.key});
+
   @override
   _AnalysisPageState createState() => _AnalysisPageState();
 }
