@@ -55,11 +55,39 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _exportData() async {
     try {
-      final path = await ExcelTransferService.exportAllData();
+      final exportData = await ExcelTransferService.buildExportFileData();
+
+      final supportsSaveDialog = !Platform.isLinux && !Platform.isWindows && !Platform.isMacOS;
+
+      if (supportsSaveDialog) {
+        final selectedPath = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save exported file',
+          fileName: exportData.fileName,
+          bytes: exportData.bytes,
+          type: FileType.custom,
+          allowedExtensions: ['xlsx'],
+        );
+
+        if (!mounted) return;
+
+        if (selectedPath == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Export cancelled.')),
+          );
+          return;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export completed: $selectedPath')),
+        );
+        return;
+      }
+
+      final fallbackPath = await ExcelTransferService.exportAllData();
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export completed: $path')),
+        SnackBar(content: Text('Export completed: $fallbackPath')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -140,57 +168,48 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _handleAppBarAction(String action) async {
+    if (action == 'export') {
+      await _exportData();
+      return;
+    }
+
+    if (action == 'import') {
+      await _importData();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFF1F2937),
         centerTitle: true,
         elevation: 0,
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-          ),
+        leading: PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert, color: Colors.white),
+          color: Colors.white,
+          onSelected: _handleAppBarAction,
+          itemBuilder: (context) => const [
+            PopupMenuItem<String>(
+              value: 'export',
+              child: Text('Export data (Excel)'),
+            ),
+            PopupMenuItem<String>(
+              value: 'import',
+              child: Text('Import data (Excel)'),
+            ),
+          ],
         ),
         title: const Text(
           'FinTrack',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-      ),
-      drawer: Drawer(
-        child: SafeArea(
-          child: Column(
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'Menu',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.file_download),
-                title: const Text('Export data (Excel)'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await _exportData();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.file_upload),
-                title: const Text('Import data (Excel)'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await _importData();
-                },
-              ),
-            ],
-          ),
-        ),
+        actions: const [
+          SizedBox(width: kToolbarHeight),
+        ],
       ),
       body: _buildCurrentPage(),
       bottomNavigationBar: SafeArea(

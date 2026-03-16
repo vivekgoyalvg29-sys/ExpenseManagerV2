@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
 import 'package:path_provider/path_provider.dart';
@@ -23,6 +24,16 @@ class ImportResult {
   const ImportResult({required this.stats});
 }
 
+class ExportFileData {
+  final String fileName;
+  final Uint8List bytes;
+
+  const ExportFileData({
+    required this.fileName,
+    required this.bytes,
+  });
+}
+
 class ExcelTransferService {
   static const List<String> orderedSheets = [
     'Records',
@@ -32,6 +43,17 @@ class ExcelTransferService {
   ];
 
   static Future<String> exportAllData() async {
+    final exportData = await buildExportFileData();
+
+    final dir = await _preferredExportDirectory();
+    final path = '${dir.path}/${exportData.fileName}';
+    final file = File(path);
+    await file.writeAsBytes(exportData.bytes, flush: true);
+
+    return path;
+  }
+
+  static Future<ExportFileData> buildExportFileData() async {
     final excel = Excel.createExcel();
     excel.delete('Sheet1');
 
@@ -99,13 +121,23 @@ class ExcelTransferService {
       throw Exception('Failed to generate Excel file.');
     }
 
-    final dir = await getApplicationDocumentsDirectory();
-    final path =
-        '${dir.path}/fintrack_export_${DateTime.now().millisecondsSinceEpoch}.xlsx';
-    final file = File(path);
-    await file.writeAsBytes(bytes, flush: true);
+    final now = DateTime.now();
+    final dateSuffix =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
 
-    return path;
+    return ExportFileData(
+      fileName: 'expensemanageexport_$dateSuffix.xlsx',
+      bytes: Uint8List.fromList(bytes),
+    );
+  }
+
+  static Future<Directory> _preferredExportDirectory() async {
+    final downloadsDir = await getDownloadsDirectory();
+    if (downloadsDir != null) {
+      return downloadsDir;
+    }
+
+    return getApplicationDocumentsDirectory();
   }
 
   static Future<ImportResult> importAllDataFromBytes(List<int> bytes) async {
