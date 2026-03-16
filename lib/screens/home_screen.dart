@@ -12,6 +12,7 @@ import 'budgets_page.dart';
 import 'categories_page.dart';
 import 'records_page.dart';
 import 'sms_page.dart';
+import 'dart:typed_data';
 
 class HomeScreen extends StatefulWidget {
   final int initialIndex;
@@ -63,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final selectedPath = await FilePicker.platform.saveFile(
           dialogTitle: 'Save exported file',
           fileName: exportData.fileName,
-          bytes: exportData.bytes,
+          bytes: Uint8List.fromList(exportData.bytes),
           type: FileType.custom,
           allowedExtensions: ['xlsx'],
         );
