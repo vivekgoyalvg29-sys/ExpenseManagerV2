@@ -184,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1F2937),
+        backgroundColor: Colors.black,
         centerTitle: true,
         elevation: 0,
         leading: PopupMenuButton<String>(
