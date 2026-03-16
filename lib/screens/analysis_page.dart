@@ -360,8 +360,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         final spent = (data['spent'] as num).toDouble();
                         final budget = (data['budget'] as num).toDouble();
                         final ratio = budget == 0 ? (spent > 0 ? 1.01 : 0.0) : spent / budget;
-                        final progress =
-                            budget == 0 ? (spent > 0 ? 1.0 : 0.0) : ratio.clamp(0.0, 1.0).toDouble();
+                        final progress = budget == 0
+                            ? (spent > 0 ? 1.0 : 0.0)
+                            : (spent == 0 ? 0.02 : ratio.clamp(0.0, 1.0).toDouble());
 
                         return Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

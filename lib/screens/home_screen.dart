@@ -140,56 +140,44 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _handleAppBarAction(String action) async {
+    if (action == 'export') {
+      await _exportData();
+      return;
+    }
+
+    if (action == 'import') {
+      await _importData();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.black,
         centerTitle: true,
         elevation: 0,
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-          ),
+        leading: PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert, color: Colors.white),
+          color: Colors.white,
+          onSelected: _handleAppBarAction,
+          itemBuilder: (context) => const [
+            PopupMenuItem<String>(
+              value: 'export',
+              child: Text('Export data (Excel)'),
+            ),
+            PopupMenuItem<String>(
+              value: 'import',
+              child: Text('Import data (Excel)'),
+            ),
+          ],
         ),
         title: const Text(
           'FinTrack',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-      ),
-      drawer: Drawer(
-        child: SafeArea(
-          child: Column(
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'Menu',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.file_download),
-                title: const Text('Export data (Excel)'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await _exportData();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.file_upload),
-                title: const Text('Import data (Excel)'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await _importData();
-                },
-              ),
-            ],
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
       body: _buildCurrentPage(),
