@@ -36,22 +36,24 @@ class ExcelTransferService {
 
   /// Build excel data but don't save file yet
   static Future<ExportFileData> buildExportFileData() async {
+
     final excel = Excel.createExcel();
     final sheet = excel['Records'];
 
+    /// Header Row
     sheet.appendRow([
-      'Date',
-      'Category',
-      'Amount',
-      'Note',
+      TextCellValue('Date'),
+      TextCellValue('Category'),
+      TextCellValue('Amount'),
+      TextCellValue('Note'),
     ]);
 
-    // Dummy sample row (replace with your DB data if needed)
+    /// Dummy sample row (replace with real DB data later)
     sheet.appendRow([
-      DateTime.now().toString(),
-      'Food',
-      '100',
-      'Sample expense'
+      TextCellValue(DateTime.now().toString()),
+      TextCellValue('Food'),
+      IntCellValue(100),
+      TextCellValue('Sample expense')
     ]);
 
     final bytes = excel.encode() ?? [];
@@ -67,6 +69,7 @@ class ExcelTransferService {
 
   /// Save file directly to device
   static Future<String> exportAllData() async {
+
     final exportData = await buildExportFileData();
 
     final dir = await _preferredExportDirectory();
@@ -97,6 +100,7 @@ class ExcelTransferService {
       int importedRows = 0;
 
       for (int i = 1; i < sheet.rows.length; i++) {
+
         final row = sheet.rows[i];
 
         if (row.isEmpty) continue;
@@ -117,7 +121,7 @@ class ExcelTransferService {
     return ImportResult(stats);
   }
 
-  /// Preferred export directory (ONLY ONE FUNCTION)
+  /// Preferred export directory
   static Future<Directory> _preferredExportDirectory() async {
     final directory = await getApplicationDocumentsDirectory();
     return directory;
