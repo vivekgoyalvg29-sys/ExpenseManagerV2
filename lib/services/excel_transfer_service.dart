@@ -99,13 +99,24 @@ class ExcelTransferService {
       throw Exception('Failed to generate Excel file.');
     }
 
-    final dir = await getApplicationDocumentsDirectory();
-    final path =
-        '${dir.path}/fintrack_export_${DateTime.now().millisecondsSinceEpoch}.xlsx';
+    final dir = await _preferredExportDirectory();
+    final now = DateTime.now();
+    final dateSuffix =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+    final path = '${dir.path}/expensemanageexport_$dateSuffix.xlsx';
     final file = File(path);
     await file.writeAsBytes(bytes, flush: true);
 
     return path;
+  }
+
+  static Future<Directory> _preferredExportDirectory() async {
+    final downloadsDir = await getDownloadsDirectory();
+    if (downloadsDir != null) {
+      return downloadsDir;
+    }
+
+    return getApplicationDocumentsDirectory();
   }
 
   static Future<ImportResult> importAllDataFromBytes(List<int> bytes) async {
