@@ -55,11 +55,39 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _exportData() async {
     try {
-      final path = await ExcelTransferService.exportAllData();
+      final exportData = await ExcelTransferService.buildExportFileData();
+
+      final supportsSaveDialog = !Platform.isLinux && !Platform.isWindows && !Platform.isMacOS;
+
+      if (supportsSaveDialog) {
+        final selectedPath = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save exported file',
+          fileName: exportData.fileName,
+          bytes: exportData.bytes,
+          type: FileType.custom,
+          allowedExtensions: ['xlsx'],
+        );
+
+        if (!mounted) return;
+
+        if (selectedPath == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Export cancelled.')),
+          );
+          return;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export completed: $selectedPath')),
+        );
+        return;
+      }
+
+      final fallbackPath = await ExcelTransferService.exportAllData();
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export completed: $path')),
+        SnackBar(content: Text('Export completed: $fallbackPath')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -179,6 +207,9 @@ class _HomeScreenState extends State<HomeScreen> {
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
+        actions: const [
+          SizedBox(width: kToolbarHeight),
+        ],
       ),
       body: _buildCurrentPage(),
       bottomNavigationBar: SafeArea(
