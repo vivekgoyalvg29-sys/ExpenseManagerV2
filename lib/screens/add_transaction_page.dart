@@ -148,6 +148,8 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                     "amount": amount,
                     "date": selectedDate,
                     "type": transactionType,
+                    "account": selectedAccount,
+                    "comment": commentController.text.trim(),
                   });
                 },
                 child: Text("Save"),

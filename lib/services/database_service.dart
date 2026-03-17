@@ -18,7 +18,7 @@ class DatabaseService {
 
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
         await db.execute('''
         CREATE TABLE transactions(
@@ -26,7 +26,9 @@ class DatabaseService {
           title TEXT,
           amount REAL,
           date TEXT,
-          type TEXT
+          type TEXT,
+          account TEXT,
+          comment TEXT
         )
         ''');
 
@@ -63,6 +65,11 @@ class DatabaseService {
           await _ensureColumn(db, 'accounts', 'icon INTEGER');
           await _ensureColumn(db, 'categories', 'icon INTEGER');
         }
+
+        if (oldVersion < 3) {
+          await _ensureColumn(db, 'transactions', 'account TEXT');
+          await _ensureColumn(db, 'transactions', 'comment TEXT');
+        }
       },
     );
   }
@@ -85,8 +92,10 @@ class DatabaseService {
     String title,
     double amount,
     DateTime date,
-    String type,
-  ) async {
+    String type, {
+    String? account,
+    String? comment,
+  }) async {
     final db = await database;
 
     await db.insert(
@@ -96,6 +105,8 @@ class DatabaseService {
         "amount": amount,
         "date": date.toIso8601String(),
         "type": type,
+        "account": account,
+        "comment": comment,
       },
     );
   }
@@ -119,8 +130,10 @@ class DatabaseService {
     int id,
     String title,
     double amount,
-    DateTime date,
-  ) async {
+    DateTime date, {
+    String? account,
+    String? comment,
+  }) async {
     final db = await database;
 
     await db.update(
@@ -129,6 +142,8 @@ class DatabaseService {
         "title": title,
         "amount": amount,
         "date": date.toIso8601String(),
+        "account": account,
+        "comment": comment,
       },
       where: "id = ?",
       whereArgs: [id],

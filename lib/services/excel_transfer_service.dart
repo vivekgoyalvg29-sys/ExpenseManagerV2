@@ -64,6 +64,7 @@ class ExcelTransferService {
       TextCellValue('Date'),
       TextCellValue('Type'),
       TextCellValue('Account'),
+      TextCellValue('Comment'),
     ]);
 
     for (final tx in transactions) {
@@ -73,7 +74,8 @@ class ExcelTransferService {
         DoubleCellValue((tx['amount'] as num?)?.toDouble() ?? 0),
         TextCellValue(tx['date']?.toString() ?? ''),
         TextCellValue(tx['type']?.toString() ?? ''),
-        TextCellValue(''),
+        TextCellValue(tx['account']?.toString() ?? ''),
+        TextCellValue(tx['comment']?.toString() ?? ''),
       ]);
     }
 
@@ -223,6 +225,7 @@ class ExcelTransferService {
       final dateText = _asString(_cellValue(row, 3));
       final type = _normalizeType(_asString(_cellValue(row, 4)));
       final account = _asString(_cellValue(row, 5));
+      final comment = _asString(_cellValue(row, 6));
 
       if (category.isEmpty || amount == null || dateText.isEmpty) {
         continue;
@@ -241,6 +244,8 @@ class ExcelTransferService {
         'amount': amount,
         'date': normalizedDate,
         'type': type,
+        'account': account,
+        'comment': comment,
       };
 
       if (id != null && id > 0) {
