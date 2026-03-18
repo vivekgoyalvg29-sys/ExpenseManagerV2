@@ -128,6 +128,7 @@ class _RecordsPageState extends State<RecordsPage> {
                     result["amount"],
                     result["date"],
                     result["type"],
+                    (result["account"] ?? '').toString(),
                   );
 
                   loadTransactions();
