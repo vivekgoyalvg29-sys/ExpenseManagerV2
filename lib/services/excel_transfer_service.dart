@@ -37,11 +37,32 @@ class ImportResult {
 
 class ExcelTransferService {
   static const String _recordsSheet = 'Records';
-  static const String _budgetSheet = 'Budget';
+  static const String _budgetsSheet = 'Budgets';
   static const String _accountsSheet = 'Accounts';
-  static const String _categorySheet = 'Category';
+  static const String _categoriesSheet = 'Categories';
 
-  /// Build excel data but don't save file yet
+  static const List<String> _exportSheetOrder = [
+    _recordsSheet,
+    _budgetsSheet,
+    _accountsSheet,
+    _categoriesSheet,
+  ];
+
+  static const List<String> _importSheetOrder = [
+    _categoriesSheet,
+    _accountsSheet,
+    _budgetsSheet,
+    _recordsSheet,
+  ];
+
+  static const Map<String, List<String>> _sheetAliases = {
+    _recordsSheet: [_recordsSheet],
+    _budgetsSheet: [_budgetsSheet, 'Budget'],
+    _accountsSheet: [_accountsSheet],
+    _categoriesSheet: [_categoriesSheet, 'Category'],
+  };
+
+  /// Build excel data but don't save file yet.
   static Future<ExportFileData> buildExportFileData() async {
     final excel = Excel.createExcel();
 
@@ -54,13 +75,14 @@ class ExcelTransferService {
 
     final db = await DatabaseService.database;
     final transactions = await db.query('transactions', orderBy: 'date DESC');
-    final budgets = await db.query('budgets', orderBy: 'year DESC, month DESC');
-    final accounts = await db.query('accounts', orderBy: 'name ASC');
-    final categories = await db.query('categories', orderBy: 'name ASC');
+    final budgets = await db.query('budgets', orderBy: 'year DESC, month DESC, id DESC');
+    final accounts = await db.query('accounts', orderBy: 'name COLLATE NOCASE ASC, id ASC');
+    final categories = await db.query('categories', orderBy: 'name COLLATE NOCASE ASC, id ASC');
 
     final categoryTypeByName = <String, String>{
-      for (final cat in categories)
-        (cat['name']?.toString().trim().toLowerCase() ?? ''): cat['type']?.toString().trim() ?? 'expense',
+      for (final category in categories)
+        (category['name']?.toString().trim().toLowerCase() ?? ''):
+            category['type']?.toString().trim().toLowerCase() ?? 'expense',
     };
 
     final recordsSheet = excel[_recordsSheet];
@@ -73,19 +95,19 @@ class ExcelTransferService {
       TextCellValue('Account'),
     ]);
 
-    for (final tx in transactions) {
+    for (final transaction in transactions) {
       recordsSheet.appendRow([
-        IntCellValue((tx['id'] as num?)?.toInt() ?? 0),
-        TextCellValue(tx['title']?.toString() ?? ''),
-        DoubleCellValue((tx['amount'] as num?)?.toDouble() ?? 0),
-        TextCellValue(tx['date']?.toString() ?? ''),
-        TextCellValue(tx['type']?.toString() ?? ''),
-        TextCellValue(''),
+        IntCellValue((transaction['id'] as num?)?.toInt() ?? 0),
+        TextCellValue(transaction['title']?.toString() ?? ''),
+        DoubleCellValue((transaction['amount'] as num?)?.toDouble() ?? 0),
+        TextCellValue(transaction['date']?.toString() ?? ''),
+        TextCellValue(transaction['type']?.toString() ?? ''),
+        TextCellValue(transaction['account']?.toString() ?? ''),
       ]);
     }
 
-    final budgetSheet = excel[_budgetSheet];
-    budgetSheet.appendRow([
+    final budgetsSheet = excel[_budgetsSheet];
+    budgetsSheet.appendRow([
       TextCellValue('Id'),
       TextCellValue('Category'),
       TextCellValue('Amount'),
@@ -97,7 +119,7 @@ class ExcelTransferService {
     for (final budget in budgets) {
       final categoryName = budget['category']?.toString() ?? '';
       final categoryType = categoryTypeByName[categoryName.trim().toLowerCase()] ?? 'expense';
-      budgetSheet.appendRow([
+      budgetsSheet.appendRow([
         IntCellValue((budget['id'] as num?)?.toInt() ?? 0),
         TextCellValue(categoryName),
         DoubleCellValue((budget['amount'] as num?)?.toDouble() ?? 0),
@@ -124,8 +146,8 @@ class ExcelTransferService {
       ]);
     }
 
-    final categorySheet = excel[_categorySheet];
-    categorySheet.appendRow([
+    final categoriesSheet = excel[_categoriesSheet];
+    categoriesSheet.appendRow([
       TextCellValue('Id'),
       TextCellValue('Name'),
       TextCellValue('Type'),
@@ -133,7 +155,7 @@ class ExcelTransferService {
     ]);
 
     for (final category in categories) {
-      categorySheet.appendRow([
+      categoriesSheet.appendRow([
         IntCellValue((category['id'] as num?)?.toInt() ?? 0),
         TextCellValue(category['name']?.toString() ?? ''),
         TextCellValue(category['type']?.toString() ?? ''),
@@ -142,7 +164,6 @@ class ExcelTransferService {
     }
 
     final bytes = excel.encode() ?? [];
-
     final fileName = 'fintrack_export_${DateTime.now().millisecondsSinceEpoch}.xlsx';
 
     return ExportFileData(
@@ -151,14 +172,11 @@ class ExcelTransferService {
     );
   }
 
-  /// Save file directly to device
+  /// Save file directly to device.
   static Future<String> exportAllData() async {
     final exportData = await buildExportFileData();
-
     final dir = await _preferredExportDirectory();
-
     final filePath = '${dir.path}/${exportData.fileName}';
-
     final file = File(filePath);
 
     await file.writeAsBytes(exportData.bytes, flush: true);
@@ -166,28 +184,23 @@ class ExcelTransferService {
     return filePath;
   }
 
-  /// Import from excel file bytes
+  /// Import from excel file bytes.
   static Future<ImportResult> importAllDataFromBytes(Uint8List bytes) async {
     final excel = Excel.decodeBytes(bytes);
     final db = await DatabaseService.database;
-
     final stats = <ImportStat>[];
 
     final importers = <String, Future<int> Function(Database, Sheet)>{
       _recordsSheet: _importRecords,
-      _budgetSheet: _importBudgets,
+      _budgetsSheet: _importBudgets,
       _accountsSheet: _importAccounts,
-      _categorySheet: _importCategories,
+      _categoriesSheet: _importCategories,
     };
 
-    for (final sheetName in [_recordsSheet, _budgetSheet, _accountsSheet, _categorySheet]) {
-      final sheet = excel.tables[sheetName];
+    for (final sheetName in _importSheetOrder) {
+      final sheet = _resolveSheet(excel, sheetName);
       final dataRows = sheet == null || sheet.rows.isEmpty ? 0 : sheet.rows.length - 1;
-      int importedRows = 0;
-
-      if (sheet != null) {
-        importedRows = await importers[sheetName]!(db, sheet);
-      }
+      final importedRows = sheet == null ? 0 : await importers[sheetName]!(db, sheet);
 
       stats.add(
         ImportStat(
@@ -198,7 +211,7 @@ class ExcelTransferService {
       );
     }
 
-    return ImportResult(stats);
+    return ImportResult(_sortStatsForDisplay(stats));
   }
 
   static Future<int> _importRecords(Database db, Sheet sheet) async {
@@ -232,6 +245,7 @@ class ExcelTransferService {
         'amount': amount,
         'date': normalizedDate,
         'type': type,
+        'account': account,
       };
 
       if (id != null && id > 0) {
@@ -450,6 +464,24 @@ class ExcelTransferService {
     await db.insert(table, values);
   }
 
+  static Sheet? _resolveSheet(Excel excel, String canonicalName) {
+    for (final candidate in _sheetAliases[canonicalName] ?? [canonicalName]) {
+      final sheet = excel.tables[candidate];
+      if (sheet != null) {
+        return sheet;
+      }
+    }
+    return null;
+  }
+
+  static List<ImportStat> _sortStatsForDisplay(List<ImportStat> stats) {
+    final byName = {for (final stat in stats) stat.name: stat};
+    return [
+      for (final sheetName in _exportSheetOrder)
+        if (byName.containsKey(sheetName)) byName[sheetName]!,
+    ];
+  }
+
   static Data? _cellValue(List<Data?> row, int index) {
     if (index >= row.length) return null;
     return row[index];
@@ -490,7 +522,7 @@ class ExcelTransferService {
     return fallback;
   }
 
-  /// Preferred export directory
+  /// Preferred export directory.
   static Future<Directory> _preferredExportDirectory() async {
     final directory = await getApplicationDocumentsDirectory();
     return directory;

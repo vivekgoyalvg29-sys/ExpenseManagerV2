@@ -148,6 +148,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                     "amount": amount,
                     "date": selectedDate,
                     "type": transactionType,
+                    "account": selectedAccount,
                   });
                 },
                 child: Text("Save"),
