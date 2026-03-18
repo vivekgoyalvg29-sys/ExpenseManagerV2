@@ -1,5 +1,6 @@
 import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
+
 import 'database_service.dart';
 
 class WidgetSyncService {
@@ -79,8 +80,6 @@ class WidgetSyncService {
     }).fold<double>(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
 
     final selectedDate = DateTime(year, month, 1);
-
-
     final now = DateTime.now();
 
     final currentMonthExpense = tx.where((t) {
@@ -93,20 +92,48 @@ class WidgetSyncService {
       return b['year'] == now.year && b['month'] == now.month;
     }).fold<double>(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
 
+    final currentMonthPercentage = currentMonthBudget <= 0
+        ? 0.0
+        : (currentMonthExpense / currentMonthBudget) * 100;
+
     await HomeWidget.saveWidgetData<String>('title', 'Budget vs Expense');
     await HomeWidget.saveWidgetData<String>('modeLabel', _modeLabel(mode));
-    await HomeWidget.saveWidgetData<String>('periodLabel', DateFormat('MMMM yyyy').format(selectedDate));
+    await HomeWidget.saveWidgetData<String>(
+      'periodLabel',
+      DateFormat('MMMM yyyy').format(selectedDate),
+    );
     await HomeWidget.saveWidgetData<double>('budget', budget);
     await HomeWidget.saveWidgetData<double>('expense', expense);
     await HomeWidget.saveWidgetData<double>('remaining', budget - expense);
-    await HomeWidget.saveWidgetData<String>('currentPeriodLabel', DateFormat('MMMM yyyy').format(now));
+    await HomeWidget.saveWidgetData<String>(
+      'currentPeriodLabel',
+      DateFormat('MMMM').format(now),
+    );
     await HomeWidget.saveWidgetData<double>('currentMonthBudget', currentMonthBudget);
     await HomeWidget.saveWidgetData<double>('currentMonthExpense', currentMonthExpense);
+    await HomeWidget.saveWidgetData<double>('currentMonthPercentage', currentMonthPercentage);
+    await HomeWidget.saveWidgetData<String>(
+      'currentMonthPercentageLabel',
+      '${currentMonthPercentage.toStringAsFixed(1)}%',
+    );
+    await HomeWidget.saveWidgetData<String>(
+      'currentMonthExpenseLabel',
+      _formatCurrency(currentMonthExpense),
+    );
 
     await HomeWidget.updateWidget(
       androidName: androidWidgetProvider,
       iOSName: iOSWidgetName,
     );
+  }
+
+  static String _formatCurrency(double value) {
+    final formatter = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+    return formatter.format(value);
   }
 
   static String _modeLabel(String mode) {
