@@ -65,13 +65,7 @@ class ExcelTransferService {
   /// Build excel data but don't save file yet.
   static Future<ExportFileData> buildExportFileData() async {
     final excel = Excel.createExcel();
-
-    // Remove default auto-created empty sheet.
-    for (final defaultSheet in ['Sheet1', 'Sheet']) {
-      if (excel.tables.containsKey(defaultSheet)) {
-        excel.delete(defaultSheet);
-      }
-    }
+    final recordsSheet = _prepareRecordsSheet(excel);
 
     final db = await DatabaseService.database;
     final transactions = await db.query('transactions', orderBy: 'date DESC');
@@ -85,7 +79,6 @@ class ExcelTransferService {
             category['type']?.toString().trim().toLowerCase() ?? 'expense',
     };
 
-    final recordsSheet = excel[_recordsSheet];
     recordsSheet.appendRow([
       TextCellValue('Id'),
       TextCellValue('Category'),
@@ -170,6 +163,24 @@ class ExcelTransferService {
       fileName: fileName,
       bytes: bytes,
     );
+  }
+
+  static Sheet _prepareRecordsSheet(Excel excel) {
+    final defaultSheet = excel.getDefaultSheet();
+
+    if (defaultSheet != null && defaultSheet != _recordsSheet) {
+      excel.rename(defaultSheet, _recordsSheet);
+    }
+
+    excel.setDefaultSheet(_recordsSheet);
+
+    for (final extraSheet in ['Sheet1', 'Sheet']) {
+      if (extraSheet != _recordsSheet && excel.tables.containsKey(extraSheet)) {
+        excel.delete(extraSheet);
+      }
+    }
+
+    return excel[_recordsSheet];
   }
 
   /// Save file directly to device.
