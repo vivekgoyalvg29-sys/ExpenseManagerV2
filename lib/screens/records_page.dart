@@ -4,6 +4,7 @@ import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_summary.dart';
+import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
 import 'add_transaction_page.dart';
 
@@ -135,93 +136,95 @@ class _RecordsPageState extends State<RecordsPage> {
                 }
               },
             ),
-      body: Column(
-        children: [
-          MonthSummary(
-            currentMonth: currentMonth,
-            onPrev: () {
-              setState(() {
-                currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
-              });
-            },
-            onNext: () {
-              setState(() {
-                currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
-              });
-            },
-            budget: monthBudgetTotal,
-            expense: expense,
-          ),
-          Expanded(
-            child: SectionTile(
-              child: filteredTransactions.isEmpty
-                  ? const Center(child: Text("No transactions"))
-                  : ListView.builder(
-                      padding: EdgeInsets.zero,
-                      itemCount: filteredTransactions.length,
-                      itemBuilder: (context, index) {
-                        final tx = filteredTransactions[index];
-                        DateTime date = DateTime.parse(tx["date"]);
-
-                        return ListTile(
-                        leading: selectionMode
-                            ? Checkbox(
-                                value: selectedIndexes.contains(index),
-                                onChanged: (v) {
-                                  setState(() {
-                                    if (v == true) {
-                                      selectedIndexes.add(index);
-                                    } else {
-                                      selectedIndexes.remove(index);
-                                    }
-                                  });
-                                },
-                              )
-                            : CircleAvatar(
-                                child: Icon(
-                                  _categoryIcon(tx["title"]),
-                                  color: Colors.white,
-                                ),
-                              ),
-                        title: Text(
-                          tx["title"],
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Text(
-                          "${date.day}/${date.month}/${date.year}",
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                        trailing: Text(
-                          "₹${tx["amount"]}",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: tx["type"] == "income" ? Colors.green : Colors.red,
-                          ),
-                        ),
-                        onLongPress: () {
-                          setState(() {
-                            selectionMode = true;
-                            selectedIndexes.add(index);
-                          });
-                        },
-                        onTap: () {
-                          if (selectionMode) {
-                            setState(() {
-                              if (selectedIndexes.contains(index)) {
-                                selectedIndexes.remove(index);
-                              } else {
-                                selectedIndexes.add(index);
-                              }
-                            });
-                          }
-                        },
-                        );
-                      },
-                    ),
+      body: PageContentLayout(
+        child: Column(
+          children: [
+            MonthSummary(
+              currentMonth: currentMonth,
+              onPrev: () {
+                setState(() {
+                  currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
+                });
+              },
+              onNext: () {
+                setState(() {
+                  currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
+                });
+              },
+              budget: monthBudgetTotal,
+              expense: expense,
             ),
-          ),
-        ],
+            Expanded(
+              child: SectionTile(
+                child: filteredTransactions.isEmpty
+                    ? const Center(child: Text("No transactions"))
+                    : ListView.builder(
+                        padding: EdgeInsets.zero,
+                        itemCount: filteredTransactions.length,
+                        itemBuilder: (context, index) {
+                          final tx = filteredTransactions[index];
+                          DateTime date = DateTime.parse(tx["date"]);
+
+                          return ListTile(
+                            leading: selectionMode
+                                ? Checkbox(
+                                    value: selectedIndexes.contains(index),
+                                    onChanged: (v) {
+                                      setState(() {
+                                        if (v == true) {
+                                          selectedIndexes.add(index);
+                                        } else {
+                                          selectedIndexes.remove(index);
+                                        }
+                                      });
+                                    },
+                                  )
+                                : CircleAvatar(
+                                    child: Icon(
+                                      _categoryIcon(tx["title"]),
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                            title: Text(
+                              tx["title"],
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text(
+                              "${date.day}/${date.month}/${date.year}",
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                            trailing: Text(
+                              "₹${tx["amount"]}",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: tx["type"] == "income" ? Colors.green : Colors.red,
+                              ),
+                            ),
+                            onLongPress: () {
+                              setState(() {
+                                selectionMode = true;
+                                selectedIndexes.add(index);
+                              });
+                            },
+                            onTap: () {
+                              if (selectionMode) {
+                                setState(() {
+                                  if (selectedIndexes.contains(index)) {
+                                    selectedIndexes.remove(index);
+                                  } else {
+                                    selectedIndexes.add(index);
+                                  }
+                                });
+                              }
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -6,6 +6,7 @@ import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_summary.dart';
+import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
 
 enum AnalysisMode {
@@ -234,175 +235,180 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
-      body: Column(
-        children: [
-          MonthSummary(
-            currentMonth: currentMonth,
-            onPrev: () {
-              setState(() {
-                currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
-              });
-              loadAnalysis();
-            },
-            onNext: () {
-              setState(() {
-                currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
-              });
-              loadAnalysis();
-            },
-            budget: budgetTotal,
-            expense: expense,
-            trailing: PopupMenuButton<AnalysisMode>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: _changeMode,
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: AnalysisMode.selectedMonth,
-                  child: Row(
-                    children: [
-                      const Expanded(child: Text('Selected month analysis')),
-                      if (analysisMode == AnalysisMode.selectedMonth) const Icon(Icons.check, size: 18),
-                    ],
+      body: PageContentLayout(
+        child: Column(
+          children: [
+            MonthSummary(
+              currentMonth: currentMonth,
+              onPrev: () {
+                setState(() {
+                  currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
+                });
+                loadAnalysis();
+              },
+              onNext: () {
+                setState(() {
+                  currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
+                });
+                loadAnalysis();
+              },
+              budget: budgetTotal,
+              expense: expense,
+              trailing: PopupMenuButton<AnalysisMode>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: _changeMode,
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: AnalysisMode.selectedMonth,
+                    child: Row(
+                      children: [
+                        const Expanded(child: Text('Selected month analysis')),
+                        if (analysisMode == AnalysisMode.selectedMonth) const Icon(Icons.check, size: 18),
+                      ],
+                    ),
                   ),
-                ),
-                PopupMenuItem(
-                  value: AnalysisMode.cumulativeToSelectedMonth,
-                  child: Row(
-                    children: [
-                      const Expanded(child: Text('Cumulative till selected month')),
-                      if (analysisMode == AnalysisMode.cumulativeToSelectedMonth)
-                        const Icon(Icons.check, size: 18),
-                    ],
+                  PopupMenuItem(
+                    value: AnalysisMode.cumulativeToSelectedMonth,
+                    child: Row(
+                      children: [
+                        const Expanded(child: Text('Cumulative till selected month')),
+                        if (analysisMode == AnalysisMode.cumulativeToSelectedMonth)
+                          const Icon(Icons.check, size: 18),
+                      ],
+                    ),
                   ),
-                ),
-                PopupMenuItem(
-                  value: AnalysisMode.cumulativeYear,
-                  child: Row(
-                    children: [
-                      const Expanded(child: Text('Cumulative full year')),
-                      if (analysisMode == AnalysisMode.cumulativeYear) const Icon(Icons.check, size: 18),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (analysisData.any((d) => d['spent'] > 0))
-            SectionTile(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        pieContributionMode == PieContributionMode.expense
-                            ? 'Contribution vs total expense'
-                            : 'Contribution vs total budget',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                      ),
-                      PopupMenuButton<PieContributionMode>(
-                        icon: const Icon(Icons.more_vert),
-                        onSelected: (mode) {
-                          setState(() {
-                            pieContributionMode = mode;
-                          });
-                        },
-                        itemBuilder: (context) => [
-                          PopupMenuItem(
-                            value: PieContributionMode.expense,
-                            child: Row(
-                              children: [
-                                const Expanded(child: Text('Against total expense')),
-                                if (pieContributionMode == PieContributionMode.expense)
-                                  const Icon(Icons.check, size: 18),
-                              ],
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: PieContributionMode.budget,
-                            child: Row(
-                              children: [
-                                const Expanded(child: Text('Against total budget')),
-                                if (pieContributionMode == PieContributionMode.budget)
-                                  const Icon(Icons.check, size: 18),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 210,
-                    child: PieChart(
-                      PieChartData(
-                        sections: buildPieSections(),
-                        centerSpaceRadius: 32,
-                        sectionsSpace: 2,
-                      ),
+                  PopupMenuItem(
+                    value: AnalysisMode.cumulativeYear,
+                    child: Row(
+                      children: [
+                        const Expanded(child: Text('Cumulative full year')),
+                        if (analysisMode == AnalysisMode.cumulativeYear) const Icon(Icons.check, size: 18),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-          Expanded(
-            child: SectionTile(
-              child: analysisData.isEmpty
-                  ? const Center(child: Text('No analysis data'))
-                  : ListView.builder(
-                      padding: EdgeInsets.zero,
-                      itemCount: analysisData.length,
-                      itemBuilder: (context, index) {
-                        final data = analysisData[index];
-
-                        final spent = (data['spent'] as num).toDouble();
-                        final budget = (data['budget'] as num).toDouble();
-                        final ratio = budget == 0 ? (spent > 0 ? 1.01 : 0.0) : spent / budget;
-                        final progress = budget == 0
-                            ? (spent > 0 ? 1.0 : 0.0)
-                            : (spent == 0 ? 0.02 : ratio.clamp(0.0, 1.0).toDouble());
-
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            if (analysisData.any((d) => d['spent'] > 0))
+              SectionTile(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          pieContributionMode == PieContributionMode.expense
+                              ? 'Contribution vs total expense'
+                              : 'Contribution vs total budget',
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                        ),
+                        PopupMenuButton<PieContributionMode>(
+                          icon: const Icon(Icons.more_vert),
+                          onSelected: (mode) {
+                            setState(() {
+                              pieContributionMode = mode;
+                            });
+                          },
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              value: PieContributionMode.expense,
+                              child: Row(
                                 children: [
-                                  Row(
-                                    children: [
-                                      Icon(_categoryIcon(data['category'] as String), size: 18),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        data['category'] as String,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                                      ),
-                                    ],
-                                  ),
-                                  Text(
-                                    '₹${spent.toStringAsFixed(0)} / ₹${budget.toStringAsFixed(0)}',
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
+                                  const Expanded(child: Text('Against total expense')),
+                                  if (pieContributionMode == PieContributionMode.expense)
+                                    const Icon(Icons.check, size: 18),
                                 ],
                               ),
-                              const SizedBox(height: 6),
-                              LinearProgressIndicator(
-                                value: progress,
-                                minHeight: 8,
-                                backgroundColor: Colors.grey[300],
-                                color: _progressColor(ratio),
+                            ),
+                            PopupMenuItem(
+                              value: PieContributionMode.budget,
+                              child: Row(
+                                children: [
+                                  const Expanded(child: Text('Against total budget')),
+                                  if (pieContributionMode == PieContributionMode.budget)
+                                    const Icon(Icons.check, size: 18),
+                                ],
                               ),
-                            ],
-                          ),
-                        );
-                      },
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 210,
+                      child: PieChart(
+                        PieChartData(
+                          sections: buildPieSections(),
+                          centerSpaceRadius: 32,
+                          sectionsSpace: 2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: SectionTile(
+                child: analysisData.isEmpty
+                    ? const Center(child: Text('No analysis data'))
+                    : ListView.builder(
+                        padding: EdgeInsets.zero,
+                        itemCount: analysisData.length,
+                        itemBuilder: (context, index) {
+                          final data = analysisData[index];
+
+                          final spent = (data['spent'] as num).toDouble();
+                          final budget = (data['budget'] as num).toDouble();
+                          final ratio = budget == 0 ? (spent > 0 ? 1.01 : 0.0) : spent / budget;
+                          final progress = budget == 0
+                              ? (spent > 0 ? 1.0 : 0.0)
+                              : (spent == 0 ? 0.02 : ratio.clamp(0.0, 1.0).toDouble());
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(_categoryIcon(data['category'] as String), size: 18),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          data['category'] as String,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    Text(
+                                      '₹${spent.toStringAsFixed(0)} / ₹${budget.toStringAsFixed(0)}',
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                LinearProgressIndicator(
+                                  value: progress,
+                                  minHeight: 8,
+                                  backgroundColor: Colors.grey[300],
+                                  color: _progressColor(ratio),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
