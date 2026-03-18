@@ -5,6 +5,7 @@ import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_navigator_row.dart';
+import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
 
 class BudgetsPage extends StatefulWidget {
@@ -176,102 +177,108 @@ class _BudgetsPageState extends State<BudgetsPage> {
               child: const Icon(Icons.add),
               onPressed: () => showAddBudgetDialog(),
             ),
-      body: Column(
-        children: [
-          SectionTile(
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  MonthNavigatorRow(
-                    currentMonth: currentMonth,
-                    onPrev: () {
-                      setState(() {
-                        currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
-                      });
-                    },
-                    onNext: () {
-                      setState(() {
-                        currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Total Budget',
-                    style: TextStyle(fontSize: 16, color: Colors.grey[700], fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '₹${totalBudget.toStringAsFixed(0)}',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Expanded(
-            child: SectionTile(
-              child: filteredBudgets.isEmpty
-                  ? const Center(child: Text('No budgets set'))
-                  : ListView.builder(
-                      padding: EdgeInsets.zero,
-                      itemCount: filteredBudgets.length,
-                      itemBuilder: (context, index) {
-                        final budget = filteredBudgets[index];
-                        final amount = (budget['amount'] as num).toDouble();
-                        final percentage = totalBudget == 0 ? 0 : (amount / totalBudget) * 100;
-
-                        return ListTile(
-                          leading: selectionMode
-                              ? Checkbox(
-                                  value: selectedIndexes.contains(index),
-                                  onChanged: (v) {
-                                    setState(() {
-                                      if (v == true) {
-                                        selectedIndexes.add(index);
-                                      } else {
-                                        selectedIndexes.remove(index);
-                                      }
-                                    });
-                                  },
-                                )
-                              : Icon(_categoryIcon(budget['category'] as String)),
-                          title: Text(
-                            budget['category'] as String,
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                          ),
-                          trailing: Text(
-                            '₹${amount.toStringAsFixed(0)} (${percentage.toStringAsFixed(1)}%)',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                          onLongPress: () {
-                            setState(() {
-                              selectionMode = true;
-                              selectedIndexes.add(index);
-                            });
-                          },
-                          onTap: () {
-                            if (selectionMode) {
-                              setState(() {
-                                if (selectedIndexes.contains(index)) {
-                                  selectedIndexes.remove(index);
-                                } else {
-                                  selectedIndexes.add(index);
-                                }
-                              });
-                            } else {
-                              showAddBudgetDialog(budget: budget);
-                            }
-                          },
-                        );
+      body: PageContentLayout(
+        child: Column(
+          children: [
+            SectionTile(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    MonthNavigatorRow(
+                      currentMonth: currentMonth,
+                      onPrev: () {
+                        setState(() {
+                          currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
+                        });
+                      },
+                      onNext: () {
+                        setState(() {
+                          currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
+                        });
                       },
                     ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Total Budget',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₹${totalBudget.toStringAsFixed(0)}',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ],
+            Expanded(
+              child: SectionTile(
+                child: filteredBudgets.isEmpty
+                    ? const Center(child: Text('No budgets set'))
+                    : ListView.builder(
+                        padding: EdgeInsets.zero,
+                        itemCount: filteredBudgets.length,
+                        itemBuilder: (context, index) {
+                          final budget = filteredBudgets[index];
+                          final amount = (budget['amount'] as num).toDouble();
+                          final percentage = totalBudget == 0 ? 0 : (amount / totalBudget) * 100;
+
+                          return ListTile(
+                            leading: selectionMode
+                                ? Checkbox(
+                                    value: selectedIndexes.contains(index),
+                                    onChanged: (v) {
+                                      setState(() {
+                                        if (v == true) {
+                                          selectedIndexes.add(index);
+                                        } else {
+                                          selectedIndexes.remove(index);
+                                        }
+                                      });
+                                    },
+                                  )
+                                : Icon(_categoryIcon(budget['category'] as String)),
+                            title: Text(
+                              budget['category'] as String,
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                            ),
+                            trailing: Text(
+                              '₹${amount.toStringAsFixed(0)} (${percentage.toStringAsFixed(1)}%)',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                            onLongPress: () {
+                              setState(() {
+                                selectionMode = true;
+                                selectedIndexes.add(index);
+                              });
+                            },
+                            onTap: () {
+                              if (selectionMode) {
+                                setState(() {
+                                  if (selectedIndexes.contains(index)) {
+                                    selectedIndexes.remove(index);
+                                  } else {
+                                    selectedIndexes.add(index);
+                                  }
+                                });
+                              } else {
+                                showAddBudgetDialog(budget: budget);
+                              }
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
