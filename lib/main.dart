@@ -79,4 +79,78 @@ class _FinTrackAppState extends State<FinTrackApp> {
     }
 
     final navigator = appNavigatorKey.currentState;
-    i
+    if (navigator == null) {
+      _schedulePendingNavigationFlush();
+      return;
+    }
+
+    _pendingWidgetRoute = null;
+    await navigator.pushNamedAndRemoveUntil(routeName, (route) => false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      navigatorKey: appNavigatorKey,
+      title: 'FinTrack',
+      theme: FinTrackTheme.build(widget.controller.value),
+      builder: (context, child) {
+        return ValueListenableBuilder<VisualSettings>(
+          valueListenable: widget.controller,
+          builder: (context, settings, _) {
+            final mediaQuery = MediaQuery.of(context);
+            return VisualSettingsScope(
+              controller: widget.controller,
+              child: Theme(
+                data: FinTrackTheme.build(settings),
+                child: MediaQuery(
+                  data: mediaQuery.copyWith(textScaler: TextScaler.linear(settings.textScale)),
+                  child: child ?? const SizedBox.shrink(),
+                ),
+              ),
+            );
+          },
+        );
+      },
+      routes: {
+        '/': (_) => const HomeScreen(),
+        '/transactions': (_) => const HomeScreen(initialIndex: 0),
+        '/add-transaction': (_) => const WidgetQuickAddTransactionPage(),
+      },
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+class WidgetQuickAddTransactionPage extends StatelessWidget {
+  const WidgetQuickAddTransactionPage({super.key});
+
+  Future<void> _saveTransaction(Map<String, dynamic> result, BuildContext context) async {
+    await DatabaseService.insertTransaction(
+      result['title'],
+      result['amount'],
+      result['date'],
+      result['type'],
+      (result['account'] ?? '').toString(),
+      (result['comment'] ?? '').toString(),
+    );
+
+    await WidgetSyncService.syncFromStoredConfiguration();
+
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Transaction added.')),
+    );
+    appNavigatorKey.currentState?.pushNamedAndRemoveUntil('/transactions', (route) => false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AddTransactionPage(
+      onSaveResult: (result) => _saveTransaction(result, context),
+    );
+  }
+}
