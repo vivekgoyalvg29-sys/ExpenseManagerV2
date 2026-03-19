@@ -1,6 +1,8 @@
 package com.example.expense_manager
 
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -8,10 +10,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private var navigationChannel: MethodChannel? = null
     private var pendingRoute: String? = null
-
-    override fun getInitialRoute(): String {
-        return resolveRoute(intent) ?: "/"
-    }
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -21,6 +20,7 @@ class MainActivity : FlutterActivity() {
             CHANNEL,
         )
 
+        pendingRoute = resolveRoute(intent)
         dispatchPendingRoute()
     }
 
@@ -36,8 +36,10 @@ class MainActivity : FlutterActivity() {
         val route = pendingRoute ?: return
         val channel = navigationChannel ?: return
 
-        channel.invokeMethod("navigateToRoute", route)
-        pendingRoute = null
+        mainHandler.post {
+            channel.invokeMethod("navigateToRoute", route)
+            pendingRoute = null
+        }
     }
 
     private fun resolveRoute(intent: Intent?): String? {
