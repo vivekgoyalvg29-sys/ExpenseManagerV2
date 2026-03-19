@@ -53,24 +53,23 @@ class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
     }
 
     private fun createLaunchPendingIntent(
-        context: Context,
-        widgetId: Int,
-        destination: String,
-    ): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            data = Uri.parse("fintrack://$destination?widgetId=$widgetId")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-        }
+    context: Context,
+    widgetId: Int,
+    destination: String,
+): PendingIntent {
 
-        return PendingIntent.getActivity(
-            context,
-            widgetId + if (destination == "add-transaction") 10_000 else 0,
-            intent,
-            pendingIntentFlags(),
-        )
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        data = Uri.parse("fintrack://$destination?widgetId=$widgetId")
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
     }
+
+    return PendingIntent.getActivity(
+        context,
+        widgetId + if (destination == "add-transaction") 10_000 else 0,
+        intent,
+        pendingIntentFlags(),
+    )
+}
 
     private fun pendingIntentFlags(): Int {
         val baseFlags = PendingIntent.FLAG_UPDATE_CURRENT
