@@ -2,6 +2,7 @@
     package="com.example.expense_manager">
 
     <uses-permission android:name="android.permission.READ_SMS" />
+
     <uses-feature
         android:name="android.hardware.telephony"
         android:required="false" />
@@ -11,6 +12,7 @@
         android:icon="@android:drawable/sym_def_app_icon"
         android:networkSecurityConfig="@xml/network_security_config"
         android:usesCleartextTraffic="false">
+
         <activity
             android:name=".MainActivity"
             android:theme="@style/LaunchTheme"
@@ -24,17 +26,17 @@
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
 
+            <!-- MAIN LAUNCH -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- DEEP LINK -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
                 <data android:scheme="fintrack" />
             </intent-filter>
 
@@ -44,16 +46,23 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
+        <!-- 🔥 IMPORTANT: Widget Receiver -->
         <receiver
             android:name=".ExpenseHomeWidgetProvider"
-            android:exported="true">
+            android:exported="true"
+            android:enabled="true">
+
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- Optional but safer -->
+                <action android:name="android.appwidget.action.APPWIDGET_ENABLED" />
+                <action android:name="android.appwidget.action.APPWIDGET_DISABLED" />
             </intent-filter>
 
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/expense_home_widget_info" />
         </receiver>
+
     </application>
 </manifest>
