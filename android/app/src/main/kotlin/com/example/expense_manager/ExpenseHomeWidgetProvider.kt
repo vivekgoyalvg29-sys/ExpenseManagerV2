@@ -2,37 +2,33 @@ package com.example.expense_manager
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.widget.RemoteViews
-import es.antonborri.home_widget.HomeWidgetProvider
 import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.roundToInt
 
-class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
+class ExpenseHomeWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray,
-        widgetData: SharedPreferences,
+        appWidgetIds: IntArray
     ) {
-        val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
+
+        val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
 
         appWidgetIds.forEach { widgetId ->
 
-            val views = RemoteViews(
-                context.packageName,
-                R.layout.expense_home_widget
-            )
+            val views = RemoteViews(context.packageName, R.layout.expense_home_widget)
 
-            // ✅ SAFE READ (our own prefs, not widgetData)
-            val monthLabel = prefs.getString("currentPeriodLabel", "This month") ?: "This month"
-            val percentage = prefs.getFloat("currentMonthPercentage", 0f)
-            val expense = prefs.getFloat("currentMonthExpense", 0f)
-            val budget = prefs.getFloat("currentMonthBudget", 0f)
+            // SAFE READ
+            val monthLabel = prefs.getString("flutter.currentPeriodLabel", "This month") ?: "This month"
+            val percentage = prefs.getFloat("flutter.currentMonthPercentage", 0f)
+            val expense = prefs.getFloat("flutter.currentMonthExpense", 0f)
+            val budget = prefs.getFloat("flutter.currentMonthBudget", 0f)
 
             views.setTextViewText(
                 R.id.widget_title,
@@ -46,7 +42,7 @@ class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
                 if (budget > 0f) "of ${formatCurrency(budget)}" else "No budget"
             )
 
-            // ✅ SAFE CLICK
+            // CLICK → OPEN APP
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
