@@ -33,7 +33,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     _loadData();
 
     if (widget.existingTransaction != null) {
-      commentController.text = widget.existingTransaction!['title'] ?? '';
+      commentController.text = widget.existingTransaction!['comment'] ?? '';
       amountController.text = widget.existingTransaction!['amount'].toString();
       selectedDate = DateTime.parse(widget.existingTransaction!['date']);
       selectedCategory = widget.existingTransaction!['title'];

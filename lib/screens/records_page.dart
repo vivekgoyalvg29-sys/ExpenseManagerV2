@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../services/data_store.dart';
 import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
@@ -130,6 +131,7 @@ class _RecordsPageState extends State<RecordsPage> {
                     result["date"],
                     result["type"],
                     (result["account"] ?? '').toString(),
+                    (result["comments"] ?? '').toString(),
                   );
 
                   loadTransactions();
@@ -163,61 +165,110 @@ class _RecordsPageState extends State<RecordsPage> {
                         itemCount: filteredTransactions.length,
                         itemBuilder: (context, index) {
                           final tx = filteredTransactions[index];
-                          DateTime date = DateTime.parse(tx["date"]);
+                          final date = DateTime.parse(tx["date"]);
+                          final previousTx = index > 0 ? filteredTransactions[index - 1] : null;
+                          final previousDate = previousTx != null
+                              ? DateTime.parse(previousTx["date"])
+                              : null;
+                          final showDateHeader = previousDate == null ||
+                              previousDate.year != date.year ||
+                              previousDate.month != date.month ||
+                              previousDate.day != date.day;
+                          final comment = (tx["comment"] ?? '').toString().trim();
+                          final amount = (tx["amount"] as num).toDouble();
 
-                          return ListTile(
-                            leading: selectionMode
-                                ? Checkbox(
-                                    value: selectedIndexes.contains(index),
-                                    onChanged: (v) {
-                                      setState(() {
-                                        if (v == true) {
-                                          selectedIndexes.add(index);
-                                        } else {
-                                          selectedIndexes.remove(index);
-                                        }
-                                      });
-                                    },
-                                  )
-                                : CircleAvatar(
-                                    child: Icon(
-                                      _categoryIcon(tx["title"]),
-                                      color: Colors.white,
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (showDateHeader) ...[
+                                if (index > 0) const SizedBox(height: 12),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                                  child: Text(
+                                    DateFormat('MMM d, EEEE').format(date),
+                                    style: const TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0E5D5B),
                                     ),
                                   ),
-                            title: Text(
-                              tx["title"],
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                            ),
-                            subtitle: Text(
-                              "${date.day}/${date.month}/${date.year}",
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                            trailing: Text(
-                              "₹${tx["amount"]}",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: tx["type"] == "income" ? Colors.green : Colors.red,
-                              ),
-                            ),
-                            onLongPress: () {
-                              setState(() {
-                                selectionMode = true;
-                                selectedIndexes.add(index);
-                              });
-                            },
-                            onTap: () {
-                              if (selectionMode) {
-                                setState(() {
-                                  if (selectedIndexes.contains(index)) {
-                                    selectedIndexes.remove(index);
-                                  } else {
+                                ),
+                                const Divider(height: 1, thickness: 1),
+                              ],
+                              ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 6,
+                                ),
+                                leading: selectionMode
+                                    ? Checkbox(
+                                        value: selectedIndexes.contains(index),
+                                        onChanged: (v) {
+                                          setState(() {
+                                            if (v == true) {
+                                              selectedIndexes.add(index);
+                                            } else {
+                                              selectedIndexes.remove(index);
+                                            }
+                                          });
+                                        },
+                                      )
+                                    : CircleAvatar(
+                                        child: Icon(
+                                          _categoryIcon(tx["title"]),
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                title: Text(
+                                  tx["title"],
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                subtitle: comment.isEmpty
+                                    ? null
+                                    : Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          comment,
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
+                                trailing: Text(
+                                  "${tx["type"] == "income" ? '+' : '-'}₹${amount.toStringAsFixed(2)}",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: tx["type"] == "income"
+                                        ? Colors.green
+                                        : Colors.red,
+                                  ),
+                                ),
+                                onLongPress: () {
+                                  setState(() {
+                                    selectionMode = true;
                                     selectedIndexes.add(index);
+                                  });
+                                },
+                                onTap: () {
+                                  if (selectionMode) {
+                                    setState(() {
+                                      if (selectedIndexes.contains(index)) {
+                                        selectedIndexes.remove(index);
+                                      } else {
+                                        selectedIndexes.add(index);
+                                      }
+                                    });
                                   }
-                                });
-                              }
-                            },
+                                },
+                              ),
+                              if (index < filteredTransactions.length - 1)
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 88),
+                                  child: Divider(height: 1),
+                                ),
+                            ],
                           );
                         },
                       ),
