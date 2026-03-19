@@ -40,10 +40,14 @@ class _FinTrackAppState extends State<FinTrackApp> {
     'fintrack/widget_navigation',
   );
 
+  String? _pendingWidgetRoute;
+  bool _navigationFlushScheduled = false;
+
   @override
   void initState() {
     super.initState();
     _widgetNavigationChannel.setMethodCallHandler(_handleWidgetNavigation);
+    _schedulePendingNavigationFlush();
   }
 
   Future<void> _handleWidgetNavigation(MethodCall call) async {
@@ -52,11 +56,35 @@ class _FinTrackAppState extends State<FinTrackApp> {
     }
 
     final routeName = (call.arguments as String?) ?? '/';
-    final navigator = appNavigatorKey.currentState;
-    if (navigator == null) {
+    _pendingWidgetRoute = routeName;
+    _schedulePendingNavigationFlush();
+  }
+
+  void _schedulePendingNavigationFlush() {
+    if (_navigationFlushScheduled) {
       return;
     }
 
+    _navigationFlushScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigationFlushScheduled = false;
+      _flushPendingWidgetRoute();
+    });
+  }
+
+  Future<void> _flushPendingWidgetRoute() async {
+    final routeName = _pendingWidgetRoute;
+    if (routeName == null) {
+      return;
+    }
+
+    final navigator = appNavigatorKey.currentState;
+    if (navigator == null) {
+      _schedulePendingNavigationFlush();
+      return;
+    }
+
+    _pendingWidgetRoute = null;
     await navigator.pushNamedAndRemoveUntil(routeName, (route) => false);
   }
 
