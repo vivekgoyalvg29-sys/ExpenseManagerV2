@@ -21,6 +21,7 @@ jobs:
           cp temp_project/android/gradlew android/gradlew
           cp temp_project/android/gradlew.bat android/gradlew.bat
           cp temp_project/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
+          cp temp_project/android/local.properties android/local.properties
           rm -rf temp_project
 
       - name: Install dependencies
