@@ -1,8 +1,8 @@
 import 'dart:io';
-
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:home_widget/home_widget.dart';
 
 import 'screens/add_transaction_page.dart';
 import 'screens/home_screen.dart';
@@ -13,12 +13,30 @@ import 'services/widget_sync_service.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
+Future<void> updateWidgetData() async {
+  final prefs = await SharedPreferences.getInstance();
+
+  await prefs.setString('currentPeriodLabel', 'March');
+  await prefs.setDouble('currentMonthPercentage', 50);
+  await prefs.setDouble('currentMonthExpense', 5000);
+  await prefs.setDouble('currentMonthBudget', 10000);
+
+  // refresh widget
+  await HomeWidget.updateWidget(
+    androidName: 'ExpenseHomeWidgetProvider',
+  );
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ✅ ADD THIS LINE (critical)
+  await updateWidgetData();
 
   if (Platform.isIOS) {
     await HomeWidget.setAppGroupId('group.com.example.expense_manager');
   }
+
   await WidgetSyncService.syncFromStoredConfiguration();
   await DataStore.initialize();
   final visualSettings = await VisualSettings.load();
@@ -136,6 +154,9 @@ class WidgetQuickAddTransactionPage extends StatelessWidget {
     );
 
     await WidgetSyncService.syncFromStoredConfiguration();
+
+    // ✅ ALSO UPDATE WIDGET AFTER NEW TRANSACTION
+    await updateWidgetData();
 
     if (!context.mounted) {
       return;
