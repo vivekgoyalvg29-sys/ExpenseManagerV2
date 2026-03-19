@@ -132,6 +132,7 @@ class DatabaseService {
     String title,
     double amount,
     DateTime date,
+    String type,
     String account,
     String comment,
   ) async {
@@ -143,6 +144,7 @@ class DatabaseService {
         "title": title,
         "amount": amount,
         "date": date.toIso8601String(),
+        "type": type,
         "account": account,
         "comment": comment,
       },
