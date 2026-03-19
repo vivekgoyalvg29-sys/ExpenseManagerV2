@@ -7,6 +7,9 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetProvider
+import java.text.NumberFormat
+import java.util.Locale
+import kotlin.math.roundToInt
 
 class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
 
@@ -23,13 +26,26 @@ class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
                 R.layout.expense_home_widget
             )
 
-            // SAFE STATIC TEXT (no data yet)
-            views.setTextViewText(R.id.widget_title, "FinTrack")
-            views.setTextViewText(R.id.widget_subtitle, "Tap to open")
-            views.setTextViewText(R.id.widget_expense, "₹0")
-            views.setTextViewText(R.id.widget_budget, "")
+            // ✅ SAFE DATA READ (with defaults)
+            val monthLabel = widgetData.getString("currentPeriodLabel", "This month") ?: "This month"
+            val percentage = widgetData.getFloat("currentMonthPercentage", 0f)
+            val expense = widgetData.getFloat("currentMonthExpense", 0f)
+            val budget = widgetData.getFloat("currentMonthBudget", 0f)
 
-            // SIMPLE CLICK → OPEN APP
+            // ✅ UI SET
+            views.setTextViewText(
+                R.id.widget_title,
+                "$monthLabel (${percentage.roundToInt()}%)"
+            )
+            views.setTextViewText(R.id.widget_subtitle, "Spent vs budget")
+            views.setTextViewText(R.id.widget_expense, formatCurrency(expense))
+
+            views.setTextViewText(
+                R.id.widget_budget,
+                if (budget > 0f) "of ${formatCurrency(budget)}" else "No budget"
+            )
+
+            // ✅ SIMPLE CLICK (safe)
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
@@ -45,5 +61,11 @@ class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
 
             appWidgetManager.updateAppWidget(widgetId, views)
         }
+    }
+
+    private fun formatCurrency(value: Float): String {
+        val formatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
+        formatter.maximumFractionDigits = 0
+        return formatter.format(value)
     }
 }
