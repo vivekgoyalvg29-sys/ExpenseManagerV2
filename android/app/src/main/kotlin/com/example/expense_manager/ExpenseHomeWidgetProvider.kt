@@ -1,11 +1,13 @@
 package com.example.expense_manager
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
+import android.os.Build
 import android.widget.RemoteViews
-import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
 import java.text.NumberFormat
 import java.util.Locale
@@ -37,25 +39,45 @@ class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
                 if (budget > 0f) "of ${formatCurrency(budget)}" else "No budget set",
             )
 
-            val openAppPendingIntent = HomeWidgetLaunchIntent.getActivity(
-                context,
-                MainActivity::class.java,
-                Uri.parse("fintrack://open?widgetId=$widgetId"),
+            views.setOnClickPendingIntent(
+                R.id.widget_container,
+                createLaunchPendingIntent(context, widgetId, "open"),
             )
-
-            val addTransactionPendingIntent = HomeWidgetLaunchIntent.getActivity(
-                context,
-                MainActivity::class.java,
-                Uri.parse("fintrack://add-transaction?widgetId=$widgetId"),
-            )
-
-            views.setOnClickPendingIntent(R.id.widget_container, openAppPendingIntent)
             views.setOnClickPendingIntent(
                 R.id.widget_add_transaction_shortcut,
-                addTransactionPendingIntent,
+                createLaunchPendingIntent(context, widgetId, "add-transaction"),
             )
 
             appWidgetManager.updateAppWidget(widgetId, views)
+        }
+    }
+
+    private fun createLaunchPendingIntent(
+        context: Context,
+        widgetId: Int,
+        destination: String,
+    ): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = Uri.parse("fintrack://$destination?widgetId=$widgetId")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+        }
+
+        return PendingIntent.getActivity(
+            context,
+            widgetId + if (destination == "add-transaction") 10_000 else 0,
+            intent,
+            pendingIntentFlags(),
+        )
+    }
+
+    private fun pendingIntentFlags(): Int {
+        val baseFlags = PendingIntent.FLAG_UPDATE_CURRENT
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            baseFlags or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            baseFlags
         }
     }
 
