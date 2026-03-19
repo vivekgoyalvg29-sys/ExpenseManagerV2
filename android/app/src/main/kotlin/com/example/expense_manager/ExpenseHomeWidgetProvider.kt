@@ -17,17 +17,17 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        // ✅ Read from HomeWidgetPreferences (where home_widget package writes)
-        // ✅ No "flutter." prefix on keys
         val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
 
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.expense_home_widget)
 
             val monthLabel = prefs.getString("currentPeriodLabel", "This month") ?: "This month"
-            val percentage = prefs.getFloat("currentMonthPercentage", 0f)
-            val expense = prefs.getFloat("currentMonthExpense", 0f)
-            val budget = prefs.getFloat("currentMonthBudget", 0f)
+
+            // ✅ Read as Double/Long (how home_widget stores them), then convert to Float
+            val percentage = prefs.getAll()["currentMonthPercentage"]?.toString()?.toDoubleOrNull() ?: 0.0
+            val expense = prefs.getAll()["currentMonthExpense"]?.toString()?.toDoubleOrNull() ?: 0.0
+            val budget = prefs.getAll()["currentMonthBudget"]?.toString()?.toDoubleOrNull() ?: 0.0
 
             views.setTextViewText(
                 R.id.widget_title,
@@ -37,7 +37,7 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_expense, formatCurrency(expense))
             views.setTextViewText(
                 R.id.widget_budget,
-                if (budget > 0f) "of ${formatCurrency(budget)}" else "No budget"
+                if (budget > 0.0) "of ${formatCurrency(budget)}" else "No budget"
             )
 
             // Tap widget → open app
@@ -56,7 +56,7 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
         }
     }
 
-    private fun formatCurrency(value: Float): String {
+    private fun formatCurrency(value: Double): String {
         val formatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
         formatter.maximumFractionDigits = 0
         return formatter.format(value)
