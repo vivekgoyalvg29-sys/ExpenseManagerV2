@@ -1,12 +1,11 @@
 package com.example.expense_manager
 
-import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.widget.RemoteViews
+import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
 import java.text.NumberFormat
 import java.util.Locale
@@ -38,30 +37,16 @@ class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
                 if (budget > 0f) "of ${formatCurrency(budget)}" else "No budget set",
             )
 
-            val openAppIntent = Intent(context, MainActivity::class.java).apply {
-                action = Intent.ACTION_VIEW
-                data = Uri.parse("fintrack://open?widgetId=$widgetId")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-
-            val openAppPendingIntent = PendingIntent.getActivity(
+            val openAppPendingIntent = HomeWidgetLaunchIntent.getActivity(
                 context,
-                widgetId,
-                openAppIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                MainActivity::class.java,
+                Uri.parse("fintrack://open?widgetId=$widgetId"),
             )
 
-            val addTransactionIntent = Intent(context, MainActivity::class.java).apply {
-                action = Intent.ACTION_VIEW
-                data = Uri.parse("fintrack://add-transaction?widgetId=$widgetId")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-
-            val addTransactionPendingIntent = PendingIntent.getActivity(
+            val addTransactionPendingIntent = HomeWidgetLaunchIntent.getActivity(
                 context,
-                widgetId + 10_000,
-                addTransactionIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                MainActivity::class.java,
+                Uri.parse("fintrack://add-transaction?widgetId=$widgetId"),
             )
 
             views.setOnClickPendingIntent(R.id.widget_container, openAppPendingIntent)
