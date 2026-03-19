@@ -17,18 +17,17 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-
-        val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        // ✅ Read from HomeWidgetPreferences (where home_widget package writes)
+        // ✅ No "flutter." prefix on keys
+        val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
 
         appWidgetIds.forEach { widgetId ->
-
             val views = RemoteViews(context.packageName, R.layout.expense_home_widget)
 
-            // SAFE READ
-            val monthLabel = prefs.getString("flutter.currentPeriodLabel", "This month") ?: "This month"
-            val percentage = prefs.getFloat("flutter.currentMonthPercentage", 0f)
-            val expense = prefs.getFloat("flutter.currentMonthExpense", 0f)
-            val budget = prefs.getFloat("flutter.currentMonthBudget", 0f)
+            val monthLabel = prefs.getString("currentPeriodLabel", "This month") ?: "This month"
+            val percentage = prefs.getFloat("currentMonthPercentage", 0f)
+            val expense = prefs.getFloat("currentMonthExpense", 0f)
+            val budget = prefs.getFloat("currentMonthBudget", 0f)
 
             views.setTextViewText(
                 R.id.widget_title,
@@ -36,24 +35,21 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
             )
             views.setTextViewText(R.id.widget_subtitle, "Spent vs budget")
             views.setTextViewText(R.id.widget_expense, formatCurrency(expense))
-
             views.setTextViewText(
                 R.id.widget_budget,
                 if (budget > 0f) "of ${formatCurrency(budget)}" else "No budget"
             )
 
-            // CLICK → OPEN APP
+            // Tap widget → open app
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
-
             val pendingIntent = PendingIntent.getActivity(
                 context,
                 widgetId,
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-
             views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
 
             appWidgetManager.updateAppWidget(widgetId, views)
