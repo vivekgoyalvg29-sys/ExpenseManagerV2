@@ -79,7 +79,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
       'date': selectedDate,
       'type': transactionType,
       'account': selectedAccount,
-      'comments': commentController.text.trim(),
+      'comment': commentController.text.trim(),
     };
 
     if (widget.onSaveResult != null) {
