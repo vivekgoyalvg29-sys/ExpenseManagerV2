@@ -15,15 +15,37 @@ final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (Platform.isIOS) {
-    await HomeWidget.setAppGroupId('group.com.example.expense_manager');
+  try {
+    if (Platform.isIOS) {
+      await HomeWidget.setAppGroupId('group.com.example.expense_manager');
+    }
+
+    await DataStore.initialize();
+    await WidgetSyncService.syncFromStoredConfiguration();
+
+    final visualSettings = await VisualSettings.load();
+    runApp(FinTrackApp(controller: VisualSettingsController(visualSettings)));
+
+  } catch (e, stack) {
+    runApp(MaterialApp(
+      home: Scaffold(
+        backgroundColor: Colors.black,
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('CRASH', style: TextStyle(color: Colors.red, fontSize: 24, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              Text(e.toString(), style: const TextStyle(color: Colors.orange, fontSize: 13)),
+              const SizedBox(height: 16),
+              Text(stack.toString(), style: const TextStyle(color: Colors.white70, fontSize: 11)),
+            ],
+          ),
+        ),
+      ),
+    ));
   }
-
-  await DataStore.initialize();
-  await WidgetSyncService.syncFromStoredConfiguration();
-
-  final visualSettings = await VisualSettings.load();
-  runApp(FinTrackApp(controller: VisualSettingsController(visualSettings)));
 }
 
 class FinTrackApp extends StatefulWidget {
