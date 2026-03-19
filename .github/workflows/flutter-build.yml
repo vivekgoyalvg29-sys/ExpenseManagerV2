@@ -1,17 +1,13 @@
 name: Build Flutter APK
-
 on:
   push:
     branches: [ main ]
-
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
     steps:
-
       - uses: actions/checkout@v5
 
       - name: Install Flutter
@@ -19,33 +15,14 @@ jobs:
         with:
           flutter-version: '3.19.0'
 
-      - name: Create Flutter Project
-        run: flutter create app
-
-      - name: Update Android Kotlin plugin version
-        run: |
-          sed -i "s/ext.kotlin_version = '.*'/ext.kotlin_version = '1.9.22'/" app/android/build.gradle || true
-          sed -i "s/id \"org.jetbrains.kotlin.android\" version \".*\"/id \"org.jetbrains.kotlin.android\" version \"1.9.22\"/" app/android/settings.gradle || true
-          sed -i -E "s/minSdk(Version)?[[:space:]]*=?[[:space:]]*flutter.minSdkVersion/minSdk 21/" app/android/app/build.gradle || true
-          sed -i -E "s/namespace[[:space:]]*=?[[:space:]]*['\" ]*com\\.example\\.app['\" ]*/namespace 'com.example.expense_manager'/" app/android/app/build.gradle || true
-          sed -i -E "s/applicationId[[:space:]]*=?[[:space:]]*['\" ]*com\\.example\\.app['\" ]*/applicationId 'com.example.expense_manager'/" app/android/app/build.gradle || true
-
-      - name: Copy user code
-        run: |
-          cp pubspec.yaml app/pubspec.yaml
-          cp -r lib app/
-          cp -r android/app/src/main/* app/android/app/src/main/
-          cp ios/Runner/Info.plist app/ios/Runner/Info.plist
-          cp ios/Runner/Runner.entitlements app/ios/Runner/Runner.entitlements
+      - name: Install dependencies
+        run: flutter pub get
 
       - name: Build APK
-        run: |
-          cd app
-          flutter pub get
-          flutter build apk --release
+        run: flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v6
         with:
           name: app-release
-          path: app/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
