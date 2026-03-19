@@ -251,7 +251,7 @@ class _RecordsPageState extends State<RecordsPage> {
                                     selectedIndexes.add(index);
                                   });
                                 },
-                                onTap: () {
+                                onTap: () async {
                                   if (selectionMode) {
                                     setState(() {
                                       if (selectedIndexes.contains(index)) {
@@ -260,6 +260,30 @@ class _RecordsPageState extends State<RecordsPage> {
                                         selectedIndexes.add(index);
                                       }
                                     });
+                                    return;
+                                  }
+
+                                  final result = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => AddTransactionPage(
+                                        existingTransaction: tx,
+                                      ),
+                                    ),
+                                  );
+
+                                  if (result != null) {
+                                    await DatabaseService.updateTransaction(
+                                      tx['id'] as int,
+                                      result['title'] as String,
+                                      result['amount'] as double,
+                                      result['date'] as DateTime,
+                                      result['type'] as String,
+                                      (result['account'] ?? '').toString(),
+                                      (result['comments'] ?? '').toString(),
+                                    );
+
+                                    await loadTransactions();
                                   }
                                 },
                               ),
