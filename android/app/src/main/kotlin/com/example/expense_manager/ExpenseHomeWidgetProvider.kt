@@ -19,6 +19,8 @@ class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
         appWidgetIds: IntArray,
         widgetData: SharedPreferences,
     ) {
+        val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
+
         appWidgetIds.forEach { widgetId ->
 
             val views = RemoteViews(
@@ -26,13 +28,12 @@ class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
                 R.layout.expense_home_widget
             )
 
-            // ✅ SAFE DATA READ (with defaults)
-            val monthLabel = widgetData.getString("currentPeriodLabel", "This month") ?: "This month"
-            val percentage = widgetData.getFloat("currentMonthPercentage", 0f)
-            val expense = widgetData.getFloat("currentMonthExpense", 0f)
-            val budget = widgetData.getFloat("currentMonthBudget", 0f)
+            // ✅ SAFE READ (our own prefs, not widgetData)
+            val monthLabel = prefs.getString("currentPeriodLabel", "This month") ?: "This month"
+            val percentage = prefs.getFloat("currentMonthPercentage", 0f)
+            val expense = prefs.getFloat("currentMonthExpense", 0f)
+            val budget = prefs.getFloat("currentMonthBudget", 0f)
 
-            // ✅ UI SET
             views.setTextViewText(
                 R.id.widget_title,
                 "$monthLabel (${percentage.roundToInt()}%)"
@@ -45,7 +46,7 @@ class ExpenseHomeWidgetProvider : HomeWidgetProvider() {
                 if (budget > 0f) "of ${formatCurrency(budget)}" else "No budget"
             )
 
-            // ✅ SIMPLE CLICK (safe)
+            // ✅ SAFE CLICK
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
