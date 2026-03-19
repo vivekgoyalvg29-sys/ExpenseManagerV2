@@ -131,7 +131,7 @@ class _RecordsPageState extends State<RecordsPage> {
                     result["date"],
                     result["type"],
                     (result["account"] ?? '').toString(),
-                    (result["comments"] ?? '').toString(),
+                    (result["comment"] ?? '').toString(),
                   );
 
                   loadTransactions();
@@ -280,7 +280,7 @@ class _RecordsPageState extends State<RecordsPage> {
                                       result['date'] as DateTime,
                                       result['type'] as String,
                                       (result['account'] ?? '').toString(),
-                                      (result['comments'] ?? '').toString(),
+                                      (result['comment'] ?? '').toString(),
                                     );
 
                                     await loadTransactions();

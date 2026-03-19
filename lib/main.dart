@@ -104,6 +104,7 @@ class WidgetQuickAddTransactionPage extends StatelessWidget {
       result['date'],
       result['type'],
       (result['account'] ?? '').toString(),
+      (result['comment'] ?? '').toString(),
     );
 
     await WidgetSyncService.syncFromStoredConfiguration();
