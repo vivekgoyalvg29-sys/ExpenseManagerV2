@@ -8,6 +8,7 @@ import 'screens/add_transaction_page.dart';
 import 'screens/home_screen.dart';
 import 'services/data_store.dart';
 import 'services/database_service.dart';
+import 'services/visual_settings.dart';
 import 'services/widget_sync_service.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -20,12 +21,15 @@ void main() async {
   }
   await WidgetSyncService.syncFromStoredConfiguration();
   await DataStore.initialize();
+  final visualSettings = await VisualSettings.load();
 
-  runApp(const FinTrackApp());
+  runApp(FinTrackApp(controller: VisualSettingsController(visualSettings)));
 }
 
 class FinTrackApp extends StatefulWidget {
-  const FinTrackApp({super.key});
+  final VisualSettingsController controller;
+
+  const FinTrackApp({super.key, required this.controller});
 
   @override
   State<FinTrackApp> createState() => _FinTrackAppState();
@@ -61,13 +65,25 @@ class _FinTrackAppState extends State<FinTrackApp> {
     return MaterialApp(
       navigatorKey: appNavigatorKey,
       title: 'FinTrack',
-      theme: ThemeData(
-        primarySwatch: Colors.green,
-        textTheme: const TextTheme(
-          bodyMedium: TextStyle(fontSize: 14),
-          titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-      ),
+      theme: FinTrackTheme.build(widget.controller.value),
+      builder: (context, child) {
+        return ValueListenableBuilder<VisualSettings>(
+          valueListenable: widget.controller,
+          builder: (context, settings, _) {
+            final mediaQuery = MediaQuery.of(context);
+            return VisualSettingsScope(
+              controller: widget.controller,
+              child: Theme(
+                data: FinTrackTheme.build(settings),
+                child: MediaQuery(
+                  data: mediaQuery.copyWith(textScaler: TextScaler.linear(settings.textScale)),
+                  child: child ?? const SizedBox.shrink(),
+                ),
+              ),
+            );
+          },
+        );
+      },
       routes: {
         '/': (_) => const HomeScreen(),
         '/transactions': (_) => const HomeScreen(initialIndex: 0),

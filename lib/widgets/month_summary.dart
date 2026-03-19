@@ -24,6 +24,14 @@ class MonthSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final remaining = budget - expense;
+    final labelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: const Color(0xFF52606D),
+        );
+    final valueStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold,
+          fontSize: 19,
+        );
 
     return SectionTile(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -36,50 +44,34 @@ class MonthSummary extends StatelessWidget {
               onPrev: onPrev,
               onNext: onNext,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 10),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                const Text('Budget', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                const Text('Expense', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Remaining', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                    if (trailing != null) ...[
-                      const SizedBox(width: 2),
-                      trailing!,
-                    ],
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                Text(
-                  '₹${budget.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    color: Colors.green,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: _SummaryMetric(
+                    label: 'Budget',
+                    value: '₹${budget.toStringAsFixed(0)}',
+                    labelStyle: labelStyle,
+                    valueStyle: valueStyle?.copyWith(color: Colors.green[700]),
                   ),
                 ),
-                Text(
-                  '₹${expense.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    color: Colors.red,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: _SummaryMetric(
+                    label: 'Expense',
+                    value: '₹${expense.toStringAsFixed(0)}',
+                    labelStyle: labelStyle,
+                    valueStyle: valueStyle?.copyWith(color: Colors.red[700]),
                   ),
                 ),
-                Text(
-                  '₹${remaining.toStringAsFixed(0)}',
-                  style: TextStyle(
-                    color: remaining >= 0 ? Colors.blue : Colors.red,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: _SummaryMetric(
+                    label: 'Remaining',
+                    value: '₹${remaining.toStringAsFixed(0)}',
+                    labelStyle: labelStyle,
+                    valueStyle: valueStyle?.copyWith(
+                      color: remaining >= 0 ? Colors.blue[700] : Colors.red[700],
+                    ),
+                    trailing: trailing,
                   ),
                 ),
               ],
@@ -87,6 +79,55 @@ class MonthSummary extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SummaryMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final TextStyle? labelStyle;
+  final TextStyle? valueStyle;
+  final Widget? trailing;
+
+  const _SummaryMetric({
+    required this.label,
+    required this.value,
+    this.labelStyle,
+    this.valueStyle,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: labelStyle,
+              ),
+            ),
+            if (trailing != null) ...[
+              const SizedBox(width: 2),
+              trailing!,
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: valueStyle,
+        ),
+      ],
     );
   }
 }
