@@ -15,6 +15,14 @@ jobs:
         with:
           flutter-version: '3.19.0'
 
+      - name: Generate missing Android wrapper
+        run: |
+          flutter create --platforms android temp_project
+          cp temp_project/android/gradlew android/gradlew
+          cp temp_project/android/gradlew.bat android/gradlew.bat
+          cp temp_project/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
+          rm -rf temp_project
+
       - name: Install dependencies
         run: flutter pub get
 
