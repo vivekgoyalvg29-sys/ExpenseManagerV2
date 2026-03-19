@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,34 +12,17 @@ import 'services/widget_sync_service.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
-Future<void> updateWidgetData() async {
-  final prefs = await SharedPreferences.getInstance();
-
-  await prefs.setString('currentPeriodLabel', 'March');
-  await prefs.setDouble('currentMonthPercentage', 50);
-  await prefs.setDouble('currentMonthExpense', 5000);
-  await prefs.setDouble('currentMonthBudget', 10000);
-
-  // refresh widget
-  await HomeWidget.updateWidget(
-    androidName: 'ExpenseHomeWidgetProvider',
-  );
-}
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // ✅ ADD THIS LINE (critical)
-  await updateWidgetData();
 
   if (Platform.isIOS) {
     await HomeWidget.setAppGroupId('group.com.example.expense_manager');
   }
 
-  await WidgetSyncService.syncFromStoredConfiguration();
   await DataStore.initialize();
-  final visualSettings = await VisualSettings.load();
+  await WidgetSyncService.syncFromStoredConfiguration();
 
+  final visualSettings = await VisualSettings.load();
   runApp(FinTrackApp(controller: VisualSettingsController(visualSettings)));
 }
 
@@ -97,80 +79,4 @@ class _FinTrackAppState extends State<FinTrackApp> {
     }
 
     final navigator = appNavigatorKey.currentState;
-    if (navigator == null) {
-      _schedulePendingNavigationFlush();
-      return;
-    }
-
-    _pendingWidgetRoute = null;
-    await navigator.pushNamedAndRemoveUntil(routeName, (route) => false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: appNavigatorKey,
-      title: 'FinTrack',
-      theme: FinTrackTheme.build(widget.controller.value),
-      builder: (context, child) {
-        return ValueListenableBuilder<VisualSettings>(
-          valueListenable: widget.controller,
-          builder: (context, settings, _) {
-            final mediaQuery = MediaQuery.of(context);
-            return VisualSettingsScope(
-              controller: widget.controller,
-              child: Theme(
-                data: FinTrackTheme.build(settings),
-                child: MediaQuery(
-                  data: mediaQuery.copyWith(textScaler: TextScaler.linear(settings.textScale)),
-                  child: child ?? const SizedBox.shrink(),
-                ),
-              ),
-            );
-          },
-        );
-      },
-      routes: {
-        '/': (_) => const HomeScreen(),
-        '/transactions': (_) => const HomeScreen(initialIndex: 0),
-        '/add-transaction': (_) => const WidgetQuickAddTransactionPage(),
-      },
-      debugShowCheckedModeBanner: false,
-    );
-  }
-}
-
-class WidgetQuickAddTransactionPage extends StatelessWidget {
-  const WidgetQuickAddTransactionPage({super.key});
-
-  Future<void> _saveTransaction(Map<String, dynamic> result, BuildContext context) async {
-    await DatabaseService.insertTransaction(
-      result['title'],
-      result['amount'],
-      result['date'],
-      result['type'],
-      (result['account'] ?? '').toString(),
-      (result['comment'] ?? '').toString(),
-    );
-
-
-    // ✅ ALSO UPDATE WIDGET AFTER NEW TRANSACTION
-    await updateWidgetData();
-
-    if (!context.mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Transaction added.')),
-    );
-    appNavigatorKey.currentState?.pushNamedAndRemoveUntil('/transactions', (route) => false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AddTransactionPage(
-      onSaveResult: (result) => _saveTransaction(result, context),
-    );
-  }
-}
+    i
