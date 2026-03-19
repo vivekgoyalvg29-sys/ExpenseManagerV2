@@ -99,8 +99,8 @@ class FinTrackTheme {
     );
 
     return base.copyWith(
-      fontFamily: settings.fontFamily,
       textTheme: scaledTextTheme,
+      primaryTextTheme: scaledTextTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
