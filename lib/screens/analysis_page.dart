@@ -1,4 +1,3 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../services/data_store.dart';
@@ -15,11 +14,6 @@ enum AnalysisMode {
   cumulativeYear,
 }
 
-enum PieContributionMode {
-  expense,
-  budget,
-}
-
 class AnalysisPage extends StatefulWidget {
   const AnalysisPage({super.key});
 
@@ -30,7 +24,6 @@ class AnalysisPage extends StatefulWidget {
 class _AnalysisPageState extends State<AnalysisPage> {
   DateTime currentMonth = DateTime.now();
   AnalysisMode analysisMode = AnalysisMode.selectedMonth;
-  PieContributionMode pieContributionMode = PieContributionMode.expense;
 
   List<Map<String, dynamic>> analysisData = [];
   List<Map<String, dynamic>> transactions = [];
@@ -58,7 +51,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
       final date = DateTime.parse(t['date']);
 
       if (_isDateInActiveRange(date) && t['type'] == 'expense') {
-        final category = t['title'] as String;
+        final category = (t['title'] as String?)?.trim() ?? '';
+        if (category.isEmpty) {
+          continue;
+        }
+
         final amount = (t['amount'] as num).toDouble();
         spent[category] = (spent[category] ?? 0) + amount;
       }
@@ -66,28 +63,42 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     for (final b in budgetData) {
       if (_isBudgetInActiveRange(b)) {
-        final category = b['category'] as String;
+        final category = (b['category'] as String?)?.trim() ?? '';
+        if (category.isEmpty) {
+          continue;
+        }
+
         final amount = (b['amount'] as num).toDouble();
         budget[category] = (budget[category] ?? 0) + amount;
       }
     }
 
-    final result = <Map<String, dynamic>>[];
-    final configuredCategories = categories
-        .map((category) => category['name'])
-        .whereType<String>()
-        .toSet();
-    final categoriesUnion = <String>{...configuredCategories, ...budget.keys, ...spent.keys};
+    final activeCategories = <String>{...budget.keys, ...spent.keys};
+    final result = activeCategories
+        .map(
+          (category) => {
+            'category': category,
+            'spent': spent[category] ?? 0.0,
+            'budget': budget[category] ?? 0.0,
+          },
+        )
+        .toList();
 
-    for (final category in categoriesUnion) {
-      result.add({
-        'category': category,
-        'spent': spent[category] ?? 0,
-        'budget': budget[category] ?? 0,
-      });
-    }
+    result.sort((a, b) {
+      final aBudget = (a['budget'] as num).toDouble();
+      final bBudget = (b['budget'] as num).toDouble();
+      final aSpent = (a['spent'] as num).toDouble();
+      final bSpent = (b['spent'] as num).toDouble();
 
-    result.sort((a, b) => (b['spent'] as double).compareTo(a['spent'] as double));
+      final aActivity = aBudget + aSpent;
+      final bActivity = bBudget + bSpent;
+      final byActivity = bActivity.compareTo(aActivity);
+      if (byActivity != 0) {
+        return byActivity;
+      }
+
+      return (a['category'] as String).compareTo(b['category'] as String);
+    });
 
     setState(() {
       analysisData = result;
@@ -157,49 +168,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
         .fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
   }
 
-  List<PieChartSectionData> buildPieSections() {
-    final colors = [
-      Colors.blue,
-      Colors.orange,
-      Colors.green,
-      Colors.purple,
-      Colors.red,
-      Colors.teal,
-      Colors.amber,
-    ];
-
-    final denominator = pieContributionMode == PieContributionMode.expense
-        ? _activeTotalExpense()
-        : _activeTotalBudget();
-
-    var i = 0;
-    return analysisData.where((d) {
-      final contribution = pieContributionMode == PieContributionMode.expense
-          ? (d['spent'] as num).toDouble()
-          : (d['budget'] as num).toDouble();
-      return contribution > 0;
-    }).map((data) {
-      final color = colors[i % colors.length];
-      i++;
-      final contribution = pieContributionMode == PieContributionMode.expense
-          ? (data['spent'] as num).toDouble()
-          : (data['budget'] as num).toDouble();
-      final percentage = denominator == 0 ? 0 : (contribution / denominator) * 100;
-
-      return PieChartSectionData(
-        color: color,
-        value: contribution,
-        title: '${data['category']}\n${percentage.toStringAsFixed(1)}%',
-        titleStyle: const TextStyle(
-          fontSize: 10,
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-        ),
-        radius: 72,
-      );
-    }).toList();
-  }
-
   Color _progressColor(double ratio) {
     if (ratio <= 0.5) {
       return const Color(0xFF9CCC65);
@@ -225,6 +193,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
         return WidgetSyncService.cumulativeYear;
       case AnalysisMode.selectedMonth:
         return WidgetSyncService.selectedMonth;
+    }
+  }
+
+  String _emptyStateMessage() {
+    switch (analysisMode) {
+      case AnalysisMode.cumulativeToSelectedMonth:
+        return 'No budget or expense data up to this month.';
+      case AnalysisMode.cumulativeYear:
+        return 'No budget or expense data for this year.';
+      case AnalysisMode.selectedMonth:
+        return 'No budget or expense data for this month.';
     }
   }
 
@@ -289,70 +268,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 ],
               ),
             ),
-            if (analysisData.any((d) => d['spent'] > 0))
-              SectionTile(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          pieContributionMode == PieContributionMode.expense
-                              ? 'Contribution vs total expense'
-                              : 'Contribution vs total budget',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                        ),
-                        PopupMenuButton<PieContributionMode>(
-                          icon: const Icon(Icons.more_vert),
-                          onSelected: (mode) {
-                            setState(() {
-                              pieContributionMode = mode;
-                            });
-                          },
-                          itemBuilder: (context) => [
-                            PopupMenuItem(
-                              value: PieContributionMode.expense,
-                              child: Row(
-                                children: [
-                                  const Expanded(child: Text('Against total expense')),
-                                  if (pieContributionMode == PieContributionMode.expense)
-                                    const Icon(Icons.check, size: 18),
-                                ],
-                              ),
-                            ),
-                            PopupMenuItem(
-                              value: PieContributionMode.budget,
-                              child: Row(
-                                children: [
-                                  const Expanded(child: Text('Against total budget')),
-                                  if (pieContributionMode == PieContributionMode.budget)
-                                    const Icon(Icons.check, size: 18),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 210,
-                      child: PieChart(
-                        PieChartData(
-                          sections: buildPieSections(),
-                          centerSpaceRadius: 32,
-                          sectionsSpace: 2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             Expanded(
               child: SectionTile(
                 child: analysisData.isEmpty
-                    ? const Center(child: Text('No analysis data'))
+                    ? Center(child: Text(_emptyStateMessage()))
                     : ListView.builder(
                         padding: EdgeInsets.zero,
                         itemCount: analysisData.length,
