@@ -9,6 +9,7 @@ import 'screens/home_screen.dart';
 import 'services/data_store.dart';
 import 'services/database_service.dart';
 import 'services/visual_settings.dart';
+import 'services/widget_sync_service.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
