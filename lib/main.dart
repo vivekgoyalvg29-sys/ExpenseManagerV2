@@ -30,7 +30,7 @@ void main() async {
   try {
     visualSettings = await VisualSettings.load();
   } catch (_) {
-    visualSettings = VisualSettings.defaults();
+    visualSettings = VisualSettings.defaults;
   }
 
   runApp(FinTrackApp(controller: VisualSettingsController(visualSettings)));
