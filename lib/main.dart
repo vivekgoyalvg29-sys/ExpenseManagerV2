@@ -19,33 +19,21 @@ void main() async {
     if (Platform.isIOS) {
       await HomeWidget.setAppGroupId('group.com.example.expense_manager');
     }
-
     await DataStore.initialize();
+  } catch (_) {}
+
+  try {
     await WidgetSyncService.syncFromStoredConfiguration();
+  } catch (_) {}
 
-    final visualSettings = await VisualSettings.load();
-    runApp(FinTrackApp(controller: VisualSettingsController(visualSettings)));
-
-  } catch (e, stack) {
-    runApp(MaterialApp(
-      home: Scaffold(
-        backgroundColor: Colors.black,
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('CRASH', style: TextStyle(color: Colors.red, fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              Text(e.toString(), style: const TextStyle(color: Colors.orange, fontSize: 13)),
-              const SizedBox(height: 16),
-              Text(stack.toString(), style: const TextStyle(color: Colors.white70, fontSize: 11)),
-            ],
-          ),
-        ),
-      ),
-    ));
+  VisualSettings visualSettings;
+  try {
+    visualSettings = await VisualSettings.load();
+  } catch (_) {
+    visualSettings = VisualSettings.defaults();
   }
+
+  runApp(FinTrackApp(controller: VisualSettingsController(visualSettings)));
 }
 
 class FinTrackApp extends StatefulWidget {
@@ -69,24 +57,21 @@ class _FinTrackAppState extends State<FinTrackApp> {
   void initState() {
     super.initState();
     _widgetNavigationChannel.setMethodCallHandler(_handleWidgetNavigation);
-    _schedulePendingNavigationFlush();
+    // Delay first flush to ensure navigator is mounted
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) _schedulePendingNavigationFlush();
+    });
   }
 
   Future<void> _handleWidgetNavigation(MethodCall call) async {
-    if (call.method != 'navigateToRoute') {
-      return;
-    }
-
+    if (call.method != 'navigateToRoute') return;
     final routeName = (call.arguments as String?) ?? '/';
     _pendingWidgetRoute = routeName;
     _schedulePendingNavigationFlush();
   }
 
   void _schedulePendingNavigationFlush() {
-    if (_navigationFlushScheduled) {
-      return;
-    }
-
+    if (_navigationFlushScheduled) return;
     _navigationFlushScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _navigationFlushScheduled = false;
@@ -96,18 +81,24 @@ class _FinTrackAppState extends State<FinTrackApp> {
 
   Future<void> _flushPendingWidgetRoute() async {
     final routeName = _pendingWidgetRoute;
-    if (routeName == null) {
-      return;
-    }
+    if (routeName == null) return;
 
     final navigator = appNavigatorKey.currentState;
     if (navigator == null) {
-      _schedulePendingNavigationFlush();
+      // Navigator not ready yet, retry
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) _schedulePendingNavigationFlush();
+      });
       return;
     }
 
     _pendingWidgetRoute = null;
-    await navigator.pushNamedAndRemoveUntil(routeName, (route) => false);
+    try {
+      await navigator.pushNamedAndRemoveUntil(routeName, (route) => false);
+    } catch (_) {
+      // Route not found, go home
+      await navigator.pushNamedAndRemoveUntil('/', (route) => false);
+    }
   }
 
   @override
@@ -126,7 +117,8 @@ class _FinTrackAppState extends State<FinTrackApp> {
               child: Theme(
                 data: FinTrackTheme.build(settings),
                 child: MediaQuery(
-                  data: mediaQuery.copyWith(textScaler: TextScaler.linear(settings.textScale)),
+                  data: mediaQuery.copyWith(
+                      textScaler: TextScaler.linear(settings.textScale)),
                   child: child ?? const SizedBox.shrink(),
                 ),
               ),
@@ -147,7 +139,8 @@ class _FinTrackAppState extends State<FinTrackApp> {
 class WidgetQuickAddTransactionPage extends StatelessWidget {
   const WidgetQuickAddTransactionPage({super.key});
 
-  Future<void> _saveTransaction(Map<String, dynamic> result, BuildContext context) async {
+  Future<void> _saveTransaction(
+      Map<String, dynamic> result, BuildContext context) async {
     await DatabaseService.insertTransaction(
       result['title'],
       result['amount'],
@@ -157,16 +150,17 @@ class WidgetQuickAddTransactionPage extends StatelessWidget {
       (result['comment'] ?? '').toString(),
     );
 
-    await WidgetSyncService.syncFromStoredConfiguration();
+    try {
+      await WidgetSyncService.syncFromStoredConfiguration();
+    } catch (_) {}
 
-    if (!context.mounted) {
-      return;
-    }
+    if (!context.mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Transaction added.')),
     );
-    appNavigatorKey.currentState?.pushNamedAndRemoveUntil('/transactions', (route) => false);
+    appNavigatorKey.currentState
+        ?.pushNamedAndRemoveUntil('/transactions', (route) => false);
   }
 
   @override
