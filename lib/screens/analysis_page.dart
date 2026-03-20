@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/data_store.dart';
 import '../services/database_service.dart';
@@ -10,6 +11,7 @@ import '../widgets/month_summary.dart';
 import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
 import '../widgets/side_overlay_sheet.dart';
+import 'add_transaction_page.dart';
 
 enum AnalysisMode {
   selectedMonth,
@@ -35,6 +37,11 @@ class AnalysisPage extends StatefulWidget {
 }
 
 class _AnalysisPageState extends State<AnalysisPage> {
+  static const _analysisModeKey = 'analysis.mode';
+  static const _analysisTypeKey = 'analysis.type';
+  static const _analysisSortKey = 'analysis.sort';
+  static const _analysisShowPercentageKey = 'analysis.showPercentage';
+
   DateTime currentMonth = DateTime.now();
   AnalysisMode analysisMode = AnalysisMode.selectedMonth;
   AnalysisType analysisType = AnalysisType.category;
@@ -48,7 +55,28 @@ class _AnalysisPageState extends State<AnalysisPage> {
   @override
   void initState() {
     super.initState();
-    loadAnalysis();
+    _restorePreferences();
+  }
+
+  Future<void> _restorePreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    analysisMode = AnalysisMode.values[prefs.getInt(_analysisModeKey) ?? analysisMode.index];
+    analysisType = AnalysisType.values[prefs.getInt(_analysisTypeKey) ?? analysisType.index];
+    transactionSortOrder = TransactionSortOrder.values[
+      prefs.getInt(_analysisSortKey) ?? transactionSortOrder.index
+    ];
+    showPercentage = prefs.getBool(_analysisShowPercentageKey) ?? showPercentage;
+    if (!mounted) return;
+    setState(() {});
+    await loadAnalysis();
+  }
+
+  Future<void> _persistPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_analysisModeKey, analysisMode.index);
+    await prefs.setInt(_analysisTypeKey, analysisType.index);
+    await prefs.setInt(_analysisSortKey, transactionSortOrder.index);
+    await prefs.setBool(_analysisShowPercentageKey, showPercentage);
   }
 
   Future<void> loadAnalysis() async {
@@ -73,9 +101,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     for (final transaction in filteredExpenses) {
       final key = _analysisKeyForTransaction(transaction);
-      if (key.isEmpty) {
-        continue;
-      }
+      if (key.isEmpty) continue;
 
       final amount = (transaction['amount'] as num).toDouble();
       final date = DateTime.parse(transaction['date'] as String);
@@ -92,10 +118,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       for (final budgetData in budgets) {
         if (_isBudgetInActiveRange(budgetData)) {
           final category = (budgetData['category'] as String?)?.trim() ?? '';
-          if (category.isEmpty) {
-            continue;
-          }
-
+          if (category.isEmpty) continue;
           final amount = (budgetData['amount'] as num).toDouble();
           groupedBudget[category] = (groupedBudget[category] ?? 0) + amount;
         }
@@ -120,17 +143,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     result.sort((a, b) {
       final amountCompare = ((b['spent'] as num?) ?? 0).compareTo((a['spent'] as num?) ?? 0);
-      if (amountCompare != 0) {
-        return amountCompare;
-      }
+      if (amountCompare != 0) return amountCompare;
 
       final bDate = b['latestDate'] as DateTime?;
       final aDate = a['latestDate'] as DateTime?;
       if (aDate != null && bDate != null) {
         final dateCompare = bDate.compareTo(aDate);
-        if (dateCompare != 0) {
-          return dateCompare;
-        }
+        if (dateCompare != 0) return dateCompare;
       }
       if (bDate != null) return 1;
       if (aDate != null) return -1;
@@ -153,15 +172,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   List<Map<String, dynamic>> _filteredExpenseTransactions() {
     return transactions.where((transaction) {
-      if (transaction['type'] != 'expense') {
-        return false;
-      }
-
+      if (transaction['type'] != 'expense') return false;
       final rawDate = transaction['date'];
-      if (rawDate == null) {
-        return false;
-      }
-
+      if (rawDate == null) return false;
       return _isDateInActiveRange(DateTime.parse(rawDate as String));
     }).toList();
   }
@@ -175,32 +188,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   bool _isDateInActiveRange(DateTime date) {
     if (date.year != currentMonth.year) return false;
-
-    if (analysisMode == AnalysisMode.selectedMonth) {
-      return date.month == currentMonth.month;
-    }
-
-    if (analysisMode == AnalysisMode.cumulativeToSelectedMonth) {
-      return date.month <= currentMonth.month;
-    }
-
+    if (analysisMode == AnalysisMode.selectedMonth) return date.month == currentMonth.month;
+    if (analysisMode == AnalysisMode.cumulativeToSelectedMonth) return date.month <= currentMonth.month;
     return true;
   }
 
   bool _isBudgetInActiveRange(Map<String, dynamic> budgetData) {
     final year = _toInt(budgetData['year']);
     if (year != currentMonth.year) return false;
-
     final month = _toInt(budgetData['month']);
-
-    if (analysisMode == AnalysisMode.selectedMonth) {
-      return month == currentMonth.month;
-    }
-
-    if (analysisMode == AnalysisMode.cumulativeToSelectedMonth) {
-      return month <= currentMonth.month;
-    }
-
+    if (analysisMode == AnalysisMode.selectedMonth) return month == currentMonth.month;
+    if (analysisMode == AnalysisMode.cumulativeToSelectedMonth) return month <= currentMonth.month;
     return true;
   }
 
@@ -238,13 +236,15 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   Color _progressColor(double ratio) {
-    if (ratio <= 0.5) {
-      return const Color(0xFF9CCC65);
-    }
-    if (ratio <= 1) {
-      return const Color(0xFFFFF176);
-    }
-    return const Color(0xFFEF9A9A);
+    if (ratio <= 0.5) return const Color(0xFF22C55E);
+    if (ratio <= 1) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
+
+  Future<void> _applyAnalysisPreferenceChange(VoidCallback updateParent) async {
+    updateParent();
+    await _persistPreferences();
+    await loadAnalysis();
   }
 
   void _showAnalysisOptions() {
@@ -255,9 +255,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             Future<void> applyChanges(VoidCallback updateParent) async {
-              updateParent();
-              setModalState(() {});
-              await loadAnalysis();
+              await _applyAnalysisPreferenceChange(() {
+                setState(updateParent);
+                setModalState(() {});
+              });
             }
 
             return ListView(
@@ -285,81 +286,100 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 const Divider(height: 1),
                 const _MenuSectionHeader('Aggregation'),
                 RadioListTile<AnalysisMode>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   value: AnalysisMode.selectedMonth,
                   groupValue: analysisMode,
                   title: const Text('Selected month'),
                   onChanged: (value) {
                     if (value == null) return;
-                    applyChanges(() => setState(() => analysisMode = value));
+                    applyChanges(() => analysisMode = value);
                   },
                 ),
                 RadioListTile<AnalysisMode>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   value: AnalysisMode.cumulativeToSelectedMonth,
                   groupValue: analysisMode,
                   title: const Text('Cumulative till selected month'),
                   onChanged: (value) {
                     if (value == null) return;
-                    applyChanges(() => setState(() => analysisMode = value));
+                    applyChanges(() => analysisMode = value);
                   },
                 ),
                 RadioListTile<AnalysisMode>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   value: AnalysisMode.cumulativeYear,
                   groupValue: analysisMode,
                   title: const Text('Cumulative full year'),
                   onChanged: (value) {
                     if (value == null) return;
-                    applyChanges(() => setState(() => analysisMode = value));
+                    applyChanges(() => analysisMode = value);
                   },
                 ),
                 const Divider(height: 1),
                 const _MenuSectionHeader('Type'),
                 RadioListTile<AnalysisType>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   value: AnalysisType.category,
                   groupValue: analysisType,
                   title: const Text('Category'),
                   onChanged: (value) {
                     if (value == null) return;
-                    applyChanges(() => setState(() => analysisType = value));
+                    applyChanges(() => analysisType = value);
                   },
                 ),
                 RadioListTile<AnalysisType>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   value: AnalysisType.account,
                   groupValue: analysisType,
                   title: const Text('Account'),
                   onChanged: (value) {
                     if (value == null) return;
-                    applyChanges(() => setState(() => analysisType = value));
+                    applyChanges(() => analysisType = value);
                   },
                 ),
                 const Divider(height: 1),
                 const _MenuSectionHeader('Sort'),
                 RadioListTile<TransactionSortOrder>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   value: TransactionSortOrder.newestFirst,
                   groupValue: transactionSortOrder,
                   title: const Text('Newest first'),
-                  onChanged: (value) {
+                  onChanged: (value) async {
                     if (value == null) return;
                     setState(() => transactionSortOrder = value);
                     setModalState(() {});
+                    await _persistPreferences();
                   },
                 ),
                 RadioListTile<TransactionSortOrder>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   value: TransactionSortOrder.oldestFirst,
                   groupValue: transactionSortOrder,
                   title: const Text('Oldest first'),
-                  onChanged: (value) {
+                  onChanged: (value) async {
                     if (value == null) return;
                     setState(() => transactionSortOrder = value);
                     setModalState(() {});
+                    await _persistPreferences();
                   },
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   value: showPercentage,
                   title: const Text('Show percentage'),
-                  onChanged: (value) {
+                  onChanged: (value) async {
                     setState(() => showPercentage = value);
                     setModalState(() {});
+                    await _persistPreferences();
                   },
                 ),
                 const SizedBox(height: 12),
@@ -410,116 +430,175 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return matching;
   }
 
+  Future<void> _editTransaction(Map<String, dynamic> transaction) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddTransactionPage(existingTransaction: transaction),
+      ),
+    );
+
+    if (result == null) return;
+
+    await DatabaseService.updateTransaction(
+      transaction['id'] as int,
+      result['title'] as String,
+      result['amount'] as double,
+      result['date'] as DateTime,
+      result['type'] as String,
+      (result['account'] ?? '').toString(),
+      (result['comment'] ?? '').toString(),
+    );
+
+    if (!mounted) return;
+    await loadAnalysis();
+  }
+
   void _showRelatedTransactions(Map<String, dynamic> data) {
     final label = data['label'] as String;
-    final groupedTransactions = _transactionsForLabel(label);
     final dateFormat = DateFormat('dd MMM yyyy');
 
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: SizedBox(
-            height: MediaQuery.of(context).size.height * 0.62,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+      builder: (bottomSheetContext) {
+        return StatefulBuilder(
+          builder: (context, _) {
+            final groupedTransactions = _transactionsForLabel(label);
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.68,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${groupedTransactions.length} transactions • ${transactionSortOrder == TransactionSortOrder.newestFirst ? 'Newest first' : 'Oldest first'}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Colors.grey[700],
+                                ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${groupedTransactions.length} transactions • ${transactionSortOrder == TransactionSortOrder.newestFirst ? 'Newest first' : 'Oldest first'}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey[700],
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: groupedTransactions.isEmpty
-                      ? const Center(child: Text('No related transactions found.'))
-                      : ListView.separated(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          itemCount: groupedTransactions.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final transaction = groupedTransactions[index];
-                            final amount = (transaction['amount'] as num).toDouble();
-                            final date = DateTime.parse(transaction['date'] as String);
-                            final subtitle = analysisType == AnalysisType.category
-                                ? (transaction['account'] as String?)?.trim() ?? ''
-                                : (transaction['title'] as String?)?.trim() ?? '';
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: groupedTransactions.isEmpty
+                          ? const Center(child: Text('No related transactions found.'))
+                          : ListView.separated(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              itemCount: groupedTransactions.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 8),
+                              itemBuilder: (context, index) {
+                                final transaction = groupedTransactions[index];
+                                final amount = (transaction['amount'] as num).toDouble();
+                                final date = DateTime.parse(transaction['date'] as String);
+                                final comment = (transaction['comment'] as String? ?? '').trim();
+                                final subtitle = analysisType == AnalysisType.category
+                                    ? (transaction['account'] as String?)?.trim() ?? ''
+                                    : (transaction['title'] as String?)?.trim() ?? '';
 
-                            return Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: const Color(0xFFE3E7EE)),
-                              ),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 18,
-                                    backgroundColor: const Color(0xFFE9EEF6),
-                                    child: Icon(
-                                      _iconForLabel(label),
-                                      size: 18,
-                                      color: const Color(0xFF425466),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          subtitle.isEmpty ? label : subtitle,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontWeight: FontWeight.w600),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          dateFormat.format(date),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[700],
+                                return Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(16),
+                                    onTap: () async {
+                                      Navigator.of(bottomSheetContext).pop();
+                                      await _editTransaction(transaction);
+                                      if (mounted) {
+                                        _showRelatedTransactions(data);
+                                      }
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: const Color(0xFFE3E7EE)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          AppPageIcon(icon: _iconForLabel(label)),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  subtitle.isEmpty ? label : subtitle,
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  dateFormat.format(date),
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey[700],
+                                                  ),
+                                                ),
+                                                if (comment.isNotEmpty) ...[
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    comment,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(width: 12),
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            children: [
+                                              Text(
+                                                formatIndianCurrency(amount),
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Tap to edit',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    formatIndianCurrency(amount),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -581,64 +660,53 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                   ? (spent > 0 ? 1.0 : 0.0)
                                   : (spent == 0 ? 0.02 : ratio.clamp(0.0, 1.0).toDouble()));
                           final percentage = data['percentage'] as int? ?? 0;
+                          final amountSummary = analysisType == AnalysisType.category
+                              ? '${formatIndianCurrency(spent)} / ${formatIndianCurrency(budget)}${showPercentage ? ' ($percentage%)' : ''}'
+                              : '${formatIndianCurrency(spent)}${showPercentage ? ' ($percentage%)' : ''}';
 
                           return InkWell(
                             onTap: () => _showRelatedTransactions(data),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
+                                      AppPageIcon(icon: _iconForLabel(label)),
+                                      const SizedBox(width: 10),
                                       Expanded(
-                                        child: Row(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Icon(_iconForLabel(label), size: 18),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                label,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 15,
-                                                ),
+                                            Text(
+                                              label,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              amountSummary,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 12.5,
+                                                color: Colors.grey[700],
+                                                fontWeight: FontWeight.w600,
                                               ),
                                             ),
                                           ],
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                        children: [
-                                          Text(
-                                            analysisType == AnalysisType.category
-                                                ? '${formatIndianCurrency(spent)} / ${formatIndianCurrency(budget)}'
-                                                : formatIndianCurrency(spent),
-                                            style: const TextStyle(fontSize: 14),
-                                          ),
-                                          if (showPercentage)
-                                            Text(
-                                              '($percentage%)',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: Colors.grey[700],
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
                                     ],
                                   ),
                                   if (analysisType == AnalysisType.category) ...[
-                                    const SizedBox(height: 6),
-                                    LinearProgressIndicator(
+                                    const SizedBox(height: 8),
+                                    ModernProgressBar(
                                       value: progress,
-                                      minHeight: 8,
-                                      backgroundColor: Colors.grey[300],
                                       color: _progressColor(ratio),
                                     ),
                                   ],

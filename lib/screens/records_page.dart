@@ -183,13 +183,13 @@ class _RecordsPageState extends State<RecordsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               if (showDateHeader) ...[
-                                if (index > 0) const SizedBox(height: 12),
+                                if (index > 0) const SizedBox(height: 8),
                                 Padding(
-                                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
                                   child: Text(
                                     DateFormat('MMM d, EEEE').format(date),
                                     style: const TextStyle(
-                                      fontSize: 17,
+                                      fontSize: 15,
                                       fontWeight: FontWeight.w700,
                                       color: Color(0xFF0E5D5B),
                                     ),
@@ -199,8 +199,8 @@ class _RecordsPageState extends State<RecordsPage> {
                               ],
                               ListTile(
                                 contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 6,
+                                  horizontal: 12,
+                                  vertical: 3,
                                 ),
                                 leading: selectionMode
                                     ? Checkbox(
@@ -215,12 +215,7 @@ class _RecordsPageState extends State<RecordsPage> {
                                           });
                                         },
                                       )
-                                    : CircleAvatar(
-                                        child: Icon(
-                                          _categoryIcon(tx["title"]),
-                                          color: Colors.white,
-                                        ),
-                                      ),
+                                    : AppPageIcon(icon: _categoryIcon(tx["title"])),
                                 title: Text(
                                   tx["title"],
                                   style: const TextStyle(

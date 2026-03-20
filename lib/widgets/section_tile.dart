@@ -9,22 +9,22 @@ class SectionTile extends StatelessWidget {
     super.key,
     required this.child,
     this.margin,
-    this.padding = const EdgeInsets.all(12),
+    this.padding = const EdgeInsets.all(10),
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: margin ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: margin ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       padding: padding,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.08),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),

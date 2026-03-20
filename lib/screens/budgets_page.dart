@@ -215,7 +215,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                       value: formatIndianCurrency(totalBudget),
                       alignment: CrossAxisAlignment.end,
                       labelStyle: summaryLabelStyle,
-                      valueStyle: headingStyle?.copyWith(fontSize: 19),
+                      valueStyle: headingStyle?.copyWith(fontSize: 18),
                     ),
                   ),
                 ],
@@ -235,7 +235,8 @@ class _BudgetsPageState extends State<BudgetsPage> {
                           final percentage = totalBudget == 0 ? 0 : (amount / totalBudget) * 100;
 
                           return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            minVerticalPadding: 2,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                             leading: selectionMode
                                 ? Checkbox(
                                     value: selectedIndexes.contains(index),
@@ -249,38 +250,19 @@ class _BudgetsPageState extends State<BudgetsPage> {
                                       });
                                     },
                                   )
-                                : CircleAvatar(
-                                    backgroundColor: const Color(0xFFE8F5E9),
-                                    foregroundColor: Colors.green[800],
-                                    child: Icon(_categoryIcon(budget['category'] as String)),
-                                  ),
+                                : AppPageIcon(icon: _categoryIcon(budget['category'] as String)),
                             title: Text(
                               budget['category'] as String,
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                             ),
-                            subtitle: Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                '${percentage.toStringAsFixed(1)}% of this month\'s budget',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  formatIndianCurrency(amount),
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${percentage.toStringAsFixed(1)}%',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: const Color(0xFF52606D),
-                                      ),
-                                ),
-                              ],
+                            subtitle: Text(
+                              '${formatIndianCurrency(amount)} • ${percentage.toStringAsFixed(1)}%',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: const Color(0xFF52606D),
+                                    fontWeight: FontWeight.w600,
+                                  ),
                             ),
                             onLongPress: () {
                               setState(() {
@@ -335,7 +317,10 @@ class _BudgetSummaryStat extends StatelessWidget {
       children: [
         Text(label, style: labelStyle),
         const SizedBox(height: 4),
-        Text(value, style: valueStyle),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(value, style: valueStyle),
+        ),
       ],
     );
   }
