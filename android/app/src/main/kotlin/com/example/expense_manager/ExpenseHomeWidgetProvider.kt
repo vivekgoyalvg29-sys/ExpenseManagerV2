@@ -26,7 +26,6 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
             val budget = prefs.getAll()["currentMonthBudget"]?.toString()?.toDoubleOrNull() ?: 0.0
             val periodLabel = prefs.getString("currentPeriodLabel", "Month") ?: "Month"
 
-            // Format month as "March-26"
             val monthLabel = try {
                 val now = java.util.Calendar.getInstance()
                 val year = now.get(java.util.Calendar.YEAR).toString().takeLast(2)
@@ -41,8 +40,9 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_expense, formatCurrency(expense))
             views.setTextViewText(R.id.widget_percentage, "($percentage%)")
 
-            // Tap widget container → open app
+            // Tap container → open app home
             val openIntent = Intent(context, MainActivity::class.java).apply {
+                action = Intent.ACTION_MAIN
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             val openPendingIntent = PendingIntent.getActivity(
@@ -51,10 +51,11 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widget_container, openPendingIntent)
 
-            // Tap arrow → open Add Transaction page
-            val addIntent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            // Tap arrow → open Add Transaction via deep link
+            val addIntent = Intent(Intent.ACTION_VIEW).apply {
                 data = android.net.Uri.parse("fintrack://add-transaction")
+                setPackage(context.packageName)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             val addPendingIntent = PendingIntent.getActivity(
                 context, widgetId + 1000, addIntent,
