@@ -1,6 +1,8 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'widget_sync_service.dart';
+
 class DatabaseService {
   static Database? _db;
 
@@ -110,6 +112,8 @@ class DatabaseService {
         "comment": comment,
       },
     );
+
+    await WidgetSyncService.syncFromStoredConfiguration();
   }
 
   static Future<List<Map<String, dynamic>>> getTransactions() async {
@@ -125,6 +129,8 @@ class DatabaseService {
       where: "id = ?",
       whereArgs: [id],
     );
+
+    await WidgetSyncService.syncFromStoredConfiguration();
   }
 
   static Future<void> updateTransaction(
@@ -151,6 +157,8 @@ class DatabaseService {
       where: "id = ?",
       whereArgs: [id],
     );
+
+    await WidgetSyncService.syncFromStoredConfiguration();
   }
 
   static Future<void> insertAccount(String name, String type, int icon) async {
