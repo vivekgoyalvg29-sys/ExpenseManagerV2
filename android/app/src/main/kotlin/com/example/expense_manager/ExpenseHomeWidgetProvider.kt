@@ -5,10 +5,10 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.widget.RemoteViews
 import java.text.NumberFormat
 import java.util.Locale
-import kotlin.math.roundToInt
 
 class ExpenseHomeWidgetProvider : AppWidgetProvider() {
 
@@ -21,39 +21,41 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
 
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.expense_home_widget)
-
-            val monthLabel = prefs.getString("currentPeriodLabel", "This month") ?: "This month"
-
-            // ✅ Read as Double/Long (how home_widget stores them), then convert to Float
-            val percentage = prefs.getAll()["currentMonthPercentage"]?.toString()?.toDoubleOrNull() ?: 0.0
             val expense = prefs.getAll()["currentMonthExpense"]?.toString()?.toDoubleOrNull() ?: 0.0
-            val budget = prefs.getAll()["currentMonthBudget"]?.toString()?.toDoubleOrNull() ?: 0.0
 
-            views.setTextViewText(
-                R.id.widget_title,
-                "$monthLabel (${percentage.roundToInt()}%)"
-            )
-            views.setTextViewText(R.id.widget_subtitle, "Spent vs budget")
             views.setTextViewText(R.id.widget_expense, formatCurrency(expense))
-            views.setTextViewText(
-                R.id.widget_budget,
-                if (budget > 0.0) "of ${formatCurrency(budget)}" else "No budget"
+            views.setContentDescription(
+                R.id.widget_expense,
+                "Current month expense ${formatCurrency(expense)}"
             )
 
-            // Tap widget → open app
-            val intent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            val pendingIntent = PendingIntent.getActivity(
-                context,
-                widgetId,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            views.setOnClickPendingIntent(
+                R.id.widget_container,
+                createLaunchPendingIntent(context, widgetId, null)
             )
-            views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
+            views.setOnClickPendingIntent(
+                R.id.widget_add_transaction_shortcut,
+                createLaunchPendingIntent(context, widgetId + 10_000, "/add-transaction")
+            )
 
             appWidgetManager.updateAppWidget(widgetId, views)
         }
+    }
+
+    private fun createLaunchPendingIntent(
+        context: Context,
+        requestCode: Int,
+        route: String?
+    ): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            route?.let { putExtra(MainActivity.EXTRA_WIDGET_ROUTE, it) }
+        }
+
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+
+        return PendingIntent.getActivity(context, requestCode, intent, flags)
     }
 
     private fun formatCurrency(value: Double): String {
