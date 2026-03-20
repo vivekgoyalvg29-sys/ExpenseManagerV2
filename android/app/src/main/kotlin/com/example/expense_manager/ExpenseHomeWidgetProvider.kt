@@ -31,7 +31,7 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_month_label, monthLabel)
             views.setTextViewText(R.id.widget_expense, formatCurrency(expense))
             views.setContentDescription(
-                R.id.widget_expense,
+                R.id.widget_expense_section,
                 "$monthLabel expense ${formatCurrency(expense)}"
             )
 

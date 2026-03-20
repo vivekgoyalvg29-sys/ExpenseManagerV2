@@ -26,14 +26,12 @@
             android:contentDescription="@string/app_name"
             android:src="@drawable/ic_widget_wallet_logo" />
 
-        <TextView
-            android:id="@+id/widget_left_separator"
+        <View
             android:layout_width="1dp"
             android:layout_height="34dp"
             android:layout_marginStart="10dp"
             android:layout_marginEnd="10dp"
-            android:background="#66FFFFFF"
-            android:text="" />
+            android:background="#66FFFFFF" />
 
         <LinearLayout
             android:id="@+id/widget_expense_section"
@@ -63,14 +61,12 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/widget_right_separator"
+        <View
             android:layout_width="1dp"
             android:layout_height="34dp"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="10dp"
-            android:background="#66FFFFFF"
-            android:text="" />
+            android:background="#66FFFFFF" />
 
         <ImageButton
             android:id="@+id/widget_add_transaction_shortcut"
