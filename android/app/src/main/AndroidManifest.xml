@@ -6,7 +6,7 @@
         android:required="false" />
     <application
         android:label="FinTrack"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@android:drawable/sym_def_app_icon"
         android:networkSecurityConfig="@xml/network_security_config"
         android:usesCleartextTraffic="false">
         <activity
