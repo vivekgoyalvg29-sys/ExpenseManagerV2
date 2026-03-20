@@ -8,7 +8,6 @@ import android.content.Intent
 import android.widget.RemoteViews
 import java.text.NumberFormat
 import java.util.Locale
-import kotlin.math.roundToInt
 
 class ExpenseHomeWidgetProvider : AppWidgetProvider() {
 
@@ -23,8 +22,6 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.expense_home_widget)
 
             val expenseRaw = prefs.getAll()["currentMonthExpense"]
-            val budgetRaw = prefs.getAll()["currentMonthBudget"]
-
             val expense = when (expenseRaw) {
                 is Double -> expenseRaw
                 is Float -> expenseRaw.toDouble()
@@ -34,17 +31,7 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
                 else -> 0.0
             }
 
-            val budget = when (budgetRaw) {
-                is Double -> budgetRaw
-                is Float -> budgetRaw.toDouble()
-                is Long -> java.lang.Double.longBitsToDouble(budgetRaw)
-                is Int -> budgetRaw.toDouble()
-                is String -> budgetRaw.toDoubleOrNull() ?: 0.0
-                else -> 0.0
-            }
-
             val periodLabel = prefs.getString("currentPeriodLabel", "Month") ?: "Month"
-
             val monthLabel = try {
                 val now = java.util.Calendar.getInstance()
                 val year = now.get(java.util.Calendar.YEAR).toString().takeLast(2)
@@ -53,34 +40,19 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
                 periodLabel
             }
 
-            val percentage = if (budget > 0.0) ((expense / budget) * 100).roundToInt() else 0
-
             views.setTextViewText(R.id.widget_month, monthLabel)
             views.setTextViewText(R.id.widget_expense, formatCurrency(expense))
-            views.setTextViewText(R.id.widget_percentage, "($percentage%)")
 
-            // Tap container → open app home
-            val openIntent = Intent(context, MainActivity::class.java).apply {
+            // Tap → open app
+            val intent = Intent(context, MainActivity::class.java).apply {
                 action = Intent.ACTION_MAIN
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
-            val openPendingIntent = PendingIntent.getActivity(
-                context, widgetId, openIntent,
+            val pendingIntent = PendingIntent.getActivity(
+                context, widgetId, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.widget_container, openPendingIntent)
-
-            // Tap arrow → open Add Transaction
-            val addIntent = Intent(Intent.ACTION_VIEW).apply {
-                data = android.net.Uri.parse("fintrack://add-transaction")
-                setPackage(context.packageName)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            val addPendingIntent = PendingIntent.getActivity(
-                context, widgetId + 1000, addIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            views.setOnClickPendingIntent(R.id.widget_add, addPendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
 
             appWidgetManager.updateAppWidget(widgetId, views)
         }
