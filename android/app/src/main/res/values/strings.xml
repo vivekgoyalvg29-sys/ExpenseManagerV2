@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">FinTrack</string>
     <string name="expense_widget_description">Budget vs Expense widget</string>
-    <string name="widget_add_transaction">Add transaction</string>
 </resources>
