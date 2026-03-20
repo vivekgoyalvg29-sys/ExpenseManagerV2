@@ -8,23 +8,6 @@
     android:gravity="center_vertical"
     android:padding="12dp">
 
-    <!-- App Icon -->
-    <ImageView
-        android:id="@+id/widget_icon"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:src="@drawable/ic_launcher"
-        android:scaleType="fitCenter"
-        android:layout_marginEnd="10dp"/>
-
-    <!-- Left pipe -->
-    <View
-        android:layout_width="1dp"
-        android:layout_height="36dp"
-        android:background="#444444"
-        android:layout_marginEnd="10dp"/>
-
-    <!-- Middle: Month on top, Expense + Percentage below -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -67,7 +50,6 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Right pipe -->
     <View
         android:layout_width="1dp"
         android:layout_height="36dp"
@@ -75,7 +57,6 @@
         android:layout_marginStart="10dp"
         android:layout_marginEnd="10dp"/>
 
-    <!-- Arrow -->
     <TextView
         android:id="@+id/widget_add"
         android:layout_width="wrap_content"
