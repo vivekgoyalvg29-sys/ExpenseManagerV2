@@ -5,25 +5,21 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:background="#1A1A1A"
-    android:gravity="center_vertical"
-    android:padding="0dp">
+    android:gravity="center_vertical">
 
-    <!-- Left: App Icon -->
     <ImageView
         android:id="@+id/widget_icon"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
         android:layout_margin="8dp"
         android:src="@drawable/ic_launcher"
         android:scaleType="fitCenter" />
 
-    <!-- Left pipe -->
     <View
         android:layout_width="1dp"
         android:layout_height="40dp"
         android:background="#444444" />
 
-    <!-- Middle: Month + Expense + Percentage -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -68,19 +64,20 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Right pipe -->
     <View
         android:layout_width="1dp"
         android:layout_height="40dp"
         android:background="#444444" />
 
-    <!-- Right: Add Transaction Arrow -->
-    <ImageView
+    <!-- Arrow as text character instead of vector drawable -->
+    <TextView
         android:id="@+id/widget_add"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
-        android:layout_margin="8dp"
-        android:src="@drawable/ic_arrow_up"
-        android:scaleType="fitCenter" />
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:gravity="center"
+        android:text="↑"
+        android:textColor="#EF5350"
+        android:textSize="24sp"
+        android:textStyle="bold" />
 
 </LinearLayout>
