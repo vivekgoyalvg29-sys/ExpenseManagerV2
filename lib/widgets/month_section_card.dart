@@ -1,0 +1,40 @@
+import 'package:flutter/material.dart';
+
+import 'month_navigator_row.dart';
+import 'section_tile.dart';
+
+class MonthSectionCard extends StatelessWidget {
+  final DateTime currentMonth;
+  final VoidCallback onPrev;
+  final VoidCallback onNext;
+  final Widget child;
+
+  const MonthSectionCard({
+    super.key,
+    required this.currentMonth,
+    required this.onPrev,
+    required this.onNext,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionTile(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          children: [
+            MonthNavigatorRow(
+              currentMonth: currentMonth,
+              onPrev: onPrev,
+              onNext: onNext,
+            ),
+            const SizedBox(height: 10),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../services/data_store.dart';
 import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
+import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_summary.dart';
 import '../widgets/page_content_layout.dart';
@@ -491,7 +492,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                   ),
                                   const SizedBox(width: 12),
                                   Text(
-                                    '₹${amount.toStringAsFixed(0)}',
+                                    formatIndianCurrency(amount),
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                       fontSize: 14,
@@ -602,8 +603,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                         children: [
                                           Text(
                                             analysisType == AnalysisType.category
-                                                ? '₹${spent.toStringAsFixed(0)} / ₹${budget.toStringAsFixed(0)}'
-                                                : '₹${spent.toStringAsFixed(0)}',
+                                                ? '${formatIndianCurrency(spent)} / ${formatIndianCurrency(budget)}'
+                                                : formatIndianCurrency(spent),
                                             style: const TextStyle(fontSize: 14),
                                           ),
                                           if (showPercentage)

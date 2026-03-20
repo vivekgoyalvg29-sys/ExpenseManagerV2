@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import '../services/data_store.dart';
 import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
+import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
-import '../widgets/month_navigator_row.dart';
+import '../widgets/month_section_card.dart';
 import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
 
@@ -185,50 +186,39 @@ class _BudgetsPageState extends State<BudgetsPage> {
       body: PageContentLayout(
         child: Column(
           children: [
-            SectionTile(
-              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Column(
-                  children: [
-                    MonthNavigatorRow(
-                      currentMonth: currentMonth,
-                      onPrev: () {
-                        setState(() {
-                          currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
-                        });
-                      },
-                      onNext: () {
-                        setState(() {
-                          currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
-                        });
-                      },
+            MonthSectionCard(
+              currentMonth: currentMonth,
+              onPrev: () {
+                setState(() {
+                  currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
+                });
+              },
+              onNext: () {
+                setState(() {
+                  currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
+                });
+              },
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _BudgetSummaryStat(
+                      label: 'Categories',
+                      value: '${filteredBudgets.length}',
+                      alignment: CrossAxisAlignment.start,
+                      labelStyle: summaryLabelStyle,
+                      valueStyle: headingStyle,
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _BudgetSummaryStat(
-                            label: 'Categories',
-                            value: '${filteredBudgets.length}',
-                            alignment: CrossAxisAlignment.start,
-                            labelStyle: summaryLabelStyle,
-                            valueStyle: headingStyle,
-                          ),
-                        ),
-                        Expanded(
-                          child: _BudgetSummaryStat(
-                            label: 'Total Budget',
-                            value: '₹${totalBudget.toStringAsFixed(0)}',
-                            alignment: CrossAxisAlignment.end,
-                            labelStyle: summaryLabelStyle,
-                            valueStyle: headingStyle?.copyWith(fontSize: 21),
-                          ),
-                        ),
-                      ],
+                  ),
+                  Expanded(
+                    child: _BudgetSummaryStat(
+                      label: 'Total Budget',
+                      value: formatIndianCurrency(totalBudget),
+                      alignment: CrossAxisAlignment.end,
+                      labelStyle: summaryLabelStyle,
+                      valueStyle: headingStyle?.copyWith(fontSize: 19),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
             Expanded(
@@ -280,7 +270,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  '₹${amount.toStringAsFixed(0)}',
+                                  formatIndianCurrency(amount),
                                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                                 ),
                                 const SizedBox(height: 4),
