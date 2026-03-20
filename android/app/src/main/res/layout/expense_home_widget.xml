@@ -1,70 +1,86 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#1F1F1F"
-    android:padding="12dp">
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/widget_pill_background"
+    android:gravity="center_vertical"
+    android:padding="0dp">
 
+    <!-- Left: App Icon -->
     <ImageView
         android:id="@+id/widget_icon"
-        android:layout_width="40dp"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_margin="8dp"
+        android:src="@mipmap/ic_launcher"
+        android:scaleType="fitCenter" />
+
+    <!-- Left pipe -->
+    <View
+        android:layout_width="1dp"
         android:layout_height="40dp"
-        android:layout_centerVertical="true"
-        android:src="@android:drawable/sym_def_app_icon" />
+        android:background="#444444" />
 
-    <ImageView
-        android:id="@+id/widget_add_transaction_shortcut"
-        android:layout_width="28dp"
-        android:layout_height="28dp"
-        android:layout_alignParentEnd="true"
-        android:layout_centerVertical="true"
-        android:src="@android:drawable/ic_input_add" />
-
+    <!-- Middle: Month + Expense + Percentage -->
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_centerVertical="true"
-        android:layout_toEndOf="@id/widget_icon"
-        android:layout_toStartOf="@id/widget_add_transaction_shortcut"
-        android:layout_marginStart="10dp"
-        android:layout_marginEnd="10dp"
-        android:orientation="vertical">
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp">
 
         <TextView
-            android:id="@+id/widget_title"
+            android:id="@+id/widget_month"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Month (0%)"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:text="March-26"
+            android:textColor="#777777"
+            android:textSize="10sp" />
 
-        <TextView
-            android:id="@+id/widget_subtitle"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Spent vs budget"
-            android:textColor="#BBBBBB"
-            android:textSize="11sp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <TextView
-            android:id="@+id/widget_expense"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="₹0"
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            <TextView
+                android:id="@+id/widget_expense"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="₹0"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/widget_budget"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="of ₹0"
-            android:textColor="#BBBBBB"
-            android:textSize="11sp" />
+            <TextView
+                android:id="@+id/widget_percentage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="(0%)"
+                android:textColor="#999999"
+                android:textSize="10sp"
+                android:layout_marginStart="3dp" />
 
+        </LinearLayout>
     </LinearLayout>
 
-</RelativeLayout>
+    <!-- Right pipe -->
+    <View
+        android:layout_width="1dp"
+        android:layout_height="40dp"
+        android:background="#444444" />
+
+    <!-- Right: Add Transaction Arrow -->
+    <ImageView
+        android:id="@+id/widget_add"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_margin="8dp"
+        android:src="@drawable/ic_arrow_up"
+        android:scaleType="fitCenter" />
+
+</LinearLayout>
