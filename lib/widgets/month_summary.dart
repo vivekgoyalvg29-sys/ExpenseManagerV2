@@ -9,7 +9,7 @@ class MonthSummary extends StatelessWidget {
   final VoidCallback onNext;
   final double budget;
   final double expense;
-  final Widget? trailing;
+  final Widget? action;
 
   const MonthSummary({
     super.key,
@@ -18,7 +18,7 @@ class MonthSummary extends StatelessWidget {
     required this.onNext,
     required this.budget,
     required this.expense,
-    this.trailing,
+    this.action,
   });
 
   @override
@@ -37,10 +37,11 @@ class MonthSummary extends StatelessWidget {
       currentMonth: currentMonth,
       onPrev: onPrev,
       onNext: onNext,
+      action: action,
       child: Row(
         children: [
           Expanded(
-            child: _SummaryMetric(
+            child: SummaryMetric(
               label: 'Budget',
               value: formatIndianCurrency(budget),
               labelStyle: labelStyle,
@@ -48,7 +49,7 @@ class MonthSummary extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: _SummaryMetric(
+            child: SummaryMetric(
               label: 'Expense',
               value: formatIndianCurrency(expense),
               labelStyle: labelStyle,
@@ -56,14 +57,13 @@ class MonthSummary extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: _SummaryMetric(
+            child: SummaryMetric(
               label: 'Remaining',
               value: formatIndianCurrency(remaining),
               labelStyle: labelStyle,
               valueStyle: valueStyle?.copyWith(
                 color: remaining >= 0 ? Colors.blue[700] : Colors.red[700],
               ),
-              trailing: trailing,
             ),
           ),
         ],
@@ -72,19 +72,22 @@ class MonthSummary extends StatelessWidget {
   }
 }
 
-class _SummaryMetric extends StatelessWidget {
+class SummaryMetric extends StatelessWidget {
   final String label;
   final String value;
   final TextStyle? labelStyle;
   final TextStyle? valueStyle;
-  final Widget? trailing;
+  final CrossAxisAlignment crossAxisAlignment;
+  final TextAlign textAlign;
 
-  const _SummaryMetric({
+  const SummaryMetric({
+    super.key,
     required this.label,
     required this.value,
     this.labelStyle,
     this.valueStyle,
-    this.trailing,
+    this.crossAxisAlignment = CrossAxisAlignment.center,
+    this.textAlign = TextAlign.center,
   });
 
   @override
@@ -92,25 +95,14 @@ class _SummaryMetric extends StatelessWidget {
     final effectiveValueStyle = valueStyle?.copyWith(fontSize: 17);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: crossAxisAlignment,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: labelStyle,
-              ),
-            ),
-            if (trailing != null) ...[
-              const SizedBox(width: 2),
-              trailing!,
-            ],
-          ],
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: labelStyle,
+          textAlign: textAlign,
         ),
         const SizedBox(height: 8),
         Text(
@@ -118,7 +110,7 @@ class _SummaryMetric extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: effectiveValueStyle,
-          textAlign: TextAlign.center,
+          textAlign: textAlign,
         ),
       ],
     );

@@ -551,7 +551,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
               },
               budget: budgetTotal,
               expense: expense,
-              trailing: IconButton(
+              action: IconButton(
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),

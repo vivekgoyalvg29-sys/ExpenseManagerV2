@@ -6,6 +6,7 @@ import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_section_card.dart';
+import '../widgets/month_summary.dart';
 import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
 
@@ -151,7 +152,10 @@ class _BudgetsPageState extends State<BudgetsPage> {
   @override
   Widget build(BuildContext context) {
     final totalBudget = filteredBudgets.fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
-    final headingStyle = Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700);
+    final headingStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
+      fontWeight: FontWeight.bold,
+      fontSize: 19,
+    );
     final summaryLabelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
           color: const Color(0xFF52606D),
           fontWeight: FontWeight.w600,
@@ -201,21 +205,19 @@ class _BudgetsPageState extends State<BudgetsPage> {
               child: Row(
                 children: [
                   Expanded(
-                    child: _BudgetSummaryStat(
+                    child: SummaryMetric(
                       label: 'Categories',
                       value: '${filteredBudgets.length}',
-                      alignment: CrossAxisAlignment.start,
                       labelStyle: summaryLabelStyle,
                       valueStyle: headingStyle,
                     ),
                   ),
                   Expanded(
-                    child: _BudgetSummaryStat(
+                    child: SummaryMetric(
                       label: 'Total Budget',
                       value: formatIndianCurrency(totalBudget),
-                      alignment: CrossAxisAlignment.end,
                       labelStyle: summaryLabelStyle,
-                      valueStyle: headingStyle?.copyWith(fontSize: 19),
+                      valueStyle: headingStyle,
                     ),
                   ),
                 ],
@@ -235,7 +237,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                           final percentage = totalBudget == 0 ? 0 : (amount / totalBudget) * 100;
 
                           return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                             leading: selectionMode
                                 ? Checkbox(
                                     value: selectedIndexes.contains(index),
@@ -309,34 +311,6 @@ class _BudgetsPageState extends State<BudgetsPage> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _BudgetSummaryStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final CrossAxisAlignment alignment;
-  final TextStyle? labelStyle;
-  final TextStyle? valueStyle;
-
-  const _BudgetSummaryStat({
-    required this.label,
-    required this.value,
-    required this.alignment,
-    this.labelStyle,
-    this.valueStyle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: alignment,
-      children: [
-        Text(label, style: labelStyle),
-        const SizedBox(height: 4),
-        Text(value, style: valueStyle),
-      ],
     );
   }
 }

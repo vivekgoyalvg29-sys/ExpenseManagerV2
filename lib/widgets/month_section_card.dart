@@ -8,6 +8,7 @@ class MonthSectionCard extends StatelessWidget {
   final VoidCallback onPrev;
   final VoidCallback onNext;
   final Widget child;
+  final Widget? action;
 
   const MonthSectionCard({
     super.key,
@@ -15,6 +16,7 @@ class MonthSectionCard extends StatelessWidget {
     required this.onPrev,
     required this.onNext,
     required this.child,
+    this.action,
   });
 
   @override
@@ -25,10 +27,20 @@ class MonthSectionCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Column(
           children: [
-            MonthNavigatorRow(
-              currentMonth: currentMonth,
-              onPrev: onPrev,
-              onNext: onNext,
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                MonthNavigatorRow(
+                  currentMonth: currentMonth,
+                  onPrev: onPrev,
+                  onNext: onNext,
+                ),
+                if (action != null)
+                  Positioned(
+                    right: 0,
+                    child: action!,
+                  ),
+              ],
             ),
             const SizedBox(height: 10),
             child,
