@@ -1,48 +1,172 @@
-package com.example.expense_manager
+import 'dart:io';
+import 'package:home_widget/home_widget.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import android.content.Intent
-import android.os.Bundle
-import io.flutter.embedding.android.FlutterActivity
-import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.MethodChannel
+import 'screens/add_transaction_page.dart';
+import 'screens/home_screen.dart';
+import 'services/data_store.dart';
+import 'services/database_service.dart';
+import 'services/visual_settings.dart';
+import 'services/widget_sync_service.dart';
 
-class MainActivity : FlutterActivity() {
-    private val channel = "fintrack/widget_navigation"
-    private var pendingRoute: String? = null
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        handleIntent(intent)
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    if (Platform.isIOS) {
+      await HomeWidget.setAppGroupId('group.com.example.expense_manager');
+    }
+    await DataStore.initialize();
+  } catch (_) {}
+
+  try {
+    await WidgetSyncService.syncFromStoredConfiguration();
+  } catch (_) {}
+
+  VisualSettings visualSettings;
+  try {
+    visualSettings = await VisualSettings.load();
+  } catch (_) {
+    visualSettings = VisualSettings.defaults;
+  }
+
+  runApp(FinTrackApp(controller: VisualSettingsController(visualSettings)));
+}
+
+class FinTrackApp extends StatefulWidget {
+  final VisualSettingsController controller;
+
+  const FinTrackApp({super.key, required this.controller});
+
+  @override
+  State<FinTrackApp> createState() => _FinTrackAppState();
+}
+
+class _FinTrackAppState extends State<FinTrackApp> {
+  static const MethodChannel _widgetNavigationChannel = MethodChannel(
+    'fintrack/widget_navigation',
+  );
+
+  String? _pendingWidgetRoute;
+  bool _navigationFlushScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _widgetNavigationChannel.setMethodCallHandler(_handleWidgetNavigation);
+    // Delay first flush to ensure navigator is mounted
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) _schedulePendingNavigationFlush();
+    });
+  }
+
+  Future<void> _handleWidgetNavigation(MethodCall call) async {
+    if (call.method != 'navigateToRoute') return;
+    final routeName = (call.arguments as String?) ?? '/';
+    _pendingWidgetRoute = routeName;
+    _schedulePendingNavigationFlush();
+  }
+
+  void _schedulePendingNavigationFlush() {
+    if (_navigationFlushScheduled) return;
+    _navigationFlushScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigationFlushScheduled = false;
+      _flushPendingWidgetRoute();
+    });
+  }
+
+  Future<void> _flushPendingWidgetRoute() async {
+    final routeName = _pendingWidgetRoute;
+    if (routeName == null) return;
+
+    final navigator = appNavigatorKey.currentState;
+    if (navigator == null) {
+      // Navigator not ready yet, retry
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) _schedulePendingNavigationFlush();
+      });
+      return;
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        handleIntent(intent)
+    _pendingWidgetRoute = null;
+    try {
+      await navigator.pushNamedAndRemoveUntil(routeName, (route) => false);
+    } catch (_) {
+      // Route not found, go home
+      await navigator.pushNamedAndRemoveUntil('/', (route) => false);
     }
+  }
 
-    private fun handleIntent(intent: Intent?) {
-        val uri = intent?.data
-        if (uri != null && uri.scheme == "fintrack") {
-            pendingRoute = "/${uri.host}"
-        }
-    }
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      navigatorKey: appNavigatorKey,
+      title: 'FinTrack',
+      theme: FinTrackTheme.build(widget.controller.value),
+      builder: (context, child) {
+        return ValueListenableBuilder<VisualSettings>(
+          valueListenable: widget.controller,
+          builder: (context, settings, _) {
+            final mediaQuery = MediaQuery.of(context);
+            return VisualSettingsScope(
+              controller: widget.controller,
+              child: Theme(
+                data: FinTrackTheme.build(settings),
+                child: MediaQuery(
+                  data: mediaQuery.copyWith(
+                      textScaler: TextScaler.linear(settings.textScale)),
+                  child: child ?? const SizedBox.shrink(),
+                ),
+              ),
+            );
+          },
+        );
+      },
+      routes: {
+        '/': (_) => const HomeScreen(),
+        '/transactions': (_) => const HomeScreen(initialIndex: 0),
+        '/add-transaction': (_) => const WidgetQuickAddTransactionPage(),
+      },
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
 
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
-        super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channel)
-            .setMethodCallHandler { call, result ->
-                result.success(null)
-            }
-    }
+class WidgetQuickAddTransactionPage extends StatelessWidget {
+  const WidgetQuickAddTransactionPage({super.key});
 
-    override fun onResume() {
-        super.onResume()
-        val route = pendingRoute ?: return
-        pendingRoute = null
-        flutterEngine?.dartExecutor?.binaryMessenger?.let { messenger ->
-            MethodChannel(messenger, channel)
-                .invokeMethod("navigateToRoute", route)
-        }
-    }
+  Future<void> _saveTransaction(
+      Map<String, dynamic> result, BuildContext context) async {
+    await DatabaseService.insertTransaction(
+      result['title'],
+      result['amount'],
+      result['date'],
+      result['type'],
+      (result['account'] ?? '').toString(),
+      (result['comment'] ?? '').toString(),
+    );
+
+    try {
+      await WidgetSyncService.syncFromStoredConfiguration();
+    } catch (_) {}
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Transaction added.')),
+    );
+    appNavigatorKey.currentState
+        ?.pushNamedAndRemoveUntil('/transactions', (route) => false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AddTransactionPage(
+      onSaveResult: (result) => _saveTransaction(result, context),
+    );
+  }
 }
