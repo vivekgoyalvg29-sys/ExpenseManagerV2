@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:background="@drawable/widget_pill_background"
+    android:background="#1A1A1A"
     android:gravity="center_vertical"
     android:padding="0dp">
 
