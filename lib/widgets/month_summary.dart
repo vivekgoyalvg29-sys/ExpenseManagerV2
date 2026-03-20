@@ -27,10 +27,11 @@ class MonthSummary extends StatelessWidget {
     final labelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w700,
           color: const Color(0xFF52606D),
+          fontSize: 12,
         );
     final valueStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.bold,
-          fontSize: 19,
+          fontSize: 18,
         );
 
     return MonthSectionCard(
@@ -89,7 +90,7 @@ class _SummaryMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveValueStyle = valueStyle?.copyWith(fontSize: 17);
+    final effectiveValueStyle = valueStyle?.copyWith(fontSize: 16.5);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -112,13 +113,16 @@ class _SummaryMetric extends StatelessWidget {
             ],
           ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: effectiveValueStyle,
-          textAlign: TextAlign.center,
+        const SizedBox(height: 6),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: effectiveValueStyle,
+            textAlign: TextAlign.center,
+          ),
         ),
       ],
     );

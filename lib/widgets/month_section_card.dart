@@ -22,7 +22,7 @@ class MonthSectionCard extends StatelessWidget {
     return SectionTile(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 2),
         child: Column(
           children: [
             MonthNavigatorRow(
@@ -30,7 +30,7 @@ class MonthSectionCard extends StatelessWidget {
               onPrev: onPrev,
               onNext: onNext,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             child,
           ],
         ),

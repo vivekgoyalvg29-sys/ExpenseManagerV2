@@ -33,13 +33,20 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     _loadData();
 
     if (widget.existingTransaction != null) {
-      commentController.text = widget.existingTransaction!['comment'] ?? '';
+      commentController.text = (widget.existingTransaction!['comment'] ?? '').toString();
       amountController.text = widget.existingTransaction!['amount'].toString();
       selectedDate = DateTime.parse(widget.existingTransaction!['date']);
       transactionType = (widget.existingTransaction!['type'] ?? 'expense').toString();
       selectedAccount = widget.existingTransaction!['account']?.toString();
       selectedCategory = widget.existingTransaction!['title']?.toString();
     }
+  }
+
+  @override
+  void dispose() {
+    commentController.dispose();
+    amountController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -87,18 +94,14 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
       return;
     }
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     Navigator.pop(context, result);
   }
 
   @override
   Widget build(BuildContext context) {
-    final filteredAccounts = DataStore.accounts
-        .where((acc) => acc['type'] == transactionType)
-        .toList();
+    final filteredAccounts = DataStore.accounts.where((acc) => acc['type'] == transactionType).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -164,25 +167,35 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               const SizedBox(height: 10),
               TextField(
                 controller: commentController,
-                decoration: const InputDecoration(labelText: 'Comments'),
+                textInputAction: TextInputAction.done,
+                minLines: 1,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Comments',
+                  alignLabelWithHint: true,
+                ),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: amountController,
                 decoration: const InputDecoration(labelText: 'Amount'),
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
               ),
               const SizedBox(height: 20),
               ListTile(
+                contentPadding: EdgeInsets.zero,
                 title: const Text('Date'),
                 subtitle: Text(DateFormat('dd MMM yyyy').format(selectedDate)),
                 trailing: const Icon(Icons.calendar_today),
                 onTap: pickDate,
               ),
               const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _save,
-                child: const Text('Save'),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _save,
+                  child: const Text('Save'),
+                ),
               ),
             ],
           ),
