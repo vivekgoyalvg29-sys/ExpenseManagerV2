@@ -8,6 +8,7 @@ import '../services/data_store.dart';
 import '../services/excel_transfer_service.dart';
 import '../services/visual_settings.dart';
 import '../widgets/section_tile.dart';
+import '../widgets/side_overlay_sheet.dart';
 import 'accounts_page.dart';
 import 'analysis_page.dart';
 import 'budgets_page.dart';
@@ -300,6 +301,64 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _openAppMenu(VisualSettings settings) {
+    showSideOverlaySheet<void>(
+      context: context,
+      direction: SideOverlayDirection.left,
+      builder: (drawerContext) {
+        Future<void> handleSelection(String action) async {
+          Navigator.of(drawerContext).pop();
+          await _handleAppBarAction(action);
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 12, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Menu',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(drawerContext).pop(),
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Close menu',
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.upload_file_outlined),
+              title: const Text('Export data (Excel)'),
+              onTap: () => handleSelection('export'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.download_outlined),
+              title: const Text('Import data (Excel)'),
+              onTap: () => handleSelection('import'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.palette_outlined),
+              title: const Text('Customize visuals'),
+              subtitle: Text(
+                '${settings.fontLabel} • ${(settings.textScale * 100).round()}%',
+              ),
+              onTap: () => handleSelection('customize_visuals'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _visualSettingsController(context);
@@ -307,28 +366,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
         backgroundColor: const Color(0xFFF3F5F9),
         appBar: AppBar(
-          leading: PopupMenuButton<String>(
+          leading: IconButton(
             icon: const Icon(Icons.more_vert, color: Colors.white),
-            color: Colors.white,
-            onSelected: _handleAppBarAction,
-            itemBuilder: (context) => [
-              const PopupMenuItem<String>(
-                value: 'export',
-                child: Text('Export data (Excel)'),
-              ),
-              const PopupMenuItem<String>(
-                value: 'import',
-                child: Text('Import data (Excel)'),
-              ),
-              PopupMenuItem<String>(
-                enabled: false,
-                padding: EdgeInsets.zero,
-                child: _CustomizeVisualsMenuItem(
-                  currentSettings: controller.value,
-                  onSelected: () => _handleAppBarAction('customize_visuals'),
-                ),
-              ),
-            ],
+            onPressed: () => _openAppMenu(controller.value),
+            tooltip: 'Open menu',
           ),
           title: const Text('FinTrack', textAlign: TextAlign.center),
           actions: const [
@@ -367,55 +408,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-    );
-  }
-}
-
-class _CustomizeVisualsMenuItem extends StatelessWidget {
-  final VisualSettings currentSettings;
-  final VoidCallback onSelected;
-
-  const _CustomizeVisualsMenuItem({
-    required this.currentSettings,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      tooltip: 'Customize visuals',
-      padding: EdgeInsets.zero,
-      offset: const Offset(160, 0),
-      onSelected: (_) => onSelected(),
-      itemBuilder: (context) => [
-        PopupMenuItem<String>(
-          value: 'open',
-          child: SizedBox(
-            width: 220,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Open visual settings'),
-                const SizedBox(height: 4),
-                Text(
-                  '${currentSettings.fontLabel} • ${(currentSettings.textScale * 100).round()}%',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: const [
-            Expanded(child: Text('Customize visuals')),
-            Icon(Icons.chevron_right, size: 18),
-          ],
-        ),
-      ),
     );
   }
 }

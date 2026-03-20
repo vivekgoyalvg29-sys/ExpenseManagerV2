@@ -9,6 +9,7 @@ import '../widgets/icon_utils.dart';
 import '../widgets/month_summary.dart';
 import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
+import '../widgets/side_overlay_sheet.dart';
 
 enum AnalysisMode {
   selectedMonth,
@@ -247,112 +248,124 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   void _showAnalysisOptions() {
-    showModalBottomSheet<void>(
+    showSideOverlaySheet<void>(
       context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: StatefulBuilder(
-            builder: (context, setModalState) {
-              Future<void> applyChanges(VoidCallback updateParent) async {
-                updateParent();
-                setModalState(() {});
-                await loadAnalysis();
-              }
+      direction: SideOverlayDirection.right,
+      builder: (drawerContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            Future<void> applyChanges(VoidCallback updateParent) async {
+              updateParent();
+              setModalState(() {});
+              await loadAnalysis();
+            }
 
-              return ListView(
-                shrinkWrap: true,
-                children: [
-                  const ListTile(
-                    title: Text(
-                      'Analysis options',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
+            return ListView(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 12, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Analysis options',
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(drawerContext).pop(),
+                        icon: const Icon(Icons.close),
+                        tooltip: 'Close options',
+                      ),
+                    ],
                   ),
-                  const _MenuSectionHeader('Aggregation'),
-                  RadioListTile<AnalysisMode>(
-                    value: AnalysisMode.selectedMonth,
-                    groupValue: analysisMode,
-                    title: const Text('Selected month'),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      applyChanges(() => setState(() => analysisMode = value));
-                    },
-                  ),
-                  RadioListTile<AnalysisMode>(
-                    value: AnalysisMode.cumulativeToSelectedMonth,
-                    groupValue: analysisMode,
-                    title: const Text('Cumulative till selected month'),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      applyChanges(() => setState(() => analysisMode = value));
-                    },
-                  ),
-                  RadioListTile<AnalysisMode>(
-                    value: AnalysisMode.cumulativeYear,
-                    groupValue: analysisMode,
-                    title: const Text('Cumulative full year'),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      applyChanges(() => setState(() => analysisMode = value));
-                    },
-                  ),
-                  const Divider(height: 1),
-                  const _MenuSectionHeader('Type'),
-                  RadioListTile<AnalysisType>(
-                    value: AnalysisType.category,
-                    groupValue: analysisType,
-                    title: const Text('Category'),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      applyChanges(() => setState(() => analysisType = value));
-                    },
-                  ),
-                  RadioListTile<AnalysisType>(
-                    value: AnalysisType.account,
-                    groupValue: analysisType,
-                    title: const Text('Account'),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      applyChanges(() => setState(() => analysisType = value));
-                    },
-                  ),
-                  const Divider(height: 1),
-                  const _MenuSectionHeader('Sort'),
-                  RadioListTile<TransactionSortOrder>(
-                    value: TransactionSortOrder.newestFirst,
-                    groupValue: transactionSortOrder,
-                    title: const Text('Newest first'),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() => transactionSortOrder = value);
-                      setModalState(() {});
-                    },
-                  ),
-                  RadioListTile<TransactionSortOrder>(
-                    value: TransactionSortOrder.oldestFirst,
-                    groupValue: transactionSortOrder,
-                    title: const Text('Oldest first'),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() => transactionSortOrder = value);
-                      setModalState(() {});
-                    },
-                  ),
-                  const Divider(height: 1),
-                  SwitchListTile(
-                    value: showPercentage,
-                    title: const Text('Show percentage'),
-                    onChanged: (value) {
-                      setState(() => showPercentage = value);
-                      setModalState(() {});
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                ],
-              );
-            },
-          ),
+                ),
+                const Divider(height: 1),
+                const _MenuSectionHeader('Aggregation'),
+                RadioListTile<AnalysisMode>(
+                  value: AnalysisMode.selectedMonth,
+                  groupValue: analysisMode,
+                  title: const Text('Selected month'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    applyChanges(() => setState(() => analysisMode = value));
+                  },
+                ),
+                RadioListTile<AnalysisMode>(
+                  value: AnalysisMode.cumulativeToSelectedMonth,
+                  groupValue: analysisMode,
+                  title: const Text('Cumulative till selected month'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    applyChanges(() => setState(() => analysisMode = value));
+                  },
+                ),
+                RadioListTile<AnalysisMode>(
+                  value: AnalysisMode.cumulativeYear,
+                  groupValue: analysisMode,
+                  title: const Text('Cumulative full year'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    applyChanges(() => setState(() => analysisMode = value));
+                  },
+                ),
+                const Divider(height: 1),
+                const _MenuSectionHeader('Type'),
+                RadioListTile<AnalysisType>(
+                  value: AnalysisType.category,
+                  groupValue: analysisType,
+                  title: const Text('Category'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    applyChanges(() => setState(() => analysisType = value));
+                  },
+                ),
+                RadioListTile<AnalysisType>(
+                  value: AnalysisType.account,
+                  groupValue: analysisType,
+                  title: const Text('Account'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    applyChanges(() => setState(() => analysisType = value));
+                  },
+                ),
+                const Divider(height: 1),
+                const _MenuSectionHeader('Sort'),
+                RadioListTile<TransactionSortOrder>(
+                  value: TransactionSortOrder.newestFirst,
+                  groupValue: transactionSortOrder,
+                  title: const Text('Newest first'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => transactionSortOrder = value);
+                    setModalState(() {});
+                  },
+                ),
+                RadioListTile<TransactionSortOrder>(
+                  value: TransactionSortOrder.oldestFirst,
+                  groupValue: transactionSortOrder,
+                  title: const Text('Oldest first'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => transactionSortOrder = value);
+                    setModalState(() {});
+                  },
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  value: showPercentage,
+                  title: const Text('Show percentage'),
+                  onChanged: (value) {
+                    setState(() => showPercentage = value);
+                    setModalState(() {});
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
+            );
+          },
         );
       },
     );
