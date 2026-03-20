@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Build
 import android.widget.RemoteViews
 import java.text.NumberFormat
@@ -21,7 +22,7 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
 
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.expense_home_widget)
-            val expense = prefs.getAll()["currentMonthExpense"]?.toString()?.toDoubleOrNull() ?: 0.0
+            val expense = prefs.getNumericValue("currentMonthExpense")
 
             views.setTextViewText(R.id.widget_expense, formatCurrency(expense))
             views.setContentDescription(
@@ -56,6 +57,18 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
 
         return PendingIntent.getActivity(context, requestCode, intent, flags)
+    }
+
+    private fun SharedPreferences.getNumericValue(key: String): Double {
+        return when (val value = all[key]) {
+            is Double -> value
+            is Float -> value.toDouble()
+            is Long -> value.toDouble()
+            is Int -> value.toDouble()
+            is String -> value.toDoubleOrNull() ?: 0.0
+            is Number -> value.toDouble()
+            else -> 0.0
+        }
     }
 
     private fun formatCurrency(value: Double): String {
