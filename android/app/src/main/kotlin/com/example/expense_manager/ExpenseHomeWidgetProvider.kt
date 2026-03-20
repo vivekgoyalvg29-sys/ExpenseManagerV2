@@ -9,6 +9,8 @@ import android.content.SharedPreferences
 import android.os.Build
 import android.widget.RemoteViews
 import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class ExpenseHomeWidgetProvider : AppWidgetProvider() {
@@ -23,11 +25,14 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.expense_home_widget)
             val expense = prefs.getNumericValue("currentMonthExpense")
+            val monthLabel = prefs.getString("currentMonthWidgetLabel", null)
+                ?: SimpleDateFormat("MMMM-yy", Locale.ENGLISH).format(Date())
 
+            views.setTextViewText(R.id.widget_month_label, monthLabel)
             views.setTextViewText(R.id.widget_expense, formatCurrency(expense))
             views.setContentDescription(
                 R.id.widget_expense,
-                "Current month expense ${formatCurrency(expense)}"
+                "$monthLabel expense ${formatCurrency(expense)}"
             )
 
             views.setOnClickPendingIntent(
