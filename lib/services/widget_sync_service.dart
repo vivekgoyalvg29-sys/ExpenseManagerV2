@@ -109,10 +109,6 @@ class WidgetSyncService {
       'currentPeriodLabel',
       DateFormat('MMMM').format(now),
     );
-    await HomeWidget.saveWidgetData<String>(
-      'currentMonthWidgetLabel',
-      DateFormat('MMMM-yy').format(now),
-    );
     await HomeWidget.saveWidgetData<double>('currentMonthBudget', currentMonthBudget);
     await HomeWidget.saveWidgetData<double>('currentMonthExpense', currentMonthExpense);
     await HomeWidget.saveWidgetData<double>('currentMonthPercentage', currentMonthPercentage);
