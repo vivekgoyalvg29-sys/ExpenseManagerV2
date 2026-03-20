@@ -22,8 +22,27 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.expense_home_widget)
 
-            val expense = prefs.getAll()["currentMonthExpense"]?.toString()?.toDoubleOrNull() ?: 0.0
-            val budget = prefs.getAll()["currentMonthBudget"]?.toString()?.toDoubleOrNull() ?: 0.0
+            val expenseRaw = prefs.getAll()["currentMonthExpense"]
+            val budgetRaw = prefs.getAll()["currentMonthBudget"]
+
+            val expense = when (expenseRaw) {
+                is Double -> expenseRaw
+                is Float -> expenseRaw.toDouble()
+                is Long -> java.lang.Double.longBitsToDouble(expenseRaw)
+                is Int -> expenseRaw.toDouble()
+                is String -> expenseRaw.toDoubleOrNull() ?: 0.0
+                else -> 0.0
+            }
+
+            val budget = when (budgetRaw) {
+                is Double -> budgetRaw
+                is Float -> budgetRaw.toDouble()
+                is Long -> java.lang.Double.longBitsToDouble(budgetRaw)
+                is Int -> budgetRaw.toDouble()
+                is String -> budgetRaw.toDoubleOrNull() ?: 0.0
+                else -> 0.0
+            }
+
             val periodLabel = prefs.getString("currentPeriodLabel", "Month") ?: "Month"
 
             val monthLabel = try {
@@ -51,7 +70,7 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widget_container, openPendingIntent)
 
-            // Tap arrow → open Add Transaction via deep link
+            // Tap arrow → open Add Transaction
             val addIntent = Intent(Intent.ACTION_VIEW).apply {
                 data = android.net.Uri.parse("fintrack://add-transaction")
                 setPackage(context.packageName)
