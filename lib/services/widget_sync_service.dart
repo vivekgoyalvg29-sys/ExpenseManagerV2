@@ -1,6 +1,7 @@
 import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
 
+import '../utils/indian_number_formatter.dart';
 import 'database_service.dart';
 
 class WidgetSyncService {
@@ -128,12 +129,7 @@ class WidgetSyncService {
   }
 
   static String _formatCurrency(double value) {
-    final formatter = NumberFormat.currency(
-      locale: 'en_IN',
-      symbol: '₹',
-      decimalDigits: 0,
-    );
-    return formatter.format(value);
+    return formatIndianCurrency(value);
   }
 
   static String _modeLabel(String mode) {

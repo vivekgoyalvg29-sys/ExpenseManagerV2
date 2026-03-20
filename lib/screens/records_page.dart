@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../services/data_store.dart';
 import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
+import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_summary.dart';
 import '../widgets/page_content_layout.dart';
@@ -236,7 +238,7 @@ class _RecordsPageState extends State<RecordsPage> {
                                         ),
                                       ),
                                 trailing: Text(
-                                  "${tx["type"] == "income" ? '+' : '-'}₹${amount.toStringAsFixed(2)}",
+                                  "${tx["type"] == "income" ? '+' : '-'}${formatIndianCurrency(amount, decimalDigits: 2)}",
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14,

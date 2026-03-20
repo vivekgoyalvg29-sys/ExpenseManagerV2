@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../utils/indian_number_formatter.dart';
 import '../widgets/section_tile.dart';
 import '../services/data_store.dart';
 import 'load_expenses_from_messages_page.dart';
@@ -290,7 +291,7 @@ class _SmsPageState extends State<SmsPage> {
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                   Text(
-                    '₹${monthTotal.toStringAsFixed(2)}',
+                    formatIndianCurrency(monthTotal, decimalDigits: 2),
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -340,7 +341,7 @@ class _SmsPageState extends State<SmsPage> {
             title: Text(tx['title'].toString()),
             subtitle: Text(DateFormat('dd MMM yyyy').format(date)),
             trailing: Text(
-              '₹${(tx['amount'] as num).toStringAsFixed(2)}',
+              formatIndianCurrency((tx['amount'] as num).toDouble(), decimalDigits: 2),
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.red,

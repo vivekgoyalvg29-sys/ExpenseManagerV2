@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'month_navigator_row.dart';
-import 'section_tile.dart';
+import '../utils/indian_number_formatter.dart';
+import 'month_section_card.dart';
 
 class MonthSummary extends StatelessWidget {
   final DateTime currentMonth;
@@ -33,51 +33,40 @@ class MonthSummary extends StatelessWidget {
           fontSize: 19,
         );
 
-    return SectionTile(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(
-          children: [
-            MonthNavigatorRow(
-              currentMonth: currentMonth,
-              onPrev: onPrev,
-              onNext: onNext,
+    return MonthSectionCard(
+      currentMonth: currentMonth,
+      onPrev: onPrev,
+      onNext: onNext,
+      child: Row(
+        children: [
+          Expanded(
+            child: _SummaryMetric(
+              label: 'Budget',
+              value: formatIndianCurrency(budget),
+              labelStyle: labelStyle,
+              valueStyle: valueStyle?.copyWith(color: Colors.green[700]),
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _SummaryMetric(
-                    label: 'Budget',
-                    value: '₹${budget.toStringAsFixed(0)}',
-                    labelStyle: labelStyle,
-                    valueStyle: valueStyle?.copyWith(color: Colors.green[700]),
-                  ),
-                ),
-                Expanded(
-                  child: _SummaryMetric(
-                    label: 'Expense',
-                    value: '₹${expense.toStringAsFixed(0)}',
-                    labelStyle: labelStyle,
-                    valueStyle: valueStyle?.copyWith(color: Colors.red[700]),
-                  ),
-                ),
-                Expanded(
-                  child: _SummaryMetric(
-                    label: 'Remaining',
-                    value: '₹${remaining.toStringAsFixed(0)}',
-                    labelStyle: labelStyle,
-                    valueStyle: valueStyle?.copyWith(
-                      color: remaining >= 0 ? Colors.blue[700] : Colors.red[700],
-                    ),
-                    trailing: trailing,
-                  ),
-                ),
-              ],
+          ),
+          Expanded(
+            child: _SummaryMetric(
+              label: 'Expense',
+              value: formatIndianCurrency(expense),
+              labelStyle: labelStyle,
+              valueStyle: valueStyle?.copyWith(color: Colors.red[700]),
             ),
-          ],
-        ),
+          ),
+          Expanded(
+            child: _SummaryMetric(
+              label: 'Remaining',
+              value: formatIndianCurrency(remaining),
+              labelStyle: labelStyle,
+              valueStyle: valueStyle?.copyWith(
+                color: remaining >= 0 ? Colors.blue[700] : Colors.red[700],
+              ),
+              trailing: trailing,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -100,7 +89,10 @@ class _SummaryMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveValueStyle = valueStyle?.copyWith(fontSize: 17);
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -125,7 +117,8 @@ class _SummaryMetric extends StatelessWidget {
           value,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: valueStyle,
+          style: effectiveValueStyle,
+          textAlign: TextAlign.center,
         ),
       ],
     );
