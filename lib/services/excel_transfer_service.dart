@@ -11,10 +11,7 @@ class ExportFileData {
   final String fileName;
   final List<int> bytes;
 
-  ExportFileData({
-    required this.fileName,
-    required this.bytes,
-  });
+  ExportFileData({required this.fileName, required this.bytes});
 }
 
 class ImportStat {
@@ -22,11 +19,7 @@ class ImportStat {
   final int totalRows;
   final int importedRows;
 
-  ImportStat({
-    required this.name,
-    required this.totalRows,
-    required this.importedRows,
-  });
+  ImportStat({required this.name, required this.totalRows, required this.importedRows});
 }
 
 class ImportResult {
@@ -62,7 +55,6 @@ class ExcelTransferService {
     _categoriesSheet: [_categoriesSheet, 'Category'],
   };
 
-  /// Build excel data but don't save file yet.
   static Future<ExportFileData> buildExportFileData() async {
     final excel = Excel.createExcel();
     final recordsSheet = _prepareRecordsSheet(excel);
@@ -86,6 +78,7 @@ class ExcelTransferService {
       TextCellValue('Date'),
       TextCellValue('Type'),
       TextCellValue('Account'),
+      TextCellValue('Comment'),
     ]);
 
     for (final transaction in transactions) {
@@ -96,6 +89,7 @@ class ExcelTransferService {
         TextCellValue(transaction['date']?.toString() ?? ''),
         TextCellValue(transaction['type']?.toString() ?? ''),
         TextCellValue(transaction['account']?.toString() ?? ''),
+        TextCellValue(transaction['comment']?.toString() ?? ''),
       ]);
     }
 
@@ -128,6 +122,7 @@ class ExcelTransferService {
       TextCellValue('Name'),
       TextCellValue('Type'),
       TextCellValue('Icon'),
+      TextCellValue('IconPath'),
     ]);
 
     for (final account in accounts) {
@@ -136,6 +131,7 @@ class ExcelTransferService {
         TextCellValue(account['name']?.toString() ?? ''),
         TextCellValue(account['type']?.toString() ?? ''),
         IntCellValue((account['icon'] as num?)?.toInt() ?? 0),
+        TextCellValue(account['icon_path']?.toString() ?? ''),
       ]);
     }
 
@@ -145,6 +141,7 @@ class ExcelTransferService {
       TextCellValue('Name'),
       TextCellValue('Type'),
       TextCellValue('Icon'),
+      TextCellValue('IconPath'),
     ]);
 
     for (final category in categories) {
@@ -153,49 +150,40 @@ class ExcelTransferService {
         TextCellValue(category['name']?.toString() ?? ''),
         TextCellValue(category['type']?.toString() ?? ''),
         IntCellValue((category['icon'] as num?)?.toInt() ?? 0),
+        TextCellValue(category['icon_path']?.toString() ?? ''),
       ]);
     }
 
     final bytes = excel.encode() ?? [];
-    final fileName = 'fintrack_export_${DateTime.now().millisecondsSinceEpoch}.xlsx';
-
     return ExportFileData(
-      fileName: fileName,
+      fileName: 'fintrack_export_${DateTime.now().millisecondsSinceEpoch}.xlsx',
       bytes: bytes,
     );
   }
 
   static Sheet _prepareRecordsSheet(Excel excel) {
     final defaultSheet = excel.getDefaultSheet();
-
     if (defaultSheet != null && defaultSheet != _recordsSheet) {
       excel.rename(defaultSheet, _recordsSheet);
     }
-
     excel.setDefaultSheet(_recordsSheet);
-
     for (final extraSheet in ['Sheet1', 'Sheet']) {
       if (extraSheet != _recordsSheet && excel.tables.containsKey(extraSheet)) {
         excel.delete(extraSheet);
       }
     }
-
     return excel[_recordsSheet];
   }
 
-  /// Save file directly to device.
   static Future<String> exportAllData() async {
     final exportData = await buildExportFileData();
     final dir = await _preferredExportDirectory();
     final filePath = '${dir.path}/${exportData.fileName}';
     final file = File(filePath);
-
     await file.writeAsBytes(exportData.bytes, flush: true);
-
     return filePath;
   }
 
-  /// Import from excel file bytes.
   static Future<ImportResult> importAllDataFromBytes(Uint8List bytes) async {
     final excel = Excel.decodeBytes(bytes);
     final db = await DatabaseService.database;
@@ -212,14 +200,7 @@ class ExcelTransferService {
       final sheet = _resolveSheet(excel, sheetName);
       final dataRows = sheet == null || sheet.rows.isEmpty ? 0 : sheet.rows.length - 1;
       final importedRows = sheet == null ? 0 : await importers[sheetName]!(db, sheet);
-
-      stats.add(
-        ImportStat(
-          name: sheetName,
-          totalRows: dataRows,
-          importedRows: importedRows,
-        ),
-      );
+      stats.add(ImportStat(name: sheetName, totalRows: dataRows, importedRows: importedRows));
     }
 
     return ImportResult(_sortStatsForDisplay(stats));
@@ -227,7 +208,6 @@ class ExcelTransferService {
 
   static Future<int> _importRecords(Database db, Sheet sheet) async {
     int importedRows = 0;
-
     for (int i = 1; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
       if (_isRowEmpty(row)) continue;
@@ -238,10 +218,9 @@ class ExcelTransferService {
       final dateText = _asString(_cellValue(row, 3));
       final type = _normalizeType(_asString(_cellValue(row, 4)));
       final account = _asString(_cellValue(row, 5));
+      final comment = _asString(_cellValue(row, 6));
 
-      if (category.isEmpty || amount == null || dateText.isEmpty) {
-        continue;
-      }
+      if (category.isEmpty || amount == null || dateText.isEmpty) continue;
 
       final parsedDate = DateTime.tryParse(dateText);
       final normalizedDate = (parsedDate ?? DateTime.now()).toIso8601String();
@@ -257,285 +236,154 @@ class ExcelTransferService {
         'date': normalizedDate,
         'type': type,
         'account': account,
+        'comment': comment,
       };
 
       if (id != null && id > 0) {
-        final updated = await db.update(
-          'transactions',
-          values,
-          where: 'id = ?',
-          whereArgs: [id],
-        );
-
+        final updated = await db.update('transactions', values, where: 'id = ?', whereArgs: [id]);
         if (updated == 0) {
           await db.insert('transactions', {'id': id, ...values});
         }
       } else {
         await db.insert('transactions', values);
       }
-
       importedRows++;
     }
-
     return importedRows;
   }
 
   static Future<int> _importBudgets(Database db, Sheet sheet) async {
     int importedRows = 0;
-
     for (int i = 1; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
       if (_isRowEmpty(row)) continue;
-
       final id = _asInt(_cellValue(row, 0));
       final category = _asString(_cellValue(row, 1));
       final amount = _asDouble(_cellValue(row, 2));
       final month = _asInt(_cellValue(row, 3));
       final year = _asInt(_cellValue(row, 4));
       final type = _normalizeType(_asString(_cellValue(row, 5)), fallback: 'expense');
-
-      if (category.isEmpty || amount == null || month == null || year == null) {
-        continue;
-      }
-
+      if (category.isEmpty || amount == null || month == null || year == null) continue;
       await _ensureCategoryExists(db, category, type);
-
-      final values = {
-        'category': category,
-        'amount': amount,
-        'month': month,
-        'year': year,
-      };
-
+      final values = {'category': category, 'amount': amount, 'month': month, 'year': year};
       if (id != null && id > 0) {
-        final updated = await db.update(
-          'budgets',
-          values,
-          where: 'id = ?',
-          whereArgs: [id],
-        );
-
+        final updated = await db.update('budgets', values, where: 'id = ?', whereArgs: [id]);
         if (updated == 0) {
           await db.insert('budgets', {'id': id, ...values});
         }
       } else {
         await db.insert('budgets', values);
       }
-
       importedRows++;
     }
-
     return importedRows;
   }
 
   static Future<int> _importAccounts(Database db, Sheet sheet) async {
     int importedRows = 0;
-
     for (int i = 1; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
       if (_isRowEmpty(row)) continue;
-
       final id = _asInt(_cellValue(row, 0));
       final name = _asString(_cellValue(row, 1));
       final type = _normalizeType(_asString(_cellValue(row, 2)));
       final icon = _asInt(_cellValue(row, 3)) ?? 0;
-
+      final iconPath = _asString(_cellValue(row, 4));
       if (name.isEmpty) continue;
-
-      await _upsertLookupRow(
-        db: db,
-        table: 'accounts',
-        id: id,
-        name: name,
-        type: type,
-        icon: icon,
-      );
-
+      await _upsertLookupRow(db: db, table: 'accounts', id: id, name: name, type: type, icon: icon, iconPath: iconPath);
       importedRows++;
     }
-
     return importedRows;
   }
 
   static Future<int> _importCategories(Database db, Sheet sheet) async {
     int importedRows = 0;
-
     for (int i = 1; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
       if (_isRowEmpty(row)) continue;
-
       final id = _asInt(_cellValue(row, 0));
       final name = _asString(_cellValue(row, 1));
       final type = _normalizeType(_asString(_cellValue(row, 2)));
       final icon = _asInt(_cellValue(row, 3)) ?? 0;
-
+      final iconPath = _asString(_cellValue(row, 4));
       if (name.isEmpty) continue;
-
-      await _upsertLookupRow(
-        db: db,
-        table: 'categories',
-        id: id,
-        name: name,
-        type: type,
-        icon: icon,
-      );
-
+      await _upsertLookupRow(db: db, table: 'categories', id: id, name: name, type: type, icon: icon, iconPath: iconPath);
       importedRows++;
     }
-
     return importedRows;
   }
 
-  static Future<void> _ensureCategoryExists(Database db, String name, String type) async {
-    await _ensureLookupExists(db, 'categories', name, type, 0);
-  }
+  static Future<void> _ensureCategoryExists(Database db, String name, String type) async => _ensureLookupExists(db, 'categories', name, type, 0, '');
+  static Future<void> _ensureAccountExists(Database db, String name, String type) async => _ensureLookupExists(db, 'accounts', name, type, 0, '');
 
-  static Future<void> _ensureAccountExists(Database db, String name, String type) async {
-    await _ensureLookupExists(db, 'accounts', name, type, 0);
-  }
-
-  static Future<void> _ensureLookupExists(
-    Database db,
-    String table,
-    String name,
-    String type,
-    int icon,
-  ) async {
+  static Future<void> _ensureLookupExists(Database db, String table, String name, String type, int icon, String iconPath) async {
     final normalizedName = name.trim();
     if (normalizedName.isEmpty) return;
-
-    final existing = await db.query(
-      table,
-      where: 'LOWER(name) = ? AND type = ?',
-      whereArgs: [normalizedName.toLowerCase(), type],
-      limit: 1,
-    );
-
+    final existing = await db.query(table, where: 'LOWER(name) = ? AND type = ?', whereArgs: [normalizedName.toLowerCase(), type], limit: 1);
     if (existing.isEmpty) {
-      await db.insert(table, {
-        'name': normalizedName,
-        'type': type,
-        'icon': icon,
-      });
+      await db.insert(table, {'name': normalizedName, 'type': type, 'icon': icon, 'icon_path': iconPath});
     }
   }
 
-  static Future<void> _upsertLookupRow({
-    required Database db,
-    required String table,
-    required int? id,
-    required String name,
-    required String type,
-    required int icon,
-  }) async {
+  static Future<void> _upsertLookupRow({required Database db, required String table, required int? id, required String name, required String type, required int icon, required String iconPath}) async {
     final normalizedName = name.trim();
     if (normalizedName.isEmpty) return;
-
-    final values = {
-      'name': normalizedName,
-      'type': type,
-      'icon': icon,
-    };
-
+    final values = {'name': normalizedName, 'type': type, 'icon': icon, 'icon_path': iconPath.isEmpty ? null : iconPath};
     if (id != null && id > 0) {
-      final updated = await db.update(
-        table,
-        values,
-        where: 'id = ?',
-        whereArgs: [id],
-      );
-
-      if (updated > 0) {
-        return;
-      }
+      final updated = await db.update(table, values, where: 'id = ?', whereArgs: [id]);
+      if (updated > 0) return;
     }
-
-    final existingByNameType = await db.query(
-      table,
-      where: 'LOWER(name) = ? AND type = ?',
-      whereArgs: [normalizedName.toLowerCase(), type],
-      limit: 1,
-    );
-
+    final existingByNameType = await db.query(table, where: 'LOWER(name) = ? AND type = ?', whereArgs: [normalizedName.toLowerCase(), type], limit: 1);
     if (existingByNameType.isNotEmpty) {
-      await db.update(
-        table,
-        values,
-        where: 'id = ?',
-        whereArgs: [existingByNameType.first['id']],
-      );
+      await db.update(table, values, where: 'id = ?', whereArgs: [existingByNameType.first['id']]);
       return;
     }
-
     if (id != null && id > 0) {
       await db.insert(table, {'id': id, ...values});
       return;
     }
-
     await db.insert(table, values);
   }
 
   static Sheet? _resolveSheet(Excel excel, String canonicalName) {
     for (final candidate in _sheetAliases[canonicalName] ?? [canonicalName]) {
       final sheet = excel.tables[candidate];
-      if (sheet != null) {
-        return sheet;
-      }
+      if (sheet != null) return sheet;
     }
     return null;
   }
 
   static List<ImportStat> _sortStatsForDisplay(List<ImportStat> stats) {
     final byName = {for (final stat in stats) stat.name: stat};
-    return [
-      for (final sheetName in _exportSheetOrder)
-        if (byName.containsKey(sheetName)) byName[sheetName]!,
-    ];
+    return [for (final sheetName in _exportSheetOrder) if (byName.containsKey(sheetName)) byName[sheetName]!];
   }
 
-  static Data? _cellValue(List<Data?> row, int index) {
-    if (index >= row.length) return null;
-    return row[index];
-  }
-
-  static bool _isRowEmpty(List<Data?> row) {
-    return row.every((cell) => _asString(cell).isEmpty);
-  }
-
-  static String _asString(Data? cell) {
-    if (cell == null || cell.value == null) return '';
-    return cell.value.toString().trim();
-  }
-
+  static Data? _cellValue(List<Data?> row, int index) => index >= row.length ? null : row[index];
+  static bool _isRowEmpty(List<Data?> row) => row.every((cell) => _asString(cell).isEmpty);
+  static String _asString(Data? cell) => cell == null || cell.value == null ? '' : cell.value.toString().trim();
   static int? _asInt(Data? cell) {
     final raw = _asString(cell);
     if (raw.isEmpty) return null;
-    if (cell?.value is num) {
-      return (cell!.value as num).toInt();
-    }
+    if (cell?.value is num) return (cell!.value as num).toInt();
     return int.tryParse(raw) ?? double.tryParse(raw)?.toInt();
   }
-
   static double? _asDouble(Data? cell) {
     final raw = _asString(cell);
     if (raw.isEmpty) return null;
-    if (cell?.value is num) {
-      return (cell!.value as num).toDouble();
-    }
+    if (cell?.value is num) return (cell!.value as num).toDouble();
     return double.tryParse(raw);
   }
-
   static String _normalizeType(String value, {String fallback = 'expense'}) {
     final normalized = value.trim().toLowerCase();
-    if (normalized == 'income' || normalized == 'expense') {
-      return normalized;
-    }
+    if (normalized == 'income' || normalized == 'expense') return normalized;
     return fallback;
   }
 
-  /// Preferred export directory.
   static Future<Directory> _preferredExportDirectory() async {
-    final directory = await getApplicationDocumentsDirectory();
-    return directory;
+    try {
+      final downloadsDir = await getDownloadsDirectory();
+      if (downloadsDir != null) return downloadsDir;
+    } catch (_) {}
+    return getApplicationDocumentsDirectory();
   }
 }

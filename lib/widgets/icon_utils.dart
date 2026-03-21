@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 const List<IconData> selectableIcons = [
@@ -36,13 +38,16 @@ IconData iconFromCodePoint(dynamic codePoint, {IconData fallback = Icons.categor
 }
 
 class AppPageIcon extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+  final String? imagePath;
   final double size;
 
-  const AppPageIcon({super.key, required this.icon, this.size = 18});
+  const AppPageIcon({super.key, this.icon, this.imagePath, this.size = 18});
 
   @override
   Widget build(BuildContext context) {
+    final hasImage = imagePath != null && imagePath!.isNotEmpty && File(imagePath!).existsSync();
+
     return Container(
       width: 36,
       height: 36,
@@ -51,11 +56,24 @@ class AppPageIcon extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       alignment: Alignment.center,
-      child: Icon(
-        icon,
-        size: size,
-        color: const Color(0xFF1D4ED8),
-      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasImage
+          ? Image.file(
+              File(imagePath!),
+              fit: BoxFit.cover,
+              width: 36,
+              height: 36,
+              errorBuilder: (_, __, ___) => Icon(
+                icon ?? Icons.image_outlined,
+                size: size,
+                color: const Color(0xFF1D4ED8),
+              ),
+            )
+          : Icon(
+              icon ?? Icons.category,
+              size: size,
+              color: const Color(0xFF1D4ED8),
+            ),
     );
   }
 }
@@ -68,32 +86,38 @@ class ModernProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final clampedValue = value.clamp(0.0, 1.0);
+    final clampedValue = value.clamp(0.0, 1.0).toDouble();
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(999),
       child: SizedBox(
-        height: 10,
+        height: 12,
+        width: double.infinity,
         child: Stack(
+          fit: StackFit.expand,
           children: [
             Container(color: const Color(0xFFE7ECF4)),
-            FractionallySizedBox(
-              widthFactor: clampedValue,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [color.withOpacity(0.72), color],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withOpacity(0.18),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+            if (clampedValue > 0)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: clampedValue,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [color.withOpacity(0.72), color],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withOpacity(0.18),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
