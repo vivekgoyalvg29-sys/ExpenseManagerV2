@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "923717830259",
+    "project_id": "fintrack-bc41b",
+    "storage_bucket": "fintrack-bc41b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:923717830259:android:1f692fe0d0cdc252bf8c06",
+        "android_client_info": {
+          "package_name": "com.example.expense_manager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCaG_oit-zC8QkI22HoDWxgjE9GXK_8RfA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
