@@ -1,9 +1,12 @@
 import 'dart:io';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'screens/add_transaction_page.dart';
+import 'screens/auth/phone_auth_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/data_store.dart';
 import 'services/database_service.dart';
@@ -14,6 +17,8 @@ final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp();
 
   try {
     if (Platform.isIOS) {
@@ -57,7 +62,6 @@ class _FinTrackAppState extends State<FinTrackApp> {
   void initState() {
     super.initState();
     _widgetNavigationChannel.setMethodCallHandler(_handleWidgetNavigation);
-    // Delay first flush to ensure navigator is mounted
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) _schedulePendingNavigationFlush();
     });
@@ -85,7 +89,6 @@ class _FinTrackAppState extends State<FinTrackApp> {
 
     final navigator = appNavigatorKey.currentState;
     if (navigator == null) {
-      // Navigator not ready yet, retry
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) _schedulePendingNavigationFlush();
       });
@@ -96,7 +99,6 @@ class _FinTrackAppState extends State<FinTrackApp> {
     try {
       await navigator.pushNamedAndRemoveUntil(routeName, (route) => false);
     } catch (_) {
-      // Route not found, go home
       await navigator.pushNamedAndRemoveUntil('/', (route) => false);
     }
   }
@@ -126,6 +128,23 @@ class _FinTrackAppState extends State<FinTrackApp> {
           },
         );
       },
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              backgroundColor: Colors.black,
+              body: Center(
+                child: CircularProgressIndicator(color: Colors.green),
+              ),
+            );
+          }
+          if (snapshot.hasData) {
+            return const HomeScreen();
+          }
+          return const PhoneAuthScreen();
+        },
+      ),
       routes: {
         '/': (_) => const HomeScreen(),
         '/transactions': (_) => const HomeScreen(initialIndex: 0),
