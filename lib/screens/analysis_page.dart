@@ -208,16 +208,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return int.tryParse(value.toString()) ?? 0;
   }
 
-  IconData _iconForLabel(String label) {
+  Map<String, dynamic>? _entryForLabel(String label) {
     final source = analysisType == AnalysisType.category ? DataStore.categories : DataStore.accounts;
-    final entry = source.cast<Map<String, dynamic>?>().firstWhere(
-          (item) => item?['name'] == label,
-          orElse: () => null,
-        );
-
-    return iconFromCodePoint(
-      entry?['icon'],
-      fallback: analysisType == AnalysisType.category ? Icons.category : Icons.account_balance_wallet,
+    return source.cast<Map<String, dynamic>?>().firstWhere(
+      (item) => item?['name'] == label,
+      orElse: () => null,
     );
   }
 
@@ -510,6 +505,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                     ? (transaction['account'] as String?)?.trim() ?? ''
                                     : (transaction['title'] as String?)?.trim() ?? '';
 
+                                final entry = _entryForLabel(label);
+
                                 return Material(
                                   color: Colors.transparent,
                                   child: InkWell(
@@ -530,7 +527,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                       ),
                                       child: Row(
                                         children: [
-                                          AppPageIcon(icon: _iconForLabel(label)),
+                                          AppPageIcon(
+                                            icon: iconFromCodePoint(
+                                              entry?['icon'],
+                                              fallback: analysisType == AnalysisType.category ? Icons.category : Icons.account_balance_wallet,
+                                            ),
+                                            imagePath: entry?['icon_path']?.toString(),
+                                          ),
                                           const SizedBox(width: 12),
                                           Expanded(
                                             child: Column(
@@ -660,10 +663,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                   ? (spent > 0 ? 1.0 : 0.0)
                                   : (spent == 0 ? 0.02 : ratio.clamp(0.0, 1.0).toDouble()));
                           final percentage = data['percentage'] as int? ?? 0;
+                          final remaining = budget - spent;
                           final amountSummary = analysisType == AnalysisType.category
                               ? '${formatIndianCurrency(spent)} / ${formatIndianCurrency(budget)}${showPercentage ? ' ($percentage%)' : ''}'
                               : '${formatIndianCurrency(spent)}${showPercentage ? ' ($percentage%)' : ''}';
 
+                          final entry = _entryForLabel(label);
                           return InkWell(
                             onTap: () => _showRelatedTransactions(data),
                             child: Padding(
@@ -674,29 +679,52 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                   Row(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      AppPageIcon(icon: _iconForLabel(label)),
+                                      AppPageIcon(
+                                        icon: iconFromCodePoint(
+                                          entry?['icon'],
+                                          fallback: analysisType == AnalysisType.category ? Icons.category : Icons.account_balance_wallet,
+                                        ),
+                                        imagePath: entry?['icon_path']?.toString(),
+                                      ),
                                       const SizedBox(width: 10),
                                       Expanded(
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text(
-                                              label,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 14,
-                                              ),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    label,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                                                  ),
+                                                ),
+                                                if (analysisType == AnalysisType.category) ...[
+                                                  const SizedBox(width: 12),
+                                                  Flexible(
+                                                    child: Text(
+                                                      'Remaining ${formatIndianCurrency(remaining)}',
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      textAlign: TextAlign.end,
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: remaining >= 0 ? const Color(0xFF0F766E) : const Color(0xFFB91C1C),
+                                                        fontWeight: FontWeight.w700,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
                                             ),
                                             const SizedBox(height: 2),
                                             Text(
                                               amountSummary,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                fontSize: 12.5,
-                                                color: Colors.grey[700],
-                                                fontWeight: FontWeight.w600,
-                                              ),
+                                              style: TextStyle(fontSize: 12.5, color: Colors.grey[700], fontWeight: FontWeight.w600),
                                             ),
                                           ],
                                         ),
@@ -704,10 +732,16 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                     ],
                                   ),
                                   if (analysisType == AnalysisType.category) ...[
-                                    const SizedBox(height: 8),
-                                    ModernProgressBar(
-                                      value: progress,
-                                      color: _progressColor(ratio),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        Expanded(child: ModernProgressBar(value: progress, color: _progressColor(ratio))),
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          '${(ratio * 100).isFinite ? (ratio * 100).clamp(0, 999).toStringAsFixed(0) : '0'}%',
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700, color: _progressColor(ratio)),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ],

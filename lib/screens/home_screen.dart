@@ -3,10 +3,13 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../services/data_store.dart';
+import '../services/database_service.dart';
 import '../services/excel_transfer_service.dart';
 import '../services/visual_settings.dart';
+import '../services/widget_sync_service.dart';
 import '../widgets/section_tile.dart';
 import '../widgets/side_overlay_sheet.dart';
 import 'accounts_page.dart';
@@ -22,46 +25,61 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, this.initialIndex = 0});
 
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
   late int currentIndex;
   int _refreshVersion = 0;
+  String _appVersion = 'v1.0.0';
 
   @override
   void initState() {
     super.initState();
     currentIndex = widget.initialIndex;
+    _loadPackageInfo();
+  }
+
+  Future<void> _loadPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    setState(() {
+      _appVersion = 'v${info.version}${info.buildNumber.isEmpty ? '' : ' (${info.buildNumber})'}';
+    });
+  }
+
+  List<_NavItem> get _navItems {
+    final items = <_NavItem>[
+      _NavItem(label: 'Records', icon: Icons.list, builder: _recordsBuilder),
+      _NavItem(label: 'Analysis', icon: Icons.pie_chart, builder: _analysisBuilder),
+      _NavItem(label: 'Budgets', icon: Icons.account_balance, builder: _budgetsBuilder),
+      _NavItem(label: 'Accounts', icon: Icons.account_balance_wallet, builder: _accountsBuilder),
+      _NavItem(label: 'Categories', icon: Icons.category, builder: _categoriesBuilder),
+    ];
+    if (DataStore.isSmsTabVisible) {
+      items.add(_NavItem(label: 'SMSs', icon: Icons.sms, builder: _smsBuilder));
+    }
+    return items;
   }
 
   Widget _buildCurrentPage() {
     final pageKey = ValueKey('$currentIndex-$_refreshVersion');
-
-    switch (currentIndex) {
-      case 0:
-        return RecordsPage(key: pageKey);
-      case 1:
-        return AnalysisPage(key: pageKey);
-      case 2:
-        return BudgetsPage(key: pageKey);
-      case 3:
-        return AccountsPage(key: pageKey);
-      case 4:
-        return CategoriesPage(key: pageKey);
-      case 5:
-        return SmsPage(key: ValueKey('sms-${DataStore.smsTransactionsVersion}-$_refreshVersion'));
-      default:
-        return RecordsPage(key: pageKey);
-    }
+    final safeIndex = currentIndex >= 0 && currentIndex < _navItems.length ? currentIndex : 0;
+    final item = _navItems[safeIndex];
+    return item.builder(pageKey, _refreshVersion);
   }
+
+  static Widget _recordsBuilder(Key key, int refreshVersion) => RecordsPage(key: key);
+  static Widget _analysisBuilder(Key key, int refreshVersion) => AnalysisPage(key: key);
+  static Widget _budgetsBuilder(Key key, int refreshVersion) => BudgetsPage(key: key);
+  static Widget _accountsBuilder(Key key, int refreshVersion) => AccountsPage(key: key);
+  static Widget _categoriesBuilder(Key key, int refreshVersion) => CategoriesPage(key: key);
+  static Widget _smsBuilder(Key key, int refreshVersion) => SmsPage(key: ValueKey('sms-${DataStore.smsTransactionsVersion}-$refreshVersion'));
 
   Future<void> _exportData() async {
     try {
       final exportData = await ExcelTransferService.buildExportFileData();
-
       final supportsSaveDialog = !Platform.isLinux && !Platform.isWindows && !Platform.isMacOS;
-
       if (supportsSaveDialog) {
         final selectedPath = await FilePicker.platform.saveFile(
           dialogTitle: 'Save exported file',
@@ -70,67 +88,37 @@ class _HomeScreenState extends State<HomeScreen> {
           type: FileType.custom,
           allowedExtensions: ['xlsx'],
         );
-
         if (!mounted) return;
-
         if (selectedPath == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Export cancelled.')),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export cancelled.')));
           return;
         }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export completed: $selectedPath')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export completed: $selectedPath')));
         return;
       }
-
       final fallbackPath = await ExcelTransferService.exportAllData();
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export completed: $fallbackPath')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export completed: $fallbackPath')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
     }
   }
 
   Future<void> _importData() async {
     try {
-      final selected = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['xlsx'],
-        withData: true,
-      );
-
-      if (selected == null || selected.files.isEmpty) {
-        return;
-      }
-
+      final selected = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['xlsx'], withData: true);
+      if (selected == null || selected.files.isEmpty) return;
       final picked = selected.files.first;
-      final bytes = picked.bytes ??
-          (picked.path == null ? null : await File(picked.path!).readAsBytes());
-
+      final bytes = picked.bytes ?? (picked.path == null ? null : await File(picked.path!).readAsBytes());
       if (bytes == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not read selected file.')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not read selected file.')));
         return;
       }
-
       final result = await ExcelTransferService.importAllDataFromBytes(bytes);
-
       if (!mounted) return;
-      setState(() {
-        _refreshVersion++;
-      });
-
+      setState(() => _refreshVersion++);
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -142,32 +130,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 DataColumn(label: Text('In Excel')),
                 DataColumn(label: Text('Imported')),
               ],
-              rows: result.stats
-                  .map(
-                    (s) => DataRow(
-                      cells: [
-                        DataCell(Text(s.name)),
-                        DataCell(Text('${s.totalRows}')),
-                        DataCell(Text('${s.importedRows}')),
-                      ],
-                    ),
-                  )
-                  .toList(),
+              rows: result.stats.map((s) => DataRow(cells: [DataCell(Text(s.name)), DataCell(Text('${s.totalRows}')), DataCell(Text('${s.importedRows}'))])).toList(),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Close'),
-            ),
-          ],
+          actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close'))],
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Import failed: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e')));
     }
   }
 
@@ -179,125 +150,171 @@ class _HomeScreenState extends State<HomeScreen> {
 
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Customize visuals'),
-              content: SizedBox(
-                width: 360,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      value: fontKey,
-                      decoration: const InputDecoration(labelText: 'Font family'),
-                      items: VisualSettings.fontOptions
-                          .map(
-                            (option) => DropdownMenuItem<String>(
-                              value: option.key,
-                              child: Text(option.label),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setDialogState(() {
-                          fontKey = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Text size: ${(textScale * 100).round()}%',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    Slider(
-                      value: textScale,
-                      min: 0.85,
-                      max: 1.35,
-                      divisions: 10,
-                      label: '${(textScale * 100).round()}%',
-                      onChanged: (value) {
-                        setDialogState(() {
-                          textScale = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Preview text',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontFamily: VisualSettings.fontOptions
-                                .firstWhere((option) => option.key == fontKey)
-                                .fontFamily,
-                            fontSize: 16 * textScale,
-                          ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Apply a font family and overall text scaling across the app.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontFamily: VisualSettings.fontOptions
-                                .firstWhere((option) => option.key == fontKey)
-                                .fontFamily,
-                            fontSize: 14 * textScale,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () async {
-                    await controller.reset();
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Customize visuals'),
+          content: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: fontKey,
+                  decoration: const InputDecoration(labelText: 'Font family'),
+                  items: VisualSettings.fontOptions.map((option) => DropdownMenuItem<String>(value: option.key, child: Text(option.label))).toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setDialogState(() => fontKey = value);
                   },
-                  child: const Text('Reset'),
                 ),
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancel'),
+                const SizedBox(height: 20),
+                Text('Text size: ${(textScale * 100).round()}%', style: Theme.of(context).textTheme.titleMedium),
+                Slider(
+                  value: textScale,
+                  min: 0.85,
+                  max: 1.35,
+                  divisions: 10,
+                  label: '${(textScale * 100).round()}%',
+                  onChanged: (value) => setDialogState(() => textScale = value),
                 ),
-                FilledButton(
-                  onPressed: () async {
-                    await controller.updateSettings(
-                      settings.copyWith(fontKey: fontKey, textScale: textScale),
-                    );
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                  child: const Text('Apply'),
+                const SizedBox(height: 8),
+                Text(
+                  'Preview text',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontFamily: VisualSettings.fontOptions.firstWhere((option) => option.key == fontKey).fontFamily,
+                        fontSize: 16 * textScale,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Apply a font family and overall text scaling across the app.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontFamily: VisualSettings.fontOptions.firstWhere((option) => option.key == fontKey).fontFamily,
+                        fontSize: 14 * textScale,
+                      ),
                 ),
               ],
-            );
-          },
-        );
-      },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await controller.reset();
+                if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Reset'),
+            ),
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () async {
+                await controller.updateSettings(settings.copyWith(fontKey: fontKey, textScale: textScale));
+                if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Apply'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  VisualSettingsController _visualSettingsController(BuildContext context) {
-    return VisualSettingsScope.of(context);
+  VisualSettingsController _visualSettingsController(BuildContext context) => VisualSettingsScope.of(context);
+
+  Future<void> _showSmsTab() async {
+    await DataStore.setSmsTabVisibility(true);
+    if (!mounted) return;
+    setState(() {
+      if (currentIndex >= _navItems.length) currentIndex = 0;
+      currentIndex = _navItems.length - 1;
+    });
+  }
+
+  Future<void> _confirmAndRun({required String title, required String description, required Future<void> Function() action, required String successMessage}) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text('$description\n\nThis action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('OK')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await action();
+    if (!mounted) return;
+    setState(() {
+      currentIndex = 0;
+      _refreshVersion++;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(successMessage)));
+  }
+
+  Future<void> _deleteEverything() async {
+    await _confirmAndRun(
+      title: 'Delete everything?',
+      description: 'This will permanently remove all records, budgets, accounts, and categories. Visual settings will stay unchanged.',
+      action: () async {
+        await DatabaseService.deleteAllData();
+        await DataStore.resetLocalState();
+        await WidgetSyncService.syncFromStoredConfiguration();
+      },
+      successMessage: 'All records, budgets, accounts, and categories were deleted.',
+    );
+  }
+
+  Future<void> _deleteTransactionsOnly() async {
+    await _confirmAndRun(
+      title: 'Delete all transactions?',
+      description: 'This will remove all transaction records only. Budgets, accounts, categories, and visual settings will remain available.',
+      action: () async {
+        await DatabaseService.deleteAllTransactions();
+        await DataStore.replaceSmsTransactions([]);
+        await WidgetSyncService.syncFromStoredConfiguration();
+      },
+      successMessage: 'All transactions were deleted.',
+    );
+  }
+
+  Future<void> _resetApp() async {
+    await _confirmAndRun(
+      title: 'Reset app?',
+      description: 'This will clear all saved data, hide the SMS tab again, remove imported SMS items, and restore visual settings to their default values.',
+      action: () async {
+        await DatabaseService.deleteAllData();
+        await DataStore.resetLocalState();
+        await _visualSettingsController(context).reset();
+        await WidgetSyncService.syncFromStoredConfiguration();
+      },
+      successMessage: 'The app was reset to its original settings.',
+    );
   }
 
   Future<void> _handleAppBarAction(String action) async {
-    if (action == 'export') {
-      await _exportData();
-      return;
-    }
-
-    if (action == 'import') {
-      await _importData();
-      return;
-    }
-
-    if (action == 'customize_visuals') {
-      await _openVisualSettings();
+    switch (action) {
+      case 'export':
+        await _exportData();
+        return;
+      case 'import':
+        await _importData();
+        return;
+      case 'customize_visuals':
+        await _openVisualSettings();
+        return;
+      case 'open_sms':
+        await _showSmsTab();
+        return;
+      case 'delete_everything':
+        await _deleteEverything();
+        return;
+      case 'delete_transactions':
+        await _deleteTransactionsOnly();
+        return;
+      case 'reset_app':
+        await _resetApp();
+        return;
     }
   }
 
@@ -311,48 +328,47 @@ class _HomeScreenState extends State<HomeScreen> {
           await _handleAppBarAction(action);
         }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Widget tile({required IconData icon, required String title, required String subtitle, required VoidCallback onTap}) {
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
+            leading: Icon(icon),
+            title: Text(title),
+            subtitle: Text(subtitle),
+            onTap: onTap,
+          );
+        }
+
+        return ListView(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 12, 8),
+              padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      'Menu',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('FinTrack', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(_appVersion, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF52606D))),
+                      ],
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.of(drawerContext).pop(),
-                    icon: const Icon(Icons.close),
-                    tooltip: 'Close menu',
-                  ),
+                  IconButton(onPressed: () => Navigator.of(drawerContext).pop(), icon: const Icon(Icons.close), tooltip: 'Close menu'),
                 ],
               ),
             ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.upload_file_outlined),
-              title: const Text('Export data (Excel)'),
-              onTap: () => handleSelection('export'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.download_outlined),
-              title: const Text('Import data (Excel)'),
-              onTap: () => handleSelection('import'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.palette_outlined),
-              title: const Text('Customize visuals'),
-              subtitle: Text(
-                '${settings.fontLabel} • ${(settings.textScale * 100).round()}%',
-              ),
-              onTap: () => handleSelection('customize_visuals'),
-            ),
+            const Divider(height: 1, thickness: 1),
+            const _MenuSectionHeader('Data management'),
+            tile(icon: Icons.upload_file_outlined, title: 'Export data (Excel)', subtitle: 'Download records, budgets, accounts, categories, comments, and icons into one workbook.', onTap: () => handleSelection('export')),
+            tile(icon: Icons.download_outlined, title: 'Import data (Excel)', subtitle: 'Import the same workbook format and update existing data where matching rows are found.', onTap: () => handleSelection('import')),
+            tile(icon: Icons.delete_forever_outlined, title: 'Delete everything', subtitle: 'Delete all records, budgets, accounts, and categories while keeping the app installed.', onTap: () => handleSelection('delete_everything')),
+            tile(icon: Icons.receipt_long_outlined, title: 'Delete all transactions only', subtitle: 'Remove transaction history only and keep budgets, accounts, and categories.', onTap: () => handleSelection('delete_transactions')),
+            tile(icon: Icons.restart_alt_outlined, title: 'Reset app', subtitle: 'Clear saved data, hide SMSs again, and restore the original app settings.', onTap: () => handleSelection('reset_app')),
+            const Divider(height: 1, thickness: 1),
+            const _MenuSectionHeader('Visuals & SMSs'),
+            tile(icon: Icons.palette_outlined, title: 'Customize visuals', subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}% text size', onTap: () => handleSelection('customize_visuals')),
+            tile(icon: Icons.sms_outlined, title: 'Open SMSs', subtitle: DataStore.isSmsTabVisible ? 'SMS tab is already enabled in the bottom navigation.' : 'Show SMSs in the bottom navigation only when you need it.', onTap: () => handleSelection('open_sms')),
           ],
         );
       },
@@ -362,52 +378,59 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final controller = _visualSettingsController(context);
+    final items = _navItems;
+    if (currentIndex >= items.length) currentIndex = 0;
 
     return Scaffold(
-        backgroundColor: const Color(0xFFF3F5F9),
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onPressed: () => _openAppMenu(controller.value),
-            tooltip: 'Open menu',
-          ),
-          title: const Text('FinTrack', textAlign: TextAlign.center),
-          actions: const [
-            SizedBox(width: kToolbarHeight),
-          ],
-        ),
-        body: _buildCurrentPage(),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: SectionTile(
-            margin: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            child: BottomNavigationBar(
-              currentIndex: currentIndex,
-              type: BottomNavigationBarType.fixed,
-              elevation: 0,
-              backgroundColor: Colors.transparent,
-              selectedItemColor: Colors.green,
-              unselectedItemColor: Colors.black54,
-              onTap: (index) {
-                setState(() {
-                  currentIndex = index;
-                });
-              },
-              items: const [
-                BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Records'),
-                BottomNavigationBarItem(icon: Icon(Icons.pie_chart), label: 'Analysis'),
-                BottomNavigationBarItem(icon: Icon(Icons.account_balance), label: 'Budgets'),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.account_balance_wallet),
-                  label: 'Accounts',
-                ),
-                BottomNavigationBarItem(icon: Icon(Icons.category), label: 'Categories'),
-                BottomNavigationBarItem(icon: Icon(Icons.sms), label: 'SMSs'),
-              ],
-            ),
+      backgroundColor: const Color(0xFFF3F5F9),
+      appBar: AppBar(
+        leading: IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () => _openAppMenu(controller.value), tooltip: 'Open menu'),
+        title: const Text('FinTrack', textAlign: TextAlign.center),
+        actions: const [SizedBox(width: kToolbarHeight)],
+      ),
+      body: _buildCurrentPage(),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: SectionTile(
+          margin: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: BottomNavigationBar(
+            currentIndex: currentIndex,
+            type: BottomNavigationBarType.fixed,
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            selectedItemColor: Colors.green,
+            unselectedItemColor: Colors.black54,
+            onTap: (index) => setState(() => currentIndex = index),
+            items: [for (final item in items) BottomNavigationBarItem(icon: Icon(item.icon), label: item.label)],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _NavItem {
+  final String label;
+  final IconData icon;
+  final Widget Function(Key key, int refreshVersion) builder;
+
+  const _NavItem({required this.label, required this.icon, required this.builder});
+}
+
+class _MenuSectionHeader extends StatelessWidget {
+  final String title;
+
+  const _MenuSectionHeader(this.title);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700, color: const Color(0xFF52606D)),
+      ),
     );
   }
 }

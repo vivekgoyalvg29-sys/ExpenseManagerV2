@@ -2,6 +2,8 @@ name: expense_manager
 description: Personal Expense Manager
 
 publish_to: "none"
+version: 1.0.0+1
+
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -20,6 +22,7 @@ dependencies:
   excel: ^4.0.6
   file_picker: ^8.0.5
   path_provider: ^2.1.4
+  package_info_plus: ^8.0.2
 
 
 flutter:

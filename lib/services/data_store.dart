@@ -5,21 +5,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class DataStore {
   static const String _smsTransactionsKey = 'sms_transactions';
+  static const String _smsTabVisibleKey = 'sms_tab_visible';
 
   static List<Map<String, dynamic>> categories = [];
-
   static List<Map<String, dynamic>> accounts = [];
-
   static List<Map<String, dynamic>> transactions = [];
-
   static List<Map<String, dynamic>> budgets = [];
-
   static List<Map<String, dynamic>> smsTransactions = [];
 
   static int smsTransactionsVersion = 0;
+  static bool isSmsTabVisible = false;
 
   static Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
+    isSmsTabVisible = prefs.getBool(_smsTabVisibleKey) ?? false;
     final stored = prefs.getString(_smsTransactionsKey);
 
     if (stored == null || stored.isEmpty) {
@@ -49,6 +48,7 @@ class DataStore {
             return map;
           })
           .toList();
+      smsTransactionsVersion++;
     } catch (_) {
       smsTransactions = [];
     }
@@ -58,6 +58,23 @@ class DataStore {
     smsTransactions = List<Map<String, dynamic>>.from(transactions);
     smsTransactionsVersion++;
     _persistSmsTransactions();
+  }
+
+  static Future<void> setSmsTabVisibility(bool isVisible) async {
+    isSmsTabVisible = isVisible;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_smsTabVisibleKey, isVisible);
+  }
+
+  static Future<void> resetLocalState() async {
+    categories = [];
+    accounts = [];
+    transactions = [];
+    budgets = [];
+    smsTransactions = [];
+    smsTransactionsVersion++;
+    await setSmsTabVisibility(false);
+    await _persistSmsTransactions();
   }
 
   static Future<void> _persistSmsTransactions() async {
