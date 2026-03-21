@@ -271,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
       description: 'This will remove all transaction records only. Budgets, accounts, categories, and visual settings will remain available.',
       action: () async {
         await DatabaseService.deleteAllTransactions();
-        await DataStore.replaceSmsTransactions([]);
+        DataStore.replaceSmsTransactions([]);
         await WidgetSyncService.syncFromStoredConfiguration();
       },
       successMessage: 'All transactions were deleted.',
