@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -292,6 +293,22 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text('You will need to verify your phone number again to sign back in.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Sign out')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await FirebaseAuth.instance.signOut();
+  }
+
   Future<void> _handleAppBarAction(String action) async {
     switch (action) {
       case 'export':
@@ -314,6 +331,9 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       case 'reset_app':
         await _resetApp();
+        return;
+      case 'logout':
+        await _logout();
         return;
     }
   }
@@ -338,6 +358,9 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
+        final user = FirebaseAuth.instance.currentUser;
+        final phoneNumber = user?.phoneNumber ?? '';
+
         return ListView(
           children: [
             Padding(
@@ -351,6 +374,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text('FinTrack', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
                         Text(_appVersion, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF52606D))),
+                        if (phoneNumber.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(phoneNumber, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: const Color(0xFF52606D))),
+                        ],
                       ],
                     ),
                   ),
@@ -369,6 +396,9 @@ class _HomeScreenState extends State<HomeScreen> {
             const _MenuSectionHeader('Visuals & SMSs'),
             tile(icon: Icons.palette_outlined, title: 'Customize visuals', subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}% text size', onTap: () => handleSelection('customize_visuals')),
             tile(icon: Icons.sms_outlined, title: 'Open SMSs', subtitle: DataStore.isSmsTabVisible ? 'SMS tab is already enabled in the bottom navigation.' : 'Show SMSs in the bottom navigation only when you need it.', onTap: () => handleSelection('open_sms')),
+            const Divider(height: 1, thickness: 1),
+            const _MenuSectionHeader('Account'),
+            tile(icon: Icons.logout_outlined, title: 'Sign out', subtitle: 'Sign out and return to the login screen.', onTap: () => handleSelection('logout')),
           ],
         );
       },
