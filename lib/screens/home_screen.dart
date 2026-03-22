@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/data_store.dart';
 import '../services/database_service.dart';
@@ -33,12 +34,14 @@ class _HomeScreenState extends State<HomeScreen> {
   late int currentIndex;
   int _refreshVersion = 0;
   String _appVersion = 'v1.0.0';
+  String _username = '';
 
   @override
   void initState() {
     super.initState();
     currentIndex = widget.initialIndex;
     _loadPackageInfo();
+    _loadUsername();
   }
 
   Future<void> _loadPackageInfo() async {
@@ -47,6 +50,38 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _appVersion = 'v${info.version}${info.buildNumber.isEmpty ? '' : ' (${info.buildNumber})'}';
     });
+  }
+
+  Future<void> _loadUsername() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _username = prefs.getString('username') ?? '';
+    });
+  }
+
+  Future<void> _editUsername() async {
+    final controller = TextEditingController(text: _username);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit username'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Enter username (optional)'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (result == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('username', result);
+    if (!mounted) return;
+    setState(() => _username = result);
   }
 
   List<_NavItem> get _navItems {
@@ -335,6 +370,9 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'logout':
         await _logout();
         return;
+      case 'edit_username':
+        await _editUsername();
+        return;
     }
   }
 
@@ -360,6 +398,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
         final user = FirebaseAuth.instance.currentUser;
         final phoneNumber = user?.phoneNumber ?? '';
+        final displayName = _username.isNotEmpty
+            ? '$_username ($phoneNumber)'
+            : phoneNumber;
 
         return ListView(
           children: [
@@ -374,9 +415,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text('FinTrack', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
                         Text(_appVersion, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF52606D))),
-                        if (phoneNumber.isNotEmpty) ...[
+                        if (displayName.isNotEmpty) ...[
                           const SizedBox(height: 2),
-                          Text(phoneNumber, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: const Color(0xFF52606D))),
+                          Text(displayName, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: const Color(0xFF52606D))),
                         ],
                       ],
                     ),
@@ -398,6 +439,7 @@ class _HomeScreenState extends State<HomeScreen> {
             tile(icon: Icons.sms_outlined, title: 'Open SMSs', subtitle: DataStore.isSmsTabVisible ? 'SMS tab is already enabled in the bottom navigation.' : 'Show SMSs in the bottom navigation only when you need it.', onTap: () => handleSelection('open_sms')),
             const Divider(height: 1, thickness: 1),
             const _MenuSectionHeader('Account'),
+            tile(icon: Icons.person_outline, title: 'Edit username', subtitle: _username.isEmpty ? 'No username set' : _username, onTap: () => handleSelection('edit_username')),
             tile(icon: Icons.logout_outlined, title: 'Sign out', subtitle: 'Sign out and return to the login screen.', onTap: () => handleSelection('logout')),
           ],
         );
