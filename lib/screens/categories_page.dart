@@ -63,9 +63,15 @@ class _CategoriesPageState extends State<CategoriesPage> {
                   decoration: const InputDecoration(labelText: 'Transaction Type'),
                 ),
                 const SizedBox(height: 10),
-                TextField(controller: controller, decoration: const InputDecoration(labelText: 'Category Name')),
+                TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(labelText: 'Category Name'),
+                ),
                 const SizedBox(height: 10),
-                const Align(alignment: Alignment.centerLeft, child: Text('Icon', style: TextStyle(fontWeight: FontWeight.w600))),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Icon', style: TextStyle(fontWeight: FontWeight.w600)),
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -85,17 +91,31 @@ class _CategoriesPageState extends State<CategoriesPage> {
                   }).toList(),
                 ),
                 const SizedBox(height: 14),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: AppPageIcon(icon: iconFromCodePoint(selectedIcon), imagePath: customIconPath),
-                  title: const Text('Pick custom icon from gallery'),
-                  subtitle: Text(customIconPath == null ? 'Use your own image for this category icon.' : customIconPath!.split('/').last),
-                  trailing: customIconPath == null ? const Icon(Icons.photo_library_outlined) : IconButton(icon: const Icon(Icons.close), onPressed: () => setDialogState(() => customIconPath = null)),
+                // Simplified custom icon picker
+                InkWell(
                   onTap: () async {
                     final picked = await IconStorageService.pickAndStoreIconImage();
                     if (picked == null) return;
                     setDialogState(() => customIconPath = picked);
                   },
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Choose from gallery',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                      const Spacer(),
+                      if (customIconPath != null)
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () => setDialogState(() => customIconPath = null),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        )
+                      else
+                        const Icon(Icons.photo_library_outlined, size: 22),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -106,9 +126,15 @@ class _CategoriesPageState extends State<CategoriesPage> {
               onPressed: () async {
                 if (controller.text.isEmpty) return;
                 if (category == null) {
-                  await DatabaseService.insertCategory(controller.text, selectedType, selectedIcon, iconPath: customIconPath);
+                  await DatabaseService.insertCategory(
+                    controller.text, selectedType, selectedIcon,
+                    iconPath: customIconPath,
+                  );
                 } else {
-                  await DatabaseService.updateCategory(category['id'], controller.text, selectedType, selectedIcon, iconPath: customIconPath);
+                  await DatabaseService.updateCategory(
+                    category['id'], controller.text, selectedType, selectedIcon,
+                    iconPath: customIconPath,
+                  );
                 }
                 if (!context.mounted) return;
                 Navigator.pop(context);
@@ -150,29 +176,72 @@ class _CategoriesPageState extends State<CategoriesPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                FloatingActionButton.small(heroTag: 'cancelCategorySelection', onPressed: clearSelection, tooltip: 'Cancel selection', child: const Icon(Icons.close)),
+                FloatingActionButton.small(
+                  heroTag: 'cancelCategorySelection',
+                  onPressed: clearSelection,
+                  tooltip: 'Cancel selection',
+                  child: const Icon(Icons.close),
+                ),
                 const SizedBox(height: 10),
-                FloatingActionButton.extended(heroTag: 'deleteSelectedCategories', onPressed: deleteSelected, icon: const Icon(Icons.delete), label: Text('Delete (${selectedIndexes.length})')),
+                FloatingActionButton.extended(
+                  heroTag: 'deleteSelectedCategories',
+                  onPressed: deleteSelected,
+                  icon: const Icon(Icons.delete),
+                  label: Text('Delete (${selectedIndexes.length})'),
+                ),
               ],
             )
-          : FloatingActionButton(child: const Icon(Icons.add), onPressed: () => showAddCategoryDialog()),
+          : FloatingActionButton(
+              child: const Icon(Icons.add),
+              onPressed: () => showAddCategoryDialog(),
+            ),
       body: SectionTile(
         child: ListView(
           children: [
-            _CategorySection(title: 'Expense Categories', items: expenseCategories, selectionMode: selectionMode, selectedIndexes: selectedIndexes, fullList: DataStore.categories, onChanged: (index, checked) => setState(() => checked ? selectedIndexes.add(index) : selectedIndexes.remove(index)), onLongPress: (index) => setState(() { selectionMode = true; selectedIndexes.add(index); }), onTap: (cat, index) {
-              if (selectionMode) {
-                setState(() => selectedIndexes.contains(index) ? selectedIndexes.remove(index) : selectedIndexes.add(index));
-              } else {
-                showAddCategoryDialog(category: cat);
-              }
-            }),
-            _CategorySection(title: 'Income Categories', items: incomeCategories, selectionMode: selectionMode, selectedIndexes: selectedIndexes, fullList: DataStore.categories, onChanged: (index, checked) => setState(() => checked ? selectedIndexes.add(index) : selectedIndexes.remove(index)), onLongPress: (index) => setState(() { selectionMode = true; selectedIndexes.add(index); }), onTap: (cat, index) {
-              if (selectionMode) {
-                setState(() => selectedIndexes.contains(index) ? selectedIndexes.remove(index) : selectedIndexes.add(index));
-              } else {
-                showAddCategoryDialog(category: cat);
-              }
-            }),
+            _CategorySection(
+              title: 'Expense Categories',
+              items: expenseCategories,
+              selectionMode: selectionMode,
+              selectedIndexes: selectedIndexes,
+              fullList: DataStore.categories,
+              onChanged: (index, checked) => setState(
+                  () => checked ? selectedIndexes.add(index) : selectedIndexes.remove(index)),
+              onLongPress: (index) => setState(() {
+                selectionMode = true;
+                selectedIndexes.add(index);
+              }),
+              onTap: (cat, index) {
+                if (selectionMode) {
+                  setState(() => selectedIndexes.contains(index)
+                      ? selectedIndexes.remove(index)
+                      : selectedIndexes.add(index));
+                } else {
+                  showAddCategoryDialog(category: cat);
+                }
+              },
+            ),
+            _CategorySection(
+              title: 'Income Categories',
+              items: incomeCategories,
+              selectionMode: selectionMode,
+              selectedIndexes: selectedIndexes,
+              fullList: DataStore.categories,
+              onChanged: (index, checked) => setState(
+                  () => checked ? selectedIndexes.add(index) : selectedIndexes.remove(index)),
+              onLongPress: (index) => setState(() {
+                selectionMode = true;
+                selectedIndexes.add(index);
+              }),
+              onTap: (cat, index) {
+                if (selectionMode) {
+                  setState(() => selectedIndexes.contains(index)
+                      ? selectedIndexes.remove(index)
+                      : selectedIndexes.add(index));
+                } else {
+                  showAddCategoryDialog(category: cat);
+                }
+              },
+            ),
           ],
         ),
       ),
@@ -190,7 +259,16 @@ class _CategorySection extends StatelessWidget {
   final void Function(int index) onLongPress;
   final void Function(Map<String, dynamic> item, int index) onTap;
 
-  const _CategorySection({required this.title, required this.items, required this.selectionMode, required this.selectedIndexes, required this.fullList, required this.onChanged, required this.onLongPress, required this.onTap});
+  const _CategorySection({
+    required this.title,
+    required this.items,
+    required this.selectionMode,
+    required this.selectedIndexes,
+    required this.fullList,
+    required this.onChanged,
+    required this.onLongPress,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -201,8 +279,14 @@ class _CategorySection extends StatelessWidget {
         final index = fullList.indexOf(cat);
         return ListTile(
           leading: selectionMode
-              ? Checkbox(value: selectedIndexes.contains(index), onChanged: (v) => onChanged(index, v == true))
-              : AppPageIcon(icon: iconFromCodePoint(cat['icon'], fallback: Icons.category), imagePath: cat['icon_path']?.toString()),
+              ? Checkbox(
+                  value: selectedIndexes.contains(index),
+                  onChanged: (v) => onChanged(index, v == true),
+                )
+              : AppPageIcon(
+                  icon: iconFromCodePoint(cat['icon'], fallback: Icons.category),
+                  imagePath: cat['icon_path']?.toString(),
+                ),
           title: Text(cat['name'] ?? ''),
           onLongPress: () => onLongPress(index),
           onTap: () => onTap(cat, index),
