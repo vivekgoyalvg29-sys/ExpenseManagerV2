@@ -399,7 +399,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   String _emptyStateMessage() {
     final label = analysisType == AnalysisType.category ? 'category' : 'account';
-
     switch (analysisMode) {
       case AnalysisMode.cumulativeToSelectedMonth:
         return 'No $label expense data up to this month.';
@@ -504,7 +503,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                 final subtitle = analysisType == AnalysisType.category
                                     ? (transaction['account'] as String?)?.trim() ?? ''
                                     : (transaction['title'] as String?)?.trim() ?? '';
-
                                 final entry = _entryForLabel(label);
 
                                 return Material(
@@ -548,10 +546,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                 const SizedBox(height: 2),
                                                 Text(
                                                   dateFormat.format(date),
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey[700],
-                                                  ),
+                                                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                                                 ),
                                                 if (comment.isNotEmpty) ...[
                                                   const SizedBox(height: 2),
@@ -559,10 +554,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                     comment,
                                                     maxLines: 1,
                                                     overflow: TextOverflow.ellipsis,
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: Colors.grey[600],
-                                                    ),
+                                                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                                                   ),
                                                 ],
                                               ],
@@ -574,18 +566,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                             children: [
                                               Text(
                                                 formatIndianCurrency(amount),
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 14,
-                                                ),
+                                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                                               ),
                                               const SizedBox(height: 4),
                                               Text(
                                                 'Tap to edit',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.grey[600],
-                                                ),
+                                                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                                               ),
                                             ],
                                           ),
@@ -662,86 +648,120 @@ class _AnalysisPageState extends State<AnalysisPage> {
                               : (budget == 0
                                   ? (spent > 0 ? 1.0 : 0.0)
                                   : (spent == 0 ? 0.02 : ratio.clamp(0.0, 1.0).toDouble()));
-                          final percentage = data['percentage'] as int? ?? 0;
-                          final remaining = budget - spent;
-                          final amountSummary = analysisType == AnalysisType.category
-                              ? '${formatIndianCurrency(spent)} / ${formatIndianCurrency(budget)}${showPercentage ? ' ($percentage%)' : ''}'
-                              : '${formatIndianCurrency(spent)}${showPercentage ? ' ($percentage%)' : ''}';
+                          final budgetRatio = (ratio * 100).isFinite
+                              ? (ratio * 100).clamp(0, 999).round()
+                              : 0;
 
                           final entry = _entryForLabel(label);
+
                           return InkWell(
                             onTap: () => _showRelatedTransactions(data),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  // Category name + icon row
                                   Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       AppPageIcon(
                                         icon: iconFromCodePoint(
                                           entry?['icon'],
-                                          fallback: analysisType == AnalysisType.category ? Icons.category : Icons.account_balance_wallet,
+                                          fallback: analysisType == AnalysisType.category
+                                              ? Icons.category
+                                              : Icons.account_balance_wallet,
                                         ),
                                         imagePath: entry?['icon_path']?.toString(),
                                       ),
                                       const SizedBox(width: 10),
                                       Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    label,
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                                                  ),
-                                                ),
-                                                if (analysisType == AnalysisType.category) ...[
-                                                  const SizedBox(width: 12),
-                                                  Flexible(
-                                                    child: Text(
-                                                      'Remaining ${formatIndianCurrency(remaining)}',
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                      textAlign: TextAlign.end,
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        color: remaining >= 0 ? const Color(0xFF0F766E) : const Color(0xFFB91C1C),
-                                                        fontWeight: FontWeight.w700,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ],
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              amountSummary,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(fontSize: 12.5, color: Colors.grey[700], fontWeight: FontWeight.w600),
-                                            ),
-                                          ],
+                                        child: Text(
+                                          label,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                          ),
                                         ),
                                       ),
                                     ],
                                   ),
+                                  const SizedBox(height: 8),
+                                  // Progress bar with overlaid text + % at end
                                   if (analysisType == AnalysisType.category) ...[
-                                    const SizedBox(height: 10),
                                     Row(
                                       children: [
-                                        Expanded(child: ModernProgressBar(value: progress, color: _progressColor(ratio))),
-                                        const SizedBox(width: 10),
-                                        Text(
-                                          '${(ratio * 100).isFinite ? (ratio * 100).clamp(0, 999).toStringAsFixed(0) : '0'}%',
-                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700, color: _progressColor(ratio)),
+                                        Expanded(
+                                          child: Stack(
+                                            alignment: Alignment.centerLeft,
+                                            children: [
+                                              // Background bar
+                                              Container(
+                                                height: 22,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey[200],
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                              ),
+                                              // Filled bar
+                                              FractionallySizedBox(
+                                                widthFactor: progress.clamp(0.0, 1.0),
+                                                child: Container(
+                                                  height: 22,
+                                                  decoration: BoxDecoration(
+                                                    color: _progressColor(ratio).withOpacity(0.85),
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                ),
+                                              ),
+                                              // Overlaid text
+                                              Padding(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                child: Text(
+                                                  '${formatIndianCurrency(spent)} / ${formatIndianCurrency(budget)}',
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Colors.white,
+                                                    shadows: [
+                                                      Shadow(
+                                                        color: Colors.black45,
+                                                        blurRadius: 2,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        SizedBox(
+                                          width: 42,
+                                          child: Text(
+                                            '$budgetRatio%',
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: _progressColor(ratio),
+                                            ),
+                                          ),
                                         ),
                                       ],
+                                    ),
+                                  ] else ...[
+                                    // Account view — just show amount
+                                    Text(
+                                      formatIndianCurrency(spent),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[700],
+                                      ),
                                     ),
                                   ],
                                 ],
