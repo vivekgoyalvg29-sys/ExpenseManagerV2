@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../utils/indian_number_formatter.dart';
 import 'month_section_card.dart';
 
@@ -24,11 +23,13 @@ class MonthSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final remaining = budget - expense;
+
     final labelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w700,
           color: const Color(0xFF52606D),
           fontSize: 12,
         );
+
     final valueStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.bold,
           fontSize: 18,
@@ -90,11 +91,11 @@ class _SummaryMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveValueStyle = valueStyle?.copyWith(fontSize: 16.5);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
+        // Label row
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -105,6 +106,7 @@ class _SummaryMetric extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: labelStyle,
+                textAlign: TextAlign.center,
               ),
             ),
             if (trailing != null) ...[
@@ -113,16 +115,24 @@ class _SummaryMetric extends StatelessWidget {
             ],
           ],
         ),
-        const SizedBox(height: 6),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: effectiveValueStyle,
-            textAlign: TextAlign.center,
-          ),
+        const SizedBox(height: 4),
+        // Value — same row level as all others
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return SizedBox(
+              width: constraints.maxWidth,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  style: valueStyle?.copyWith(fontSize: 16.5),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
