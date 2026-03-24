@@ -14,7 +14,7 @@ if (localPropertiesFile.exists()) {
 }
 
 android {
-    namespace 'in.vivek.fintrack'
+    namespace 'vivek.fintrack.app'
     compileSdk 34
 
     compileOptions {
@@ -27,7 +27,7 @@ android {
     }
 
     defaultConfig {
-        applicationId 'in.vivek.fintrack'
+        applicationId 'vivek.fintrack.app'
         minSdk 21
         targetSdk 34
         versionCode 2
