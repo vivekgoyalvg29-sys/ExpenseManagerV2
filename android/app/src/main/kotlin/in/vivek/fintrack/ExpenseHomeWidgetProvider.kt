@@ -1,5 +1,4 @@
-package com.example.expense_manager
-
+package in.vivek.fintrack
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
