@@ -14,7 +14,7 @@ if (localPropertiesFile.exists()) {
 }
 
 android {
-    namespace 'com.example.expense_manager'
+    namespace 'in.vivek.fintrack'
     compileSdk 34
 
     compileOptions {
@@ -27,7 +27,7 @@ android {
     }
 
     defaultConfig {
-        applicationId 'com.example.expense_manager'
+        applicationId 'in.vivek.fintrack'
         minSdk 21
         targetSdk 34
         versionCode 2
