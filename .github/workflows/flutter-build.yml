@@ -15,7 +15,7 @@ jobs:
         with:
           flutter-version: '3.19.0'
 
-      - name: Generate missing Android wrapper
+      - name: Generate missing Android files
         run: |
           flutter create --platforms android temp_project
           cp temp_project/android/gradlew android/gradlew
@@ -24,11 +24,21 @@ jobs:
           cp temp_project/android/local.properties android/local.properties
           rm -rf temp_project
 
+      - name: Setup keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/fintrack.jks
+
       - name: Install dependencies
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release
+        env:
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          flutter build apk --release \
+            --dart-define=KEY_STORE_PASSWORD=$KEY_STORE_PASSWORD \
+            --dart-define=KEY_PASSWORD=$KEY_PASSWORD
 
       - name: Upload APK
         uses: actions/upload-artifact@v6
