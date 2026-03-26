@@ -30,7 +30,10 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
-
+        
+      - name: Generate splash screen
+        run: dart run flutter_native_splash:create
+        
       - name: Build APK
         env:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
