@@ -19,3 +19,21 @@ Android manifest now disables cleartext traffic and points to a network security
 
 ### iOS notes
 The project includes an app group entitlement (`group.com.example.expense_manager`) used for widget data sharing.
+
+## Android release output (APK vs AAB)
+
+If your build is producing an **AAB** (`.aab`) and you need an **APK** (`.apk`), use:
+
+```bash
+flutter build apk --release
+```
+
+Output file:
+
+```text
+build/app/outputs/flutter-apk/app-release.apk
+```
+
+Notes:
+- `flutter build appbundle` creates an `.aab` file (for Play Store upload).
+- `flutter build apk` creates an installable `.apk` file.
