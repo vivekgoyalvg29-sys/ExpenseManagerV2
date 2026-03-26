@@ -1,0 +1,50 @@
+name: Build Flutter APK
+on:
+  push:
+    branches: [ main ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+
+      - name: Generate missing Android files
+        run: |
+          flutter create --platforms android temp_project
+          cp temp_project/android/gradlew android/gradlew
+          cp temp_project/android/gradlew.bat android/gradlew.bat
+          cp temp_project/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
+          cp temp_project/android/local.properties android/local.properties
+          rm -rf temp_project
+
+      - name: Setup keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/fintrack.jks
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate splash screen
+        run: dart run flutter_native_splash:create
+
+      - name: Build APK
+        env:
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          flutter build appbundle --release \
+            --dart-define=KEY_STORE_PASSWORD=$KEY_STORE_PASSWORD \
+            --dart-define=KEY_PASSWORD=$KEY_PASSWORD
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v6
+        with:
+          name: app-release
+          path: build/app/outputs/bundle/release/app-release.aab
