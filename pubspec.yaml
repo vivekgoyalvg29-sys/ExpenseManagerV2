@@ -26,6 +26,5 @@ dependencies:
 
 flutter:
   uses-material-design: true
-  uses-material-design: true
   assets:
     - assets/splash_icon.png
