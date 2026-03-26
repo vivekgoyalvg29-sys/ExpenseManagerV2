@@ -39,12 +39,12 @@ jobs:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          flutter build appbundle --release \
+          flutter build apk --release \
             --dart-define=KEY_STORE_PASSWORD=$KEY_STORE_PASSWORD \
             --dart-define=KEY_PASSWORD=$KEY_PASSWORD
 
-      - name: Upload AAB
+      - name: Upload APK
         uses: actions/upload-artifact@v6
         with:
           name: app-release
-          path: build/app/outputs/bundle/release/app-release.aab
+          path: build/app/outputs/flutter-apk/app-release.apk
