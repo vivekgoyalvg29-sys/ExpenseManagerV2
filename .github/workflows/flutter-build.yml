@@ -39,7 +39,7 @@ jobs:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          flutter build apk --release \
+          flutter build appbundle --release \
             --dart-define=KEY_STORE_PASSWORD=$KEY_STORE_PASSWORD \
             --dart-define=KEY_PASSWORD=$KEY_PASSWORD
 
