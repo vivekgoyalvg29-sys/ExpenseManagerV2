@@ -30,10 +30,10 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
-        
+
       - name: Generate splash screen
         run: dart run flutter_native_splash:create
-        
+
       - name: Build APK
         env:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
@@ -43,8 +43,8 @@ jobs:
             --dart-define=KEY_STORE_PASSWORD=$KEY_STORE_PASSWORD \
             --dart-define=KEY_PASSWORD=$KEY_PASSWORD
 
-      - name: Upload APK
+      - name: Upload AAB
         uses: actions/upload-artifact@v6
         with:
           name: app-release
-          path: build/app/outputs/flutter-apk/app-release.aab
+          path: build/app/outputs/bundle/release/app-release.aab
