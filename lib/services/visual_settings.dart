@@ -101,6 +101,15 @@ class FinTrackTheme {
     return base.copyWith(
       textTheme: scaledTextTheme,
       primaryTextTheme: scaledTextTheme,
+      visualDensity: VisualDensity.compact,
+      listTileTheme: const ListTileThemeData(
+        dense: true,
+        visualDensity: VisualDensity.compact,
+        minVerticalPadding: 2,
+      ),
+      popupMenuTheme: const PopupMenuThemeData(
+        menuPadding: EdgeInsets.symmetric(vertical: 4),
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
