@@ -87,15 +87,32 @@ class VisualSettingsController extends ValueNotifier<VisualSettings> {
 
 class FinTrackTheme {
   static ThemeData build(VisualSettings settings) {
+    const appBackground = Color(0xFFF7F6F2);
+    const primarySurface = Color(0xFFFCFBF8);
+    const topBottomBar = Color(0xFFF6F4EE);
+    const border = Color(0xFFE4E1D8);
+    const primaryText = Color(0xFF1F2933);
+    const secondaryText = Color(0xFF5B6672);
+    const accent = Color(0xFF0F6B63);
+
     final base = ThemeData(
-      primarySwatch: Colors.green,
-      scaffoldBackgroundColor: const Color(0xFFF3F5F9),
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: accent,
+        brightness: Brightness.light,
+        primary: accent,
+        surface: primarySurface,
+      ),
+      scaffoldBackgroundColor: appBackground,
+      canvasColor: primarySurface,
+      cardColor: primarySurface,
+      dividerColor: border,
     );
 
     final scaledTextTheme = base.textTheme.apply(
       fontFamily: settings.fontFamily,
-      bodyColor: const Color(0xFF1F2933),
-      displayColor: const Color(0xFF1F2933),
+      bodyColor: primaryText,
+      displayColor: primaryText,
     );
 
     return base.copyWith(
@@ -109,14 +126,25 @@ class FinTrackTheme {
       ),
       popupMenuTheme: const PopupMenuThemeData(),
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        backgroundColor: topBottomBar,
+        foregroundColor: primaryText,
         centerTitle: true,
         elevation: 0,
+        scrolledUnderElevation: 0.4,
+        surfaceTintColor: Colors.transparent,
         titleTextStyle: scaledTextTheme.titleLarge?.copyWith(
-          color: Colors.white,
+          color: primaryText,
           fontWeight: FontWeight.bold,
         ),
+        iconTheme: const IconThemeData(color: primaryText),
+        actionsIconTheme: const IconThemeData(color: primaryText),
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: Colors.transparent,
+        selectedItemColor: accent,
+        unselectedItemColor: secondaryText,
+        selectedLabelStyle: scaledTextTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+        unselectedLabelStyle: scaledTextTheme.labelMedium,
       ),
       snackBarTheme: SnackBarThemeData(
         contentTextStyle: scaledTextTheme.bodyMedium?.copyWith(color: Colors.white),
