@@ -273,7 +273,10 @@ class _CategorySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ExpansionTile(
-      title: Text(title),
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+      ),
       initiallyExpanded: true,
       children: items.map((cat) {
         final index = fullList.indexOf(cat);
@@ -287,7 +290,10 @@ class _CategorySection extends StatelessWidget {
                   icon: iconFromCodePoint(cat['icon'], fallback: Icons.category),
                   imagePath: cat['icon_path']?.toString(),
                 ),
-          title: Text(cat['name'] ?? ''),
+          title: Text(
+            cat['name'] ?? '',
+            style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w500),
+          ),
           onLongPress: () => onLongPress(index),
           onTap: () => onTap(cat, index),
         );

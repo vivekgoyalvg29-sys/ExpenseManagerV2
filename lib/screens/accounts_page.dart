@@ -273,7 +273,10 @@ class _AccountSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ExpansionTile(
-      title: Text(title),
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+      ),
       initiallyExpanded: true,
       children: items.map((acc) {
         final index = fullList.indexOf(acc);
@@ -287,7 +290,10 @@ class _AccountSection extends StatelessWidget {
                   icon: iconFromCodePoint(acc['icon'], fallback: Icons.account_balance_wallet),
                   imagePath: acc['icon_path']?.toString(),
                 ),
-          title: Text(acc['name'] ?? ''),
+          title: Text(
+            acc['name'] ?? '',
+            style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w500),
+          ),
           onLongPress: () => onLongPress(index),
           onTap: () => onTap(acc, index),
         );
