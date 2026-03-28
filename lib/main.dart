@@ -9,6 +9,7 @@ import 'screens/add_transaction_page.dart';
 import 'screens/auth/phone_auth_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/data_store.dart';
+import 'services/app_localizations.dart';
 import 'services/database_service.dart';
 import 'services/visual_settings.dart';
 import 'services/widget_sync_service.dart';
@@ -105,29 +106,30 @@ class _FinTrackAppState extends State<FinTrackApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: appNavigatorKey,
-      title: 'FinTrack',
-      theme: FinTrackTheme.build(widget.controller.value),
-      builder: (context, child) {
-        return ValueListenableBuilder<VisualSettings>(
-          valueListenable: widget.controller,
-          builder: (context, settings, _) {
-            final mediaQuery = MediaQuery.of(context);
-            return VisualSettingsScope(
-              controller: widget.controller,
-              child: Theme(
-                data: FinTrackTheme.build(settings),
-                child: MediaQuery(
-                  data: mediaQuery.copyWith(
-                      textScaler: TextScaler.linear(settings.textScale)),
-                  child: child ?? const SizedBox.shrink(),
-                ),
+    return ValueListenableBuilder<VisualSettings>(
+      valueListenable: widget.controller,
+      builder: (context, settings, _) => MaterialApp(
+        navigatorKey: appNavigatorKey,
+        title: 'FinTrack',
+        theme: FinTrackTheme.build(settings, brightness: Brightness.light),
+        darkTheme: FinTrackTheme.build(settings, brightness: Brightness.dark),
+        themeMode: settings.themeMode,
+        locale: Locale(settings.localeCode),
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) {
+          final mediaQuery = MediaQuery.of(context);
+          return VisualSettingsScope(
+            controller: widget.controller,
+            child: AppLocalizationsScope(
+              localizations: AppLocalizations(settings.localeCode),
+              child: MediaQuery(
+                data: mediaQuery.copyWith(
+                    textScaler: TextScaler.linear(settings.textScale)),
+                child: child ?? const SizedBox.shrink(),
               ),
-            );
-          },
-        );
-      },
+            ),
+          );
+        },
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
@@ -151,6 +153,7 @@ class _FinTrackAppState extends State<FinTrackApp> {
         '/add-transaction': (_) => const WidgetQuickAddTransactionPage(),
       },
       debugShowCheckedModeBanner: false,
+      ),
     );
   }
 }
@@ -185,6 +188,7 @@ class WidgetQuickAddTransactionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AddTransactionPage(
+      modalStyle: false,
       onSaveResult: (result) => _saveTransaction(result, context),
     );
   }

@@ -659,9 +659,9 @@ class _RecordsPageState extends State<RecordsPage> {
                   heroTag: 'addRecordFab',
                   child: const Icon(Icons.add),
                   onPressed: () async {
-                    final result = await Navigator.push(
+                    final result = await showDialog<Map<String, dynamic>>(
                       context,
-                      MaterialPageRoute(builder: (_) => AddTransactionPage()),
+                      builder: (_) => const AddTransactionPage(),
                     );
 
                     if (result != null) {
@@ -804,13 +804,9 @@ class _RecordsPageState extends State<RecordsPage> {
                                     return;
                                   }
 
-                                  final result = await Navigator.push(
+                                  final result = await showDialog<Map<String, dynamic>>(
                                     context,
-                                    MaterialPageRoute(
-                                      builder: (_) => AddTransactionPage(
-                                        existingTransaction: tx,
-                                      ),
-                                    ),
+                                    builder: (_) => AddTransactionPage(existingTransaction: tx),
                                   );
 
                                   if (result != null) {

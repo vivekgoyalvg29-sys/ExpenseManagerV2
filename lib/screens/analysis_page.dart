@@ -737,7 +737,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
                                             fontWeight: FontWeight.w700,
-                                            fontSize: 14,
+                                            fontSize: 15.5,
                                           ),
                                         ),
                                       ),
@@ -754,20 +754,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                             children: [
                                               // Background bar
                                               Container(
-                                                height: 22,
+                                                height: 16,
                                                 decoration: BoxDecoration(
                                                   color: Colors.grey[200],
-                                                  borderRadius: BorderRadius.circular(6),
+                                                  borderRadius: BorderRadius.circular(999),
                                                 ),
                                               ),
                                               // Filled bar
                                               FractionallySizedBox(
                                                 widthFactor: progress.clamp(0.0, 1.0),
                                                 child: Container(
-                                                  height: 22,
+                                                  height: 16,
                                                   decoration: BoxDecoration(
                                                     gradient: _progressGradient(ratio),
-                                                    borderRadius: BorderRadius.circular(6),
+                                                    borderRadius: BorderRadius.circular(999),
                                                   ),
                                                 ),
                                               ),
@@ -779,7 +779,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                   maxLines: 1,
                                                   overflow: TextOverflow.ellipsis,
                                                   style: const TextStyle(
-                                                    fontSize: 11,
+                                                    fontSize: 10,
                                                     fontWeight: FontWeight.w700,
                                                     color: Colors.white,
                                                     shadows: [

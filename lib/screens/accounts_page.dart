@@ -4,6 +4,7 @@ import '../services/data_store.dart';
 import '../services/database_service.dart';
 import '../services/icon_storage_service.dart';
 import '../widgets/icon_utils.dart';
+import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
 
 class AccountsPage extends StatefulWidget {
@@ -32,6 +33,7 @@ class _AccountsPageState extends State<AccountsPage> {
         'type': a['type'].toString(),
         'icon': a['icon'],
         'icon_path': a['icon_path']?.toString(),
+        'is_favorite': (a['is_favorite'] as num?)?.toInt() == 1,
       }).toList();
     });
   }
@@ -195,9 +197,26 @@ class _AccountsPageState extends State<AccountsPage> {
               child: const Icon(Icons.add),
               onPressed: () => showAddAccountDialog(),
             ),
-      body: SectionTile(
-        child: ListView(
+      body: PageContentLayout(
+        child: Column(
           children: [
+            SectionTile(
+              margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+              child: const SizedBox(
+                height: 58,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    child: Text('Accounts', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: SectionTile(
+                child: ListView(
+                  children: [
             _AccountSection(
               title: 'Expense Accounts',
               items: expenseAccounts,
@@ -218,6 +237,15 @@ class _AccountsPageState extends State<AccountsPage> {
                 } else {
                   showAddAccountDialog(account: acc);
                 }
+              },
+              onToggleFavorite: (acc) async {
+                final current = acc['is_favorite'] == true;
+                await DatabaseService.setAccountFavorite(
+                  id: acc['id'] as int,
+                  type: (acc['type'] ?? 'expense').toString(),
+                  isFavorite: !current,
+                );
+                await loadAccounts();
               },
             ),
             _AccountSection(
@@ -241,6 +269,19 @@ class _AccountsPageState extends State<AccountsPage> {
                   showAddAccountDialog(account: acc);
                 }
               },
+              onToggleFavorite: (acc) async {
+                final current = acc['is_favorite'] == true;
+                await DatabaseService.setAccountFavorite(
+                  id: acc['id'] as int,
+                  type: (acc['type'] ?? 'expense').toString(),
+                  isFavorite: !current,
+                );
+                await loadAccounts();
+              },
+            ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -258,6 +299,7 @@ class _AccountSection extends StatelessWidget {
   final void Function(int index, bool checked) onChanged;
   final void Function(int index) onLongPress;
   final void Function(Map<String, dynamic> item, int index) onTap;
+  final Future<void> Function(Map<String, dynamic> item)? onToggleFavorite;
 
   const _AccountSection({
     required this.title,
@@ -268,6 +310,7 @@ class _AccountSection extends StatelessWidget {
     required this.onChanged,
     required this.onLongPress,
     required this.onTap,
+    this.onToggleFavorite,
   });
 
   @override
@@ -293,6 +336,14 @@ class _AccountSection extends StatelessWidget {
           title: Text(
             acc['name'] ?? '',
             style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w500),
+          ),
+          trailing: IconButton(
+            tooltip: 'Favorite',
+            onPressed: onToggleFavorite == null ? null : () => onToggleFavorite!(acc),
+            icon: Icon(
+              (acc['is_favorite'] == true) ? Icons.star : Icons.star_border,
+              color: (acc['is_favorite'] == true) ? Colors.black : Colors.black54,
+            ),
           ),
           onLongPress: () => onLongPress(index),
           onTap: () => onTap(acc, index),
