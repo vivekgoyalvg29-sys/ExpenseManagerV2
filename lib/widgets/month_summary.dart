@@ -52,6 +52,7 @@ class MonthSummary extends StatelessWidget {
               valueStyle: valueStyle?.copyWith(color: Colors.green[700]),
             ),
           ),
+          Container(width: 1, height: 36, color: const Color(0xFFE3E7EE)),
           Expanded(
             child: _SummaryMetric(
               label: 'Expense',
@@ -60,6 +61,7 @@ class MonthSummary extends StatelessWidget {
               valueStyle: valueStyle?.copyWith(color: Colors.red[700]),
             ),
           ),
+          Container(width: 1, height: 36, color: const Color(0xFFE3E7EE)),
           Expanded(
             child: _SummaryMetric(
               label: 'Remaining',
