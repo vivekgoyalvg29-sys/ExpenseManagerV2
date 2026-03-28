@@ -28,6 +28,11 @@ class RecordsPage extends StatefulWidget {
 class _RecordsPageState extends State<RecordsPage> {
   static const String _defaultPaymentPackageKey = 'default_payment_package';
   static const String _lastScannedQrKey = 'last_scanned_qr';
+  static const Duration _appsCacheTtl = Duration(minutes: 20);
+  static List<AppInfo>? _installedAppsCache;
+  static DateTime? _installedAppsCacheTime;
+  static List<AppInfo>? _smartAppsCache;
+  static DateTime? _smartAppsCacheTime;
 
   DateTime currentMonth = DateTime.now();
   List<Map<String, dynamic>> transactions = [];
@@ -110,10 +115,10 @@ class _RecordsPageState extends State<RecordsPage> {
 
       if (!mounted || qrPayload == null || qrPayload.trim().isEmpty) return;
 
-      final saved = await _showQrTransactionDialogAndSave(qrPayload);
-      if (!mounted || !saved) return;
+      final enteredAmount = await _showQrTransactionDialogAndSave(qrPayload);
+      if (!mounted || enteredAmount == null) return;
 
-      await _launchPaymentAppFlow(qrPayload);
+      await _launchPaymentAppFlow(qrPayload, enteredAmount);
     } finally {
       if (mounted) {
         setState(() => _isProcessingQr = false);
@@ -121,7 +126,7 @@ class _RecordsPageState extends State<RecordsPage> {
     }
   }
 
-  Future<bool> _showQrTransactionDialogAndSave(String qrPayload) async {
+  Future<double?> _showQrTransactionDialogAndSave(String qrPayload) async {
     String? selectedAccount;
     for (final account in DataStore.accounts) {
       if ((account['type'] ?? '').toString() != 'expense') continue;
@@ -141,7 +146,7 @@ class _RecordsPageState extends State<RecordsPage> {
     DateTime selectedDate = DateTime.now();
     String? validationError;
 
-    final shouldSave = await showDialog<bool>(
+    final savedAmount = await showDialog<double>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
@@ -254,7 +259,7 @@ class _RecordsPageState extends State<RecordsPage> {
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             TextButton(
-                              onPressed: () => Navigator.pop(dialogContext, false),
+                              onPressed: () => Navigator.pop(dialogContext),
                               child: const Text('Cancel'),
                             ),
                             const SizedBox(width: 8),
@@ -287,7 +292,7 @@ class _RecordsPageState extends State<RecordsPage> {
                                 await prefs.setString(_lastScannedQrKey, qrPayload.trim());
 
                                 if (!dialogContext.mounted) return;
-                                Navigator.pop(dialogContext, true);
+                                Navigator.pop(dialogContext, amount);
                               },
                               child: const Text('OK'),
                             ),
@@ -307,16 +312,17 @@ class _RecordsPageState extends State<RecordsPage> {
     amountController.dispose();
     commentController.dispose();
 
-    if (shouldSave == true) {
+    if (savedAmount != null) {
       await loadTransactions();
-      return true;
+      return savedAmount;
     }
-    return false;
+    return null;
   }
 
-  Future<void> _launchPaymentAppFlow(String qrPayload) async {
+  Future<void> _launchPaymentAppFlow(String qrPayload, double enteredAmount) async {
     final payload = qrPayload.trim();
     if (payload.isEmpty) return;
+    final payloadWithAmount = _buildPaymentPayload(payload, enteredAmount);
 
     final prefs = await SharedPreferences.getInstance();
     final storedDefault = prefs.getString(_defaultPaymentPackageKey);
@@ -330,7 +336,7 @@ class _RecordsPageState extends State<RecordsPage> {
     );
     if (!mounted || packageToLaunch == null) return;
 
-    final launched = await _launchQrInApp(packageToLaunch, payload);
+    final launched = await _launchQrInApp(packageToLaunch, payloadWithAmount);
     if (!mounted) return;
 
     if (!launched) {
@@ -343,11 +349,18 @@ class _RecordsPageState extends State<RecordsPage> {
     }
 
     await prefs.setString(_defaultPaymentPackageKey, packageToLaunch);
-    await prefs.setString(_lastScannedQrKey, payload);
+    await prefs.setString(_lastScannedQrKey, payloadWithAmount);
   }
 
   Future<List<AppInfo>> _getSmartPaymentApps() async {
-    final installed = await InstalledApps.getInstalledApps(true, true);
+    final now = DateTime.now();
+    if (_smartAppsCache != null &&
+        _smartAppsCacheTime != null &&
+        now.difference(_smartAppsCacheTime!) <= _appsCacheTtl) {
+      return _smartAppsCache!;
+    }
+
+    final installed = await _getInstalledAppsCached();
     final allApps = installed.where((app) {
       final name = app.name.toLowerCase();
       final package = app.packageName.toLowerCase();
@@ -382,6 +395,8 @@ class _RecordsPageState extends State<RecordsPage> {
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
 
+    _smartAppsCache = allApps;
+    _smartAppsCacheTime = now;
     return allApps;
   }
 
@@ -403,34 +418,34 @@ class _RecordsPageState extends State<RecordsPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      'Pay with app',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Default app will be pre-selected next time, but all apps are shown.',
+                    const Align(
+                      alignment: Alignment.center,
+                      child: Text(
+                        'Pay with app',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     if (smartApps.isEmpty)
                       const Text('No expected payment apps found with smart logic.')
                     else
                       SizedBox(
-                        height: 280,
-                        child: ListView.builder(
-                          itemCount: smartApps.length,
-                          itemBuilder: (_, index) {
-                            final app = smartApps[index];
-                            return RadioListTile<String>(
-                              value: app.packageName,
-                              groupValue: selectedPackage,
-                              onChanged: (value) {
-                                setSheetState(() => selectedPackage = value);
-                              },
-                              title: Text(app.name),
-                              subtitle: Text(app.packageName),
-                            );
-                          },
+                        height: 300,
+                        child: SingleChildScrollView(
+                          child: Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: smartApps.map((app) {
+                              final isSelected = selectedPackage == app.packageName;
+                              return _PaymentAppTile(
+                                iconBytes: app.icon,
+                                selected: isSelected,
+                                onTap: () {
+                                  setSheetState(() => selectedPackage = app.packageName);
+                                },
+                              );
+                            }).toList(),
+                          ),
                         ),
                       ),
                     const SizedBox(height: 8),
@@ -474,7 +489,7 @@ class _RecordsPageState extends State<RecordsPage> {
   }
 
   Future<String?> _showFullInstalledAppsPicker(String? defaultPackage) async {
-    final allApps = await InstalledApps.getInstalledApps(true, true);
+    final allApps = await _getInstalledAppsCached();
     allApps.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     if (!mounted) return null;
 
@@ -538,6 +553,32 @@ class _RecordsPageState extends State<RecordsPage> {
         );
       },
     );
+  }
+
+  Future<List<AppInfo>> _getInstalledAppsCached() async {
+    final now = DateTime.now();
+    if (_installedAppsCache != null &&
+        _installedAppsCacheTime != null &&
+        now.difference(_installedAppsCacheTime!) <= _appsCacheTtl) {
+      return List<AppInfo>.from(_installedAppsCache!);
+    }
+
+    final installed = await InstalledApps.getInstalledApps(true, true);
+    _installedAppsCache = installed;
+    _installedAppsCacheTime = now;
+    return List<AppInfo>.from(installed);
+  }
+
+  String _buildPaymentPayload(String qrPayload, double amount) {
+    final parsed = Uri.tryParse(qrPayload);
+    if (parsed == null || parsed.scheme.toLowerCase() != 'upi') {
+      return qrPayload;
+    }
+
+    final amountValue = amount.toStringAsFixed(2);
+    final query = Map<String, String>.from(parsed.queryParameters);
+    query['am'] = amountValue;
+    return parsed.replace(queryParameters: query).toString();
   }
 
   Future<bool> _launchQrInApp(String packageName, String qrPayload) async {
@@ -845,6 +886,40 @@ class _AppIcon extends StatelessWidget {
       width: 28,
       height: 28,
       errorBuilder: (_, __, ___) => const Icon(Icons.android),
+    );
+  }
+}
+
+class _PaymentAppTile extends StatelessWidget {
+  final Uint8List? iconBytes;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PaymentAppTile({
+    required this.iconBytes,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        width: 76,
+        height: 76,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
+            width: selected ? 2 : 1,
+          ),
+          color: selected ? Theme.of(context).colorScheme.primary.withOpacity(0.08) : null,
+        ),
+        padding: const EdgeInsets.all(10),
+        child: _AppIcon(bytes: iconBytes),
+      ),
     );
   }
 }
