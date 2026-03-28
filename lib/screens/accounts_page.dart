@@ -172,7 +172,7 @@ class _AccountsPageState extends State<AccountsPage> {
     final incomeAccounts = DataStore.accounts.where((a) => a['type'] == 'income').toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F5F9),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,

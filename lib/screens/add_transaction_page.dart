@@ -192,7 +192,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                       ? Center(
                           child: Text(
                             'No items yet. Tap + to add.',
-                            style: TextStyle(color: Colors.grey.shade600),
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                           ),
                         )
                       : ListView.builder(
@@ -266,9 +266,11 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   Widget build(BuildContext context) {
     final tr = AppLocalizationsScope.of(context);
     final theme = Theme.of(context);
-    final largerFieldLabelStyle = theme.textTheme.titleSmall;
+    final largerFieldLabelStyle = theme.textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+    );
     final helperTextStyle = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurface.withOpacity(0.4),
+      color: theme.colorScheme.onSurfaceVariant,
     );
 
     final content = SingleChildScrollView(
@@ -341,9 +343,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               width: double.infinity,
               constraints: const BoxConstraints(maxHeight: 180),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: theme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.black12),
+                border: Border.all(color: theme.dividerColor),
               ),
               child: ListView.builder(
                 shrinkWrap: true,
