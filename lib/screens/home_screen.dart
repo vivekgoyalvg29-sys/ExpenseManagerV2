@@ -488,9 +488,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (currentIndex >= items.length) currentIndex = 0;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFF3F5F9),
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.more_vert), onPressed: () => _openAppMenu(controller.value), tooltip: 'Open menu'),
+        leading: IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () => _openAppMenu(controller.value), tooltip: 'Open menu'),
         title: const Text('FinTrack', textAlign: TextAlign.center),
         actions: const [SizedBox(width: kToolbarHeight)],
       ),
@@ -505,6 +505,8 @@ class _HomeScreenState extends State<HomeScreen> {
             type: BottomNavigationBarType.fixed,
             elevation: 0,
             backgroundColor: Colors.transparent,
+            selectedItemColor: Colors.green,
+            unselectedItemColor: Colors.black54,
             onTap: (index) => setState(() => currentIndex = index),
             items: [for (final item in items) BottomNavigationBarItem(icon: Icon(item.icon), label: item.label)],
           ),
