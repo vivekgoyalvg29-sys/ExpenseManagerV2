@@ -112,6 +112,29 @@ class DatabaseService {
     return db.query('transactions', orderBy: 'date DESC');
   }
 
+  static Future<List<String>> getExistingComments() async {
+    final db = await database;
+    final rows = await db.query(
+      'transactions',
+      columns: ['comment'],
+      orderBy: 'id DESC',
+    );
+
+    final seen = <String>{};
+    final comments = <String>[];
+
+    for (final row in rows) {
+      final comment = (row['comment'] ?? '').toString().trim();
+      if (comment.isEmpty) continue;
+      final key = comment.toLowerCase();
+      if (seen.contains(key)) continue;
+      seen.add(key);
+      comments.add(comment);
+    }
+
+    return comments;
+  }
+
   static Future<void> deleteTransaction(int id) async {
     final db = await database;
     await db.delete('transactions', where: 'id = ?', whereArgs: [id]);

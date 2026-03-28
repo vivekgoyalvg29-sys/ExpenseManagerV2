@@ -113,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final items = <_NavItem>[
       _NavItem(label: context.tr('Records'), icon: Icons.list, builder: _recordsBuilder),
       _NavItem(label: context.tr('Analysis'), icon: Icons.pie_chart, builder: _analysisBuilder),
-      _NavItem(label: context.tr('Budgets'), icon: Icons.account_balance, builder: _budgetsBuilder),
+      _NavItem(label: context.tr('Budget'), icon: Icons.account_balance, builder: _budgetsBuilder),
       _NavItem(label: context.tr('Accounts'), icon: Icons.account_balance_wallet, builder: _accountsBuilder),
       _NavItem(label: context.tr('Categories'), icon: Icons.category, builder: _categoriesBuilder),
     ];
