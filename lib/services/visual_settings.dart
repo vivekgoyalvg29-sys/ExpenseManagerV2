@@ -107,9 +107,7 @@ class FinTrackTheme {
         visualDensity: VisualDensity.compact,
         minVerticalPadding: 2,
       ),
-      popupMenuTheme: const PopupMenuThemeData(
-        padding: EdgeInsets.symmetric(vertical: 4),
-      ),
+      popupMenuTheme: const PopupMenuThemeData(),
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
