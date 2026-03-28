@@ -21,6 +21,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
   List<Map<String, dynamic>> budgets = [];
   Set<int> selectedIndexes = {};
   bool selectionMode = false;
+  BudgetSortOrder sortOrder = BudgetSortOrder.amount;
 
   @override
   void initState() {
@@ -106,9 +107,24 @@ class _BudgetsPageState extends State<BudgetsPage> {
     loadBudgets();
   }
 
-  List<Map<String, dynamic>> get filteredBudgets => budgets
-      .where((b) => b['month'] == currentMonth.month && b['year'] == currentMonth.year)
-      .toList();
+  List<Map<String, dynamic>> get filteredBudgets {
+    final current = budgets
+        .where((b) => b['month'] == currentMonth.month && b['year'] == currentMonth.year)
+        .toList();
+    current.sort((a, b) {
+      if (sortOrder == BudgetSortOrder.amount) {
+        final amountCompare = ((b['amount'] as num?) ?? 0).compareTo((a['amount'] as num?) ?? 0);
+        if (amountCompare != 0) return amountCompare;
+      }
+      return (a['category'] as String).compareTo(b['category'] as String);
+    });
+    return current;
+  }
+
+  void _onSortSelected(BudgetSortOrder value) {
+    if (value == sortOrder) return;
+    setState(() => sortOrder = value);
+  }
 
   Map<String, dynamic>? _categoryDetails(String categoryName) {
     return DataStore.categories
@@ -161,6 +177,27 @@ class _BudgetsPageState extends State<BudgetsPage> {
               currentMonth: currentMonth,
               onPrev: () => setState(() => currentMonth = DateTime(currentMonth.year, currentMonth.month - 1)),
               onNext: () => setState(() => currentMonth = DateTime(currentMonth.year, currentMonth.month + 1)),
+              monthTrailing: PopupMenuButton<BudgetSortOrder>(
+                icon: const Icon(Icons.more_vert, size: 20),
+                tooltip: 'Budget options',
+                onSelected: _onSortSelected,
+                itemBuilder: (_) => [
+                  const PopupMenuItem<BudgetSortOrder>(
+                    enabled: false,
+                    child: Text('Sort', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                  CheckedPopupMenuItem<BudgetSortOrder>(
+                    value: BudgetSortOrder.amount,
+                    checked: sortOrder == BudgetSortOrder.amount,
+                    child: const Text('Amount'),
+                  ),
+                  CheckedPopupMenuItem<BudgetSortOrder>(
+                    value: BudgetSortOrder.alphabetical,
+                    checked: sortOrder == BudgetSortOrder.alphabetical,
+                    child: const Text('Alphabetical'),
+                  ),
+                ],
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -250,6 +287,11 @@ class _BudgetsPageState extends State<BudgetsPage> {
       ),
     );
   }
+}
+
+enum BudgetSortOrder {
+  amount,
+  alphabetical,
 }
 
 class _BudgetSummaryStat extends StatelessWidget {

@@ -60,28 +60,52 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _editUsername() async {
+  Future<void> _openEditProfileDialog() async {
     final controller = TextEditingController(text: _username);
-    final result = await showDialog<String>(
+    await showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit username'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Enter username (optional)'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, _) => AlertDialog(
+          title: const Text('Edit profile'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: 'Username'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  if (!ctx.mounted) return;
+                  Navigator.of(ctx).pop();
+                  await _logout();
+                },
+                icon: const Icon(Icons.logout_outlined),
+                label: const Text('Logout'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () async {
+                final prefs = await SharedPreferences.getInstance();
+                final updated = controller.text.trim();
+                await prefs.setString('username', updated);
+                if (!mounted) return;
+                setState(() => _username = updated);
+                if (!ctx.mounted) return;
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Save'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Save')),
-        ],
       ),
     );
-    if (result == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('username', result);
-    if (!mounted) return;
-    setState(() => _username = result);
   }
 
   List<_NavItem> get _navItems {
@@ -370,8 +394,8 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'logout':
         await _logout();
         return;
-      case 'edit_username':
-        await _editUsername();
+      case 'edit_profile':
+        await _openEditProfileDialog();
         return;
     }
   }
@@ -386,12 +410,17 @@ class _HomeScreenState extends State<HomeScreen> {
           await _handleAppBarAction(action);
         }
 
-        Widget tile({required IconData icon, required String title, required String subtitle, required VoidCallback onTap}) {
+        Widget tile({
+          required IconData icon,
+          required String title,
+          String? subtitle,
+          required VoidCallback onTap,
+        }) {
           return ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
             leading: Icon(icon),
             title: Text(title),
-            subtitle: Text(subtitle),
+            subtitle: subtitle == null ? null : Text(subtitle),
             onTap: onTap,
           );
         }
@@ -427,20 +456,24 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const Divider(height: 1, thickness: 1),
+            const _MenuSectionHeader('Account'),
+            tile(
+              icon: Icons.person_outline,
+              title: 'Edit profile',
+              subtitle: _username.isEmpty ? null : _username,
+              onTap: () => handleSelection('edit_profile'),
+            ),
+            const Divider(height: 1, thickness: 1),
             const _MenuSectionHeader('Data management'),
-            tile(icon: Icons.upload_file_outlined, title: 'Export data (Excel)', subtitle: 'Download records, budgets, accounts, categories, comments, and icons into one workbook.', onTap: () => handleSelection('export')),
-            tile(icon: Icons.download_outlined, title: 'Import data (Excel)', subtitle: 'Import the same workbook format and update existing data where matching rows are found.', onTap: () => handleSelection('import')),
-            tile(icon: Icons.delete_forever_outlined, title: 'Delete everything', subtitle: 'Delete all records, budgets, accounts, and categories while keeping the app installed.', onTap: () => handleSelection('delete_everything')),
-            tile(icon: Icons.receipt_long_outlined, title: 'Delete all transactions only', subtitle: 'Remove transaction history only and keep budgets, accounts, and categories.', onTap: () => handleSelection('delete_transactions')),
-            tile(icon: Icons.restart_alt_outlined, title: 'Reset app', subtitle: 'Clear saved data, hide SMSs again, and restore the original app settings.', onTap: () => handleSelection('reset_app')),
+            tile(icon: Icons.upload_file_outlined, title: 'Export (Excel)', onTap: () => handleSelection('export')),
+            tile(icon: Icons.download_outlined, title: 'Import (Excel)', onTap: () => handleSelection('import')),
+            tile(icon: Icons.delete_forever_outlined, title: 'Delete everything', onTap: () => handleSelection('delete_everything')),
+            tile(icon: Icons.receipt_long_outlined, title: 'Delete transactions', onTap: () => handleSelection('delete_transactions')),
+            tile(icon: Icons.restart_alt_outlined, title: 'Reset app', onTap: () => handleSelection('reset_app')),
             const Divider(height: 1, thickness: 1),
             const _MenuSectionHeader('Visuals & SMSs'),
-            tile(icon: Icons.palette_outlined, title: 'Customize visuals', subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}% text size', onTap: () => handleSelection('customize_visuals')),
-            tile(icon: Icons.sms_outlined, title: 'Open SMSs', subtitle: DataStore.isSmsTabVisible ? 'SMS tab is already enabled in the bottom navigation.' : 'Show SMSs in the bottom navigation only when you need it.', onTap: () => handleSelection('open_sms')),
-            const Divider(height: 1, thickness: 1),
-            const _MenuSectionHeader('Account'),
-            tile(icon: Icons.person_outline, title: 'Edit username', subtitle: _username.isEmpty ? 'No username set' : _username, onTap: () => handleSelection('edit_username')),
-            tile(icon: Icons.logout_outlined, title: 'Sign out', subtitle: 'Sign out and return to the login screen.', onTap: () => handleSelection('logout')),
+            tile(icon: Icons.palette_outlined, title: 'Customize visuals', subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}%', onTap: () => handleSelection('customize_visuals')),
+            tile(icon: Icons.sms_outlined, title: 'Open SMSs', subtitle: DataStore.isSmsTabVisible ? 'Already enabled' : 'Add SMS tab', onTap: () => handleSelection('open_sms')),
           ],
         );
       },

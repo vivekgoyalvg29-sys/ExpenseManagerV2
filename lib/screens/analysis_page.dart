@@ -29,6 +29,11 @@ enum TransactionSortOrder {
   oldestFirst,
 }
 
+enum AnalysisSortField {
+  budget,
+  expense,
+}
+
 class AnalysisPage extends StatefulWidget {
   const AnalysisPage({super.key});
 
@@ -40,11 +45,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
   static const _analysisModeKey = 'analysis.mode';
   static const _analysisTypeKey = 'analysis.type';
   static const _analysisSortKey = 'analysis.sort';
+  static const _analysisMainSortKey = 'analysis.mainSort';
   static const _analysisShowPercentageKey = 'analysis.showPercentage';
 
   DateTime currentMonth = DateTime.now();
   AnalysisMode analysisMode = AnalysisMode.selectedMonth;
   AnalysisType analysisType = AnalysisType.category;
+  AnalysisSortField analysisSortField = AnalysisSortField.budget;
   TransactionSortOrder transactionSortOrder = TransactionSortOrder.newestFirst;
   bool showPercentage = true;
 
@@ -62,6 +69,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final prefs = await SharedPreferences.getInstance();
     analysisMode = AnalysisMode.values[prefs.getInt(_analysisModeKey) ?? analysisMode.index];
     analysisType = AnalysisType.values[prefs.getInt(_analysisTypeKey) ?? analysisType.index];
+    analysisSortField = AnalysisSortField.values[
+      prefs.getInt(_analysisMainSortKey) ?? analysisSortField.index
+    ];
     transactionSortOrder = TransactionSortOrder.values[
       prefs.getInt(_analysisSortKey) ?? transactionSortOrder.index
     ];
@@ -75,6 +85,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_analysisModeKey, analysisMode.index);
     await prefs.setInt(_analysisTypeKey, analysisType.index);
+    await prefs.setInt(_analysisMainSortKey, analysisSortField.index);
     await prefs.setInt(_analysisSortKey, transactionSortOrder.index);
     await prefs.setBool(_analysisShowPercentageKey, showPercentage);
   }
@@ -142,8 +153,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
         .toList();
 
     result.sort((a, b) {
-      final amountCompare = ((b['spent'] as num?) ?? 0).compareTo((a['spent'] as num?) ?? 0);
+      final aPrimary = analysisSortField == AnalysisSortField.budget
+          ? (a['budget'] as num?) ?? 0
+          : (a['spent'] as num?) ?? 0;
+      final bPrimary = analysisSortField == AnalysisSortField.budget
+          ? (b['budget'] as num?) ?? 0
+          : (b['spent'] as num?) ?? 0;
+      final amountCompare = bPrimary.compareTo(aPrimary);
       if (amountCompare != 0) return amountCompare;
+
+      final secondaryCompare = ((b['spent'] as num?) ?? 0).compareTo((a['spent'] as num?) ?? 0);
+      if (secondaryCompare != 0) return secondaryCompare;
 
       final bDate = b['latestDate'] as DateTime?;
       final aDate = a['latestDate'] as DateTime?;
@@ -234,6 +254,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
     if (ratio <= 0.5) return const Color(0xFF22C55E);
     if (ratio <= 1) return const Color(0xFFF59E0B);
     return const Color(0xFFEF4444);
+  }
+
+  LinearGradient _progressGradient(double ratio) {
+    final base = _progressColor(ratio);
+    return LinearGradient(
+      colors: [
+        Color.lerp(Colors.white, base, 0.45) ?? base,
+        base,
+      ],
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+    );
   }
 
   Future<void> _applyAnalysisPreferenceChange(VoidCallback updateParent) async {
@@ -339,6 +371,30 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 ),
                 const Divider(height: 1),
                 const _MenuSectionHeader('Sort'),
+                const _MenuSectionHeader('Main analysis'),
+                RadioListTile<AnalysisSortField>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  value: AnalysisSortField.budget,
+                  groupValue: analysisSortField,
+                  title: const Text('Budget'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    applyChanges(() => analysisSortField = value);
+                  },
+                ),
+                RadioListTile<AnalysisSortField>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  value: AnalysisSortField.expense,
+                  groupValue: analysisSortField,
+                  title: const Text('Expense'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    applyChanges(() => analysisSortField = value);
+                  },
+                ),
+                const _MenuSectionHeader('Sub menu'),
                 RadioListTile<TransactionSortOrder>(
                   dense: true,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -710,7 +766,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                 child: Container(
                                                   height: 22,
                                                   decoration: BoxDecoration(
-                                                    color: _progressColor(ratio).withOpacity(0.85),
+                                                    gradient: _progressGradient(ratio),
                                                     borderRadius: BorderRadius.circular(6),
                                                   ),
                                                 ),
@@ -738,19 +794,21 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                             ],
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        SizedBox(
-                                          width: 42,
-                                          child: Text(
-                                            '$budgetRatio%',
-                                            textAlign: TextAlign.right,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: _progressColor(ratio),
+                                        if (showPercentage) ...[
+                                          const SizedBox(width: 8),
+                                          SizedBox(
+                                            width: 42,
+                                            child: Text(
+                                              '$budgetRatio%',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: _progressColor(ratio),
+                                              ),
                                             ),
                                           ),
-                                        ),
+                                        ],
                                       ],
                                     ),
                                   ] else ...[
