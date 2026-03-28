@@ -202,18 +202,22 @@ class _BudgetsPageState extends State<BudgetsPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _BudgetSummaryStat(
-                    label: 'Categories',
-                    value: '${filteredBudgets.length}',
-                    labelStyle: summaryLabelStyle,
-                    valueStyle: summaryValueStyle,
+                  Expanded(
+                    child: _BudgetSummaryStat(
+                      label: 'Categories',
+                      value: '${filteredBudgets.length}',
+                      labelStyle: summaryLabelStyle,
+                      valueStyle: summaryValueStyle,
+                    ),
                   ),
                   Container(width: 1, height: 36, color: const Color(0xFFE3E7EE)),
-                  _BudgetSummaryStat(
-                    label: 'Total Budget',
-                    value: formatIndianCurrency(totalBudget),
-                    labelStyle: summaryLabelStyle,
-                    valueStyle: summaryValueStyle,
+                  Expanded(
+                    child: _BudgetSummaryStat(
+                      label: 'Total Budget',
+                      value: formatIndianCurrency(totalBudget),
+                      labelStyle: summaryLabelStyle,
+                      valueStyle: summaryValueStyle,
+                    ),
                   ),
                 ],
               ),
