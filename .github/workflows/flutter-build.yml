@@ -1,19 +1,29 @@
 name: Build Flutter APK
+
 on:
   push:
-    branches: [ main ]
+    branches: [main]
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0'
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
 
       - name: Generate missing Android files
         run: |
@@ -38,10 +48,7 @@ jobs:
         env:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          flutter build apk --release \
-            --dart-define=KEY_STORE_PASSWORD=$KEY_STORE_PASSWORD \
-            --dart-define=KEY_PASSWORD=$KEY_PASSWORD
+        run: flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v6
