@@ -28,7 +28,7 @@ class MonthSummary extends StatelessWidget {
 
     final labelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w700,
-          color: const Color(0xFF52606D),
+          color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.75),
           fontSize: 12,
         );
 
@@ -52,7 +52,7 @@ class MonthSummary extends StatelessWidget {
               valueStyle: valueStyle?.copyWith(color: Colors.green[700]),
             ),
           ),
-          Container(width: 1, height: 36, color: const Color(0xFFE3E7EE)),
+          Container(width: 1, height: 36, color: Theme.of(context).dividerColor),
           Expanded(
             child: _SummaryMetric(
               label: 'Expense',
@@ -61,7 +61,7 @@ class MonthSummary extends StatelessWidget {
               valueStyle: valueStyle?.copyWith(color: Colors.red[700]),
             ),
           ),
-          Container(width: 1, height: 36, color: const Color(0xFFE3E7EE)),
+          Container(width: 1, height: 36, color: Theme.of(context).dividerColor),
           Expanded(
             child: _SummaryMetric(
               label: 'Remaining',

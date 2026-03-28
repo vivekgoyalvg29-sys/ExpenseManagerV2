@@ -133,7 +133,6 @@ class _FinTrackAppState extends State<FinTrackApp> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
-              backgroundColor: Colors.black,
               body: Center(
                 child: CircularProgressIndicator(color: Colors.green),
               ),
