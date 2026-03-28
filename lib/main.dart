@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'screens/add_transaction_page.dart';
 import 'screens/auth/phone_auth_screen.dart';
@@ -116,6 +117,16 @@ class _FinTrackAppState extends State<FinTrackApp> {
         themeMode: settings.themeMode,
         locale: Locale(settings.localeCode),
         supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        localeResolutionCallback: (locale, supportedLocales) {
+          if (locale == null) return const Locale('en');
+          final match = supportedLocales.where((supported) => supported.languageCode == locale.languageCode);
+          return match.isNotEmpty ? match.first : const Locale('en');
+        },
         builder: (context, child) {
           final mediaQuery = MediaQuery.of(context);
           return VisualSettingsScope(

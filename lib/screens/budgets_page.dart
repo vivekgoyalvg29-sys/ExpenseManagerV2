@@ -181,20 +181,28 @@ class _BudgetsPageState extends State<BudgetsPage> {
               monthTrailing: PopupMenuButton<BudgetSortOrder>(
                 icon: const Icon(Icons.more_vert, size: 20),
                 tooltip: 'Budget options',
+                constraints: const BoxConstraints(minWidth: 120),
+                padding: const EdgeInsets.all(4),
                 onSelected: _onSortSelected,
                 itemBuilder: (_) => [
                   const PopupMenuItem<BudgetSortOrder>(
                     enabled: false,
+                    height: 30,
+                    padding: EdgeInsets.symmetric(horizontal: 12),
                     child: Text('Sort', style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                   CheckedPopupMenuItem<BudgetSortOrder>(
                     value: BudgetSortOrder.amount,
                     checked: sortOrder == BudgetSortOrder.amount,
+                    height: 34,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: const Text('Amount'),
                   ),
                   CheckedPopupMenuItem<BudgetSortOrder>(
                     value: BudgetSortOrder.alphabetical,
                     checked: sortOrder == BudgetSortOrder.alphabetical,
+                    height: 34,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: const Text('Alphabetical'),
                   ),
                 ],
@@ -266,7 +274,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                                 const SizedBox(width: 8),
                                 Text(
                                   '${formatIndianCurrency(amount)} ($percentage%)',
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                                  style: const TextStyle(fontWeight: FontWeight.w400, fontSize: 13.5),
                                 ),
                               ],
                             ),

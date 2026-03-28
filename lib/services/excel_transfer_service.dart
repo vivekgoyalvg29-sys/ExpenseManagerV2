@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -33,15 +35,18 @@ class ExcelTransferService {
   static const String _budgetsSheet = 'Budgets';
   static const String _accountsSheet = 'Accounts';
   static const String _categoriesSheet = 'Categories';
+  static const String _customIconsSheet = 'CustomIcons';
 
   static const List<String> _exportSheetOrder = [
     _recordsSheet,
     _budgetsSheet,
     _accountsSheet,
     _categoriesSheet,
+    _customIconsSheet,
   ];
 
   static const List<String> _importSheetOrder = [
+    _customIconsSheet,
     _categoriesSheet,
     _accountsSheet,
     _budgetsSheet,
@@ -53,6 +58,7 @@ class ExcelTransferService {
     _budgetsSheet: [_budgetsSheet, 'Budget'],
     _accountsSheet: [_accountsSheet],
     _categoriesSheet: [_categoriesSheet, 'Category'],
+    _customIconsSheet: [_customIconsSheet, 'Icons', 'Custom Icon', 'CustomIcons'],
   };
 
   static Future<ExportFileData> buildExportFileData() async {
@@ -154,9 +160,24 @@ class ExcelTransferService {
       ]);
     }
 
+    final customIcons = await _collectCustomIconsPayloads([...accounts, ...categories]);
+    final iconsSheet = excel[_customIconsSheet];
+    iconsSheet.appendRow([
+      TextCellValue('OriginalPath'),
+      TextCellValue('FileName'),
+      TextCellValue('Base64Data'),
+    ]);
+    for (final icon in customIcons) {
+      iconsSheet.appendRow([
+        TextCellValue(icon.originalPath),
+        TextCellValue(icon.fileName),
+        TextCellValue(icon.base64Data),
+      ]);
+    }
+
     final bytes = excel.encode() ?? [];
     return ExportFileData(
-      fileName: 'fintrack_export_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+      fileName: 'AllData.xlsx',
       bytes: bytes,
     );
   }
@@ -188,12 +209,14 @@ class ExcelTransferService {
     final excel = Excel.decodeBytes(bytes);
     final db = await DatabaseService.database;
     final stats = <ImportStat>[];
+    final customIconPathMap = await _importCustomIcons(excel);
 
     final importers = <String, Future<int> Function(Database, Sheet)>{
       _recordsSheet: _importRecords,
       _budgetsSheet: _importBudgets,
-      _accountsSheet: _importAccounts,
-      _categoriesSheet: _importCategories,
+      _accountsSheet: (db, sheet) => _importAccounts(db, sheet, customIconPathMap),
+      _categoriesSheet: (db, sheet) => _importCategories(db, sheet, customIconPathMap),
+      _customIconsSheet: (_, __) async => customIconPathMap.length,
     };
 
     for (final sheetName in _importSheetOrder) {
@@ -279,7 +302,7 @@ class ExcelTransferService {
     return importedRows;
   }
 
-  static Future<int> _importAccounts(Database db, Sheet sheet) async {
+  static Future<int> _importAccounts(Database db, Sheet sheet, Map<String, String> customIconPathMap) async {
     int importedRows = 0;
     for (int i = 1; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
@@ -288,7 +311,7 @@ class ExcelTransferService {
       final name = _asString(_cellValue(row, 1));
       final type = _normalizeType(_asString(_cellValue(row, 2)));
       final icon = _asInt(_cellValue(row, 3)) ?? 0;
-      final iconPath = _asString(_cellValue(row, 4));
+      final iconPath = _resolveImportedIconPath(_asString(_cellValue(row, 4)), customIconPathMap);
       if (name.isEmpty) continue;
       await _upsertLookupRow(db: db, table: 'accounts', id: id, name: name, type: type, icon: icon, iconPath: iconPath);
       importedRows++;
@@ -296,7 +319,7 @@ class ExcelTransferService {
     return importedRows;
   }
 
-  static Future<int> _importCategories(Database db, Sheet sheet) async {
+  static Future<int> _importCategories(Database db, Sheet sheet, Map<String, String> customIconPathMap) async {
     int importedRows = 0;
     for (int i = 1; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
@@ -305,7 +328,7 @@ class ExcelTransferService {
       final name = _asString(_cellValue(row, 1));
       final type = _normalizeType(_asString(_cellValue(row, 2)));
       final icon = _asInt(_cellValue(row, 3)) ?? 0;
-      final iconPath = _asString(_cellValue(row, 4));
+      final iconPath = _resolveImportedIconPath(_asString(_cellValue(row, 4)), customIconPathMap);
       if (name.isEmpty) continue;
       await _upsertLookupRow(db: db, table: 'categories', id: id, name: name, type: type, icon: icon, iconPath: iconPath);
       importedRows++;
@@ -386,4 +409,95 @@ class ExcelTransferService {
     } catch (_) {}
     return getApplicationDocumentsDirectory();
   }
+
+  static String _resolveImportedIconPath(String source, Map<String, String> customIconPathMap) {
+    if (source.isEmpty) return '';
+    final byExactPath = customIconPathMap[source];
+    if (byExactPath != null) return byExactPath;
+    final fileName = p.basename(source);
+    if (fileName.isEmpty) return source;
+    final byFileName = customIconPathMap[fileName];
+    return byFileName ?? source;
+  }
+
+  static Future<List<_CustomIconPayload>> _collectCustomIconsPayloads(List<Map<String, dynamic>> rows) async {
+    final payloads = <_CustomIconPayload>[];
+    final seenPaths = <String>{};
+
+    for (final row in rows) {
+      final iconPath = row['icon_path']?.toString() ?? '';
+      if (iconPath.isEmpty || seenPaths.contains(iconPath)) continue;
+      seenPaths.add(iconPath);
+
+      final file = File(iconPath);
+      if (!await file.exists()) continue;
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) continue;
+      payloads.add(_CustomIconPayload(
+        originalPath: iconPath,
+        fileName: p.basename(iconPath),
+        base64Data: base64Encode(bytes),
+      ));
+    }
+
+    return payloads;
+  }
+
+  static Future<Map<String, String>> _importCustomIcons(Excel excel) async {
+    final sheet = _resolveSheet(excel, _customIconsSheet);
+    if (sheet == null || sheet.rows.length <= 1) return const {};
+
+    final directory = await getApplicationDocumentsDirectory();
+    final iconsDirectory = Directory(p.join(directory.path, 'custom_icons'));
+    if (!await iconsDirectory.exists()) {
+      await iconsDirectory.create(recursive: true);
+    }
+
+    final mapped = <String, String>{};
+
+    for (int i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (_isRowEmpty(row)) continue;
+
+      final originalPath = _asString(_cellValue(row, 0));
+      final fileNameFromSheet = _asString(_cellValue(row, 1));
+      final base64Data = _asString(_cellValue(row, 2));
+      if (base64Data.isEmpty) continue;
+
+      Uint8List iconBytes;
+      try {
+        iconBytes = base64Decode(base64Data);
+      } catch (_) {
+        continue;
+      }
+      if (iconBytes.isEmpty) continue;
+
+      final extension = p.extension(fileNameFromSheet).isEmpty ? '.png' : p.extension(fileNameFromSheet);
+      final baseName = p.basenameWithoutExtension(fileNameFromSheet).trim();
+      final safeBaseName = baseName.isEmpty ? 'imported_icon' : baseName;
+      final storedPath = p.join(
+        iconsDirectory.path,
+        '${safeBaseName}_${DateTime.now().microsecondsSinceEpoch}$extension',
+      );
+
+      final output = File(storedPath);
+      await output.writeAsBytes(iconBytes, flush: true);
+      mapped[originalPath] = storedPath;
+      mapped[fileNameFromSheet] = storedPath;
+    }
+
+    return mapped;
+  }
+}
+
+class _CustomIconPayload {
+  final String originalPath;
+  final String fileName;
+  final String base64Data;
+
+  _CustomIconPayload({
+    required this.originalPath,
+    required this.fileName,
+    required this.base64Data,
+  });
 }
