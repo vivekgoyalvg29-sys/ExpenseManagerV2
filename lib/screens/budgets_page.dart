@@ -234,8 +234,9 @@ class _BudgetsPageState extends State<BudgetsPage> {
                           final category = _categoryDetails(budget['category'] as String);
 
                           return ListTile(
+                            visualDensity: VisualDensity.compact,
                             minVerticalPadding: 6,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                             leading: selectionMode
                                 ? Checkbox(
                                     value: selectedIndexes.contains(index),

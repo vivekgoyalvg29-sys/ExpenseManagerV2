@@ -417,7 +417,8 @@ class _HomeScreenState extends State<HomeScreen> {
           required VoidCallback onTap,
         }) {
           return ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
             leading: Icon(icon),
             title: Text(title),
             subtitle: subtitle == null ? null : Text(subtitle),
@@ -434,7 +435,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return ListView(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
               child: Row(
                 children: [
                   Expanded(
@@ -531,7 +532,7 @@ class _MenuSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 2),
       child: Text(
         title,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700, color: const Color(0xFF52606D)),
