@@ -152,7 +152,7 @@ class _SmsPageState extends State<SmsPage> {
     final allCollapsed = monthKeys.isNotEmpty && _collapsedMonths.length == monthKeys.length;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFF3F5F9),
       floatingActionButton: _selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,

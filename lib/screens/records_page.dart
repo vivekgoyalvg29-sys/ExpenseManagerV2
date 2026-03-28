@@ -617,7 +617,7 @@ class _RecordsPageState extends State<RecordsPage> {
     }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFF3F5F9),
       floatingActionButton: selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
