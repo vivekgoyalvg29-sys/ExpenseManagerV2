@@ -30,6 +30,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   String transactionType = 'expense';
   String? selectedAccount;
   String? selectedCategory;
+  List<String> _existingComments = [];
+  List<String> _matchingComments = [];
+  bool _showCommentSuggestions = false;
 
   @override
   void initState() {
@@ -58,16 +61,50 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     final categories = await DatabaseService.getCategories();
     final favoriteAccount = await DatabaseService.getFavoriteAccountName(transactionType);
     final favoriteCategory = await DatabaseService.getFavoriteCategoryName(transactionType);
+    final existingComments = await DatabaseService.getExistingComments();
 
     if (!mounted) return;
 
     setState(() {
       DataStore.accounts = accounts;
       DataStore.categories = categories;
+      _existingComments = existingComments;
       if (widget.existingTransaction == null) {
         selectedAccount = favoriteAccount;
         selectedCategory = favoriteCategory;
       }
+    });
+  }
+
+  void _onCommentChanged(String value) {
+    final query = value.trim().toLowerCase();
+
+    if (query.length < 2) {
+      setState(() {
+        _matchingComments = [];
+        _showCommentSuggestions = false;
+      });
+      return;
+    }
+
+    final matches = _existingComments
+        .where((comment) => comment.toLowerCase().contains(query))
+        .toList();
+
+    setState(() {
+      _matchingComments = matches;
+      _showCommentSuggestions = matches.isNotEmpty;
+    });
+  }
+
+  void _selectCommentSuggestion(String comment) {
+    commentController.text = comment;
+    commentController.selection = TextSelection.fromPosition(
+      TextPosition(offset: comment.length),
+    );
+    setState(() {
+      _showCommentSuggestions = false;
+      _matchingComments = [];
     });
   }
 
@@ -271,11 +308,40 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
             textInputAction: TextInputAction.done,
             minLines: 1,
             maxLines: 3,
+            onChanged: _onCommentChanged,
             decoration: InputDecoration(
               labelText: context.tr('Comments'),
               alignLabelWithHint: true,
             ),
           ),
+          if (_showCommentSuggestions) ...[
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxHeight: 180),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.black12),
+              ),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _matchingComments.length,
+                itemBuilder: (context, index) {
+                  final comment = _matchingComments[index];
+                  return ListTile(
+                    dense: true,
+                    title: Text(
+                      comment,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => _selectCommentSuggestion(comment),
+                  );
+                },
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           TextField(
             controller: amountController,

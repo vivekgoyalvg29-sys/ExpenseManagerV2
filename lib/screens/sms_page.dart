@@ -242,10 +242,11 @@ class _SmsPageState extends State<SmsPage> {
                                 'All months',
                                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                               ),
-                              TextButton(
+                              IconButton(
                                 onPressed: () => _toggleAllMonths(monthKeys),
-                                child: Text(
-                                  allCollapsed ? 'Expand all months' : 'Collapse all months',
+                                tooltip: allCollapsed ? 'Expand all months' : 'Collapse all months',
+                                icon: Icon(
+                                  allCollapsed ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
                                 ),
                               ),
                             ],
@@ -300,9 +301,12 @@ class _SmsPageState extends State<SmsPage> {
                   ),
                 ],
               ),
-              TextButton(
+              IconButton(
                 onPressed: () => _toggleMonth(key),
-                child: Text(isCollapsed ? 'Expand month' : 'Collapse month'),
+                tooltip: isCollapsed ? 'Expand month' : 'Collapse month',
+                icon: Icon(
+                  isCollapsed ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
+                ),
               ),
             ],
           ),

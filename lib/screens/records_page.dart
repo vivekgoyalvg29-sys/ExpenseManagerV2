@@ -660,7 +660,7 @@ class _RecordsPageState extends State<RecordsPage> {
                   child: const Icon(Icons.add),
                   onPressed: () async {
                     final result = await showDialog<Map<String, dynamic>>(
-                      context,
+                      context: context,
                       builder: (_) => const AddTransactionPage(),
                     );
 
@@ -805,7 +805,7 @@ class _RecordsPageState extends State<RecordsPage> {
                                   }
 
                                   final result = await showDialog<Map<String, dynamic>>(
-                                    context,
+                                    context: context,
                                     builder: (_) => AddTransactionPage(existingTransaction: tx),
                                   );
 

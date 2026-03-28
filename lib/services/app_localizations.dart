@@ -43,6 +43,7 @@ class AppLocalizations {
       'Records': 'रिकॉर्ड्स',
       'Analysis': 'विश्लेषण',
       'Budgets': 'बजट',
+      'Budget': 'बजट',
       'Accounts': 'अकाउंट्स',
       'Categories': 'कैटेगरी',
       'SMSs': 'SMS',
