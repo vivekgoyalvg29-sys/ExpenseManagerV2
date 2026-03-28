@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class VisualSettings {
   static const String _fontKey = 'visual_font_family';
   static const String _fontScaleKey = 'visual_text_scale';
+  static const String _themeModeKey = 'visual_theme_mode';
+  static const String _localeCodeKey = 'visual_locale_code';
 
   static const List<VisualFontOption> fontOptions = [
     VisualFontOption(key: 'default', label: 'Default', fontFamily: null),
@@ -14,13 +16,22 @@ class VisualSettings {
 
   final String fontKey;
   final double textScale;
+  final ThemeMode themeMode;
+  final String localeCode;
 
   const VisualSettings({
     required this.fontKey,
     required this.textScale,
+    required this.themeMode,
+    required this.localeCode,
   });
 
-  static const VisualSettings defaults = VisualSettings(fontKey: 'default', textScale: 1.0);
+  static const VisualSettings defaults = VisualSettings(
+    fontKey: 'default',
+    textScale: 1.0,
+    themeMode: ThemeMode.light,
+    localeCode: 'en',
+  );
 
   String? get fontFamily =>
       fontOptions.firstWhere((option) => option.key == fontKey, orElse: () => fontOptions.first).fontFamily;
@@ -31,10 +42,14 @@ class VisualSettings {
   VisualSettings copyWith({
     String? fontKey,
     double? textScale,
+    ThemeMode? themeMode,
+    String? localeCode,
   }) {
     return VisualSettings(
       fontKey: fontKey ?? this.fontKey,
       textScale: textScale ?? this.textScale,
+      themeMode: themeMode ?? this.themeMode,
+      localeCode: localeCode ?? this.localeCode,
     );
   }
 
@@ -42,14 +57,23 @@ class VisualSettings {
     final prefs = await SharedPreferences.getInstance();
     final storedFont = prefs.getString(_fontKey) ?? defaults.fontKey;
     final storedScale = prefs.getDouble(_fontScaleKey) ?? defaults.textScale;
+    final storedThemeMode = prefs.getString(_themeModeKey) ?? ThemeMode.light.name;
+    final storedLocaleCode = prefs.getString(_localeCodeKey) ?? defaults.localeCode;
 
     final validFont = fontOptions.any((option) => option.key == storedFont)
         ? storedFont
         : defaults.fontKey;
 
+    final validThemeMode = ThemeMode.values.firstWhere(
+      (mode) => mode.name == storedThemeMode,
+      orElse: () => ThemeMode.light,
+    );
+
     return VisualSettings(
       fontKey: validFont,
       textScale: storedScale.clamp(0.85, 1.35),
+      themeMode: validThemeMode,
+      localeCode: storedLocaleCode,
     );
   }
 
@@ -57,6 +81,8 @@ class VisualSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_fontKey, fontKey);
     await prefs.setDouble(_fontScaleKey, textScale);
+    await prefs.setString(_themeModeKey, themeMode.name);
+    await prefs.setString(_localeCodeKey, localeCode);
   }
 }
 
@@ -86,16 +112,18 @@ class VisualSettingsController extends ValueNotifier<VisualSettings> {
 }
 
 class FinTrackTheme {
-  static ThemeData build(VisualSettings settings) {
+  static ThemeData build(VisualSettings settings, {Brightness brightness = Brightness.light}) {
+    final isDark = brightness == Brightness.dark;
     final base = ThemeData(
+      brightness: brightness,
       primarySwatch: Colors.green,
-      scaffoldBackgroundColor: const Color(0xFFF3F5F9),
+      scaffoldBackgroundColor: isDark ? const Color(0xFF101418) : const Color(0xFFF3F5F9),
     );
 
     final scaledTextTheme = base.textTheme.apply(
       fontFamily: settings.fontFamily,
-      bodyColor: const Color(0xFF1F2933),
-      displayColor: const Color(0xFF1F2933),
+      bodyColor: isDark ? const Color(0xFFE6E8EB) : const Color(0xFF1F2933),
+      displayColor: isDark ? const Color(0xFFE6E8EB) : const Color(0xFF1F2933),
     );
 
     return base.copyWith(
@@ -109,7 +137,7 @@ class FinTrackTheme {
       ),
       popupMenuTheme: const PopupMenuThemeData(),
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.black,
+        backgroundColor: isDark ? const Color(0xFF0B0D10) : Colors.black,
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,

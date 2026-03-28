@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../services/app_localizations.dart';
 import '../services/data_store.dart';
 import '../services/database_service.dart';
 
 class AddTransactionPage extends StatefulWidget {
   final Map<String, dynamic>? existingTransaction;
   final Future<void> Function(Map<String, dynamic> result)? onSaveResult;
+  final bool modalStyle;
+
   const AddTransactionPage({
     super.key,
     this.existingTransaction,
     this.onSaveResult,
+    this.modalStyle = true,
   });
 
   @override
-  _AddTransactionPageState createState() => _AddTransactionPageState();
+  State<AddTransactionPage> createState() => _AddTransactionPageState();
 }
 
 class _AddTransactionPageState extends State<AddTransactionPage> {
@@ -52,10 +56,18 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   Future<void> _loadData() async {
     final accounts = await DatabaseService.getAccounts();
     final categories = await DatabaseService.getCategories();
+    final favoriteAccount = await DatabaseService.getFavoriteAccountName(transactionType);
+    final favoriteCategory = await DatabaseService.getFavoriteCategoryName(transactionType);
+
+    if (!mounted) return;
 
     setState(() {
       DataStore.accounts = accounts;
       DataStore.categories = categories;
+      if (widget.existingTransaction == null) {
+        selectedAccount = favoriteAccount;
+        selectedCategory = favoriteCategory;
+      }
     });
   }
 
@@ -99,104 +111,237 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     Navigator.pop(context, result);
   }
 
+  Future<void> _openSelector({required bool isAccount}) async {
+    final entries = (isAccount ? DataStore.accounts : DataStore.categories)
+        .where((item) => item['type'] == transactionType)
+        .toList();
+
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 4, 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          isAccount ? 'Select Account' : 'Select Category',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () async {
+                          final created = await _showQuickCreateDialog(isAccount: isAccount);
+                          if (!mounted) return;
+                          if (created == null) return;
+                          Navigator.pop(dialogContext, created);
+                        },
+                        icon: const Icon(Icons.add),
+                        tooltip: isAccount ? 'Add account' : 'Add category',
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                SizedBox(
+                  height: 220,
+                  child: entries.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No items yet. Tap + to add.',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: entries.length,
+                          itemBuilder: (context, index) {
+                            final item = entries[index];
+                            return ListTile(
+                              title: Text(item['name'].toString()),
+                              onTap: () => Navigator.pop(dialogContext, item['name'].toString()),
+                            );
+                          },
+                        ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Close'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected == null) return;
+    setState(() {
+      if (isAccount) {
+        selectedAccount = selected;
+      } else {
+        selectedCategory = selected;
+      }
+    });
+  }
+
+  Future<String?> _showQuickCreateDialog({required bool isAccount}) async {
+    final nameController = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isAccount ? 'Create Account' : 'Create Category'),
+        content: TextField(
+          controller: nameController,
+          autofocus: true,
+          decoration: InputDecoration(labelText: isAccount ? 'Account Name' : 'Category Name'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () async {
+              final trimmed = nameController.text.trim();
+              if (trimmed.isEmpty) return;
+              if (isAccount) {
+                await DatabaseService.insertAccount(trimmed, transactionType, Icons.account_balance_wallet.codePoint);
+              } else {
+                await DatabaseService.insertCategory(trimmed, transactionType, Icons.category.codePoint);
+              }
+              if (!context.mounted) return;
+              Navigator.pop(context, trimmed);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    nameController.dispose();
+    await _loadData();
+    return result;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final filteredAccounts = DataStore.accounts.where((acc) => acc['type'] == transactionType).toList();
+    final tr = AppLocalizationsScope.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.existingTransaction == null ? 'Add Transaction' : 'Edit Transaction'),
+    final content = SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DropdownButtonFormField<String>(
+            value: transactionType,
+            items: [
+              DropdownMenuItem(child: Text(context.tr('Expense')), value: 'expense'),
+              DropdownMenuItem(child: Text(context.tr('Income')), value: 'income'),
+            ],
+            onChanged: (v) async {
+              setState(() {
+                transactionType = v!;
+                selectedCategory = null;
+                selectedAccount = null;
+              });
+              await _loadData();
+            },
+            decoration: InputDecoration(labelText: context.tr('Type')),
+          ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: () => _openSelector(isAccount: true),
+            child: InputDecorator(
+              decoration: InputDecoration(labelText: context.tr('Account')),
+              child: Text(selectedAccount ?? 'Tap to choose'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: () => _openSelector(isAccount: false),
+            child: InputDecorator(
+              decoration: InputDecoration(labelText: context.tr('Category')),
+              child: Text(selectedCategory ?? 'Tap to choose'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: commentController,
+            textInputAction: TextInputAction.done,
+            minLines: 1,
+            maxLines: 3,
+            decoration: InputDecoration(
+              labelText: context.tr('Comments'),
+              alignLabelWithHint: true,
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: amountController,
+            decoration: InputDecoration(labelText: context.tr('Amount')),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          ),
+          const SizedBox(height: 14),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(context.tr('Date')),
+            subtitle: Text(DateFormat('dd MMM yyyy').format(selectedDate)),
+            trailing: const Icon(Icons.calendar_today),
+            onTap: pickDate,
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _save,
+              child: Text(context.tr('Save')),
+            ),
+          ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: SingleChildScrollView(
+    );
+
+    if (!widget.modalStyle) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.existingTransaction == null
+                ? tr.t('Add Transaction')
+                : tr.t('Edit Transaction'),
+          ),
+        ),
+        body: Padding(padding: const EdgeInsets.all(16), child: content),
+      );
+    }
+
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              DropdownButtonFormField<String>(
-                value: transactionType,
-                items: const [
-                  DropdownMenuItem(child: Text('Expense'), value: 'expense'),
-                  DropdownMenuItem(child: Text('Income'), value: 'income'),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.existingTransaction == null
+                          ? tr.t('Add Transaction')
+                          : tr.t('Edit Transaction'),
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, size: 18),
+                    tooltip: 'Close',
+                  ),
                 ],
-                onChanged: (v) {
-                  setState(() {
-                    transactionType = v!;
-                    selectedCategory = null;
-                    selectedAccount = null;
-                  });
-                },
-                decoration: const InputDecoration(labelText: 'Type'),
               ),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: selectedAccount,
-                items: filteredAccounts
-                    .map(
-                      (acc) => DropdownMenuItem<String>(
-                        value: acc['name'],
-                        child: Text(acc['name']),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedAccount = value;
-                  });
-                },
-                decoration: const InputDecoration(labelText: 'Account'),
-              ),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: selectedCategory,
-                items: DataStore.categories
-                    .where((cat) => cat['type'] == transactionType)
-                    .map(
-                      (cat) => DropdownMenuItem<String>(
-                        value: cat['name'],
-                        child: Text(cat['name']),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedCategory = value;
-                  });
-                },
-                decoration: const InputDecoration(labelText: 'Category'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: commentController,
-                textInputAction: TextInputAction.done,
-                minLines: 1,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Comments',
-                  alignLabelWithHint: true,
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: amountController,
-                decoration: const InputDecoration(labelText: 'Amount'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              ),
-              const SizedBox(height: 20),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Date'),
-                subtitle: Text(DateFormat('dd MMM yyyy').format(selectedDate)),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: pickDate,
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _save,
-                  child: const Text('Save'),
-                ),
-              ),
+              content,
             ],
           ),
         ),
