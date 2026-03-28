@@ -335,7 +335,7 @@ class _CategorySection extends StatelessWidget {
                 ),
           title: Text(
             cat['name'] ?? '',
-            style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w500),
+            style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w400),
           ),
           trailing: IconButton(
             tooltip: 'Favorite',

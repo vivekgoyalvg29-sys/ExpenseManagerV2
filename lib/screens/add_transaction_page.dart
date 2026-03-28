@@ -265,6 +265,11 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   @override
   Widget build(BuildContext context) {
     final tr = AppLocalizationsScope.of(context);
+    final theme = Theme.of(context);
+    final largerFieldLabelStyle = theme.textTheme.titleSmall;
+    final helperTextStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurface.withOpacity(0.4),
+    );
 
     final content = SingleChildScrollView(
       child: Column(
@@ -284,22 +289,37 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               });
               await _loadData();
             },
-            decoration: InputDecoration(labelText: context.tr('Type')),
+            decoration: InputDecoration(
+              labelText: context.tr('Type'),
+              labelStyle: largerFieldLabelStyle,
+            ),
           ),
           const SizedBox(height: 10),
           InkWell(
             onTap: () => _openSelector(isAccount: true),
             child: InputDecorator(
-              decoration: InputDecoration(labelText: context.tr('Account')),
-              child: Text(selectedAccount ?? 'Tap to choose'),
+              decoration: InputDecoration(
+                labelText: context.tr('Account'),
+                labelStyle: largerFieldLabelStyle,
+              ),
+              child: Text(
+                selectedAccount ?? 'Tap to choose',
+                style: selectedAccount == null ? helperTextStyle : theme.textTheme.bodyMedium,
+              ),
             ),
           ),
           const SizedBox(height: 10),
           InkWell(
             onTap: () => _openSelector(isAccount: false),
             child: InputDecorator(
-              decoration: InputDecoration(labelText: context.tr('Category')),
-              child: Text(selectedCategory ?? 'Tap to choose'),
+              decoration: InputDecoration(
+                labelText: context.tr('Category'),
+                labelStyle: largerFieldLabelStyle,
+              ),
+              child: Text(
+                selectedCategory ?? 'Tap to choose',
+                style: selectedCategory == null ? helperTextStyle : theme.textTheme.bodyMedium,
+              ),
             ),
           ),
           const SizedBox(height: 10),
@@ -311,6 +331,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
             onChanged: _onCommentChanged,
             decoration: InputDecoration(
               labelText: context.tr('Comments'),
+              labelStyle: largerFieldLabelStyle,
               alignLabelWithHint: true,
             ),
           ),
@@ -345,7 +366,10 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           const SizedBox(height: 10),
           TextField(
             controller: amountController,
-            decoration: InputDecoration(labelText: context.tr('Amount')),
+            decoration: InputDecoration(
+              labelText: context.tr('Amount'),
+              labelStyle: largerFieldLabelStyle,
+            ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
           const SizedBox(height: 14),

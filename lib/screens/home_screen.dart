@@ -206,7 +206,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openVisualSettings() async {
     final controller = _visualSettingsController(context);
     final settings = controller.value;
-    String fontKey = settings.fontKey;
+    final hasSelectedFont = VisualSettings.fontOptions.any(
+      (option) => option.key == settings.fontKey,
+    );
+    String fontKey = hasSelectedFont ? settings.fontKey : VisualSettings.defaults.fontKey;
     double textScale = settings.textScale;
 
     await showDialog<void>(
@@ -600,7 +603,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('FinTrack', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                        Text('FinTrack', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
                         Text(_appVersion, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF52606D))),
                         if (displayName.isNotEmpty) ...[
@@ -657,7 +660,14 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: const Color(0xFFF3F5F9),
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () => _openAppMenu(controller.value), tooltip: 'Open menu'),
-        title: const Text('FinTrack', textAlign: TextAlign.center),
+        title: Text(
+          'FinTrack',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+        ),
         actions: [
           IconButton(
             onPressed: _openSearchPopup,
