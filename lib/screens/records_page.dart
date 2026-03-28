@@ -723,7 +723,7 @@ class _RecordsPageState extends State<RecordsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               if (showDateHeader) ...[
-                                if (index > 0) const SizedBox(height: 8),
+                                if (index > 0) const SizedBox(height: 14),
                                 Padding(
                                   padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
                                   child: Text(
@@ -772,7 +772,10 @@ class _RecordsPageState extends State<RecordsPage> {
                                         padding: const EdgeInsets.only(top: 4),
                                         child: Text(
                                           comment,
-                                          style: const TextStyle(fontSize: 13),
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF7C8794),
+                                          ),
                                         ),
                                       ),
                                 trailing: Text(
@@ -828,7 +831,7 @@ class _RecordsPageState extends State<RecordsPage> {
                               if (index < filteredTransactions.length - 1)
                                 const Padding(
                                   padding: EdgeInsets.only(left: 88),
-                                  child: Divider(height: 1),
+                                  child: Divider(height: 1, color: Color(0xFFE6EAF0)),
                                 ),
                             ],
                           );
