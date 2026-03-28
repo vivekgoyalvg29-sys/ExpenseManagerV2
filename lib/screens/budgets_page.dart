@@ -137,10 +137,11 @@ class _BudgetsPageState extends State<BudgetsPage> {
     final totalBudget = filteredBudgets.fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
     final summaryLabelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
           color: const Color(0xFF52606D),
-          fontWeight: FontWeight.w600,
-        );
-    final summaryValueStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.w700,
+          fontSize: 12,
+        );
+    final summaryValueStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold,
           fontSize: 18,
         );
 
@@ -207,7 +208,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                     labelStyle: summaryLabelStyle,
                     valueStyle: summaryValueStyle,
                   ),
-                  Container(width: 1, height: 40, color: const Color(0xFFE3E7EE)),
+                  Container(width: 1, height: 36, color: const Color(0xFFE3E7EE)),
                   _BudgetSummaryStat(
                     label: 'Total Budget',
                     value: formatIndianCurrency(totalBudget),
@@ -314,14 +315,30 @@ class _BudgetSummaryStat extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: labelStyle, textAlign: TextAlign.center),
-        const SizedBox(height: 6),
         Text(
-          value,
-          style: valueStyle,
+          label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          style: labelStyle,
           textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return SizedBox(
+              width: constraints.maxWidth,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  style: valueStyle?.copyWith(fontSize: 16.5),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
