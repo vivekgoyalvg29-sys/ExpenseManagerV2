@@ -5,12 +5,14 @@ class MonthNavigatorRow extends StatelessWidget {
   final DateTime currentMonth;
   final VoidCallback onPrev;
   final VoidCallback onNext;
+  final Widget? trailing;
 
   const MonthNavigatorRow({
     super.key,
     required this.currentMonth,
     required this.onPrev,
     required this.onNext,
+    this.trailing,
   });
 
   @override
@@ -38,6 +40,10 @@ class MonthNavigatorRow extends StatelessWidget {
           padding: EdgeInsets.zero,
           visualDensity: VisualDensity.compact,
         ),
+        if (trailing != null) ...[
+          const SizedBox(width: 4),
+          trailing!,
+        ],
       ],
     );
   }

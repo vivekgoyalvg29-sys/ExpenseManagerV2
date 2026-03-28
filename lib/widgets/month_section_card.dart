@@ -8,6 +8,7 @@ class MonthSectionCard extends StatelessWidget {
   final VoidCallback onPrev;
   final VoidCallback onNext;
   final Widget child;
+  final Widget? monthTrailing;
 
   const MonthSectionCard({
     super.key,
@@ -15,6 +16,7 @@ class MonthSectionCard extends StatelessWidget {
     required this.onPrev,
     required this.onNext,
     required this.child,
+    this.monthTrailing,
   });
 
   @override
@@ -29,6 +31,7 @@ class MonthSectionCard extends StatelessWidget {
               currentMonth: currentMonth,
               onPrev: onPrev,
               onNext: onNext,
+              trailing: monthTrailing,
             ),
             const SizedBox(height: 8),
             child,

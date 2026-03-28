@@ -115,10 +115,24 @@ class _RecordsPageState extends State<RecordsPage> {
 
       if (!mounted || qrPayload == null || qrPayload.trim().isEmpty) return;
 
-      final enteredAmount = await _showQrTransactionDialogAndSave(qrPayload);
-      if (!mounted || enteredAmount == null) return;
+      final draft = await _showQrTransactionDialog();
+      if (!mounted || draft == null) return;
 
-      await _launchPaymentAppFlow(qrPayload, enteredAmount);
+      final launchedPayload = await _launchPaymentAppFlow(qrPayload, draft.amount);
+      if (!mounted || launchedPayload == null) return;
+
+      await DatabaseService.insertTransaction(
+        draft.category,
+        draft.amount,
+        draft.date,
+        'expense',
+        draft.account,
+        draft.comment,
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lastScannedQrKey, launchedPayload);
+      await loadTransactions();
     } finally {
       if (mounted) {
         setState(() => _isProcessingQr = false);
@@ -126,7 +140,7 @@ class _RecordsPageState extends State<RecordsPage> {
     }
   }
 
-  Future<double?> _showQrTransactionDialogAndSave(String qrPayload) async {
+  Future<_QrExpenseDraft?> _showQrTransactionDialog() async {
     String? selectedAccount;
     for (final account in DataStore.accounts) {
       if ((account['type'] ?? '').toString() != 'expense') continue;
@@ -146,7 +160,7 @@ class _RecordsPageState extends State<RecordsPage> {
     DateTime selectedDate = DateTime.now();
     String? validationError;
 
-    final savedAmount = await showDialog<double>(
+    final draft = await showDialog<_QrExpenseDraft>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
@@ -279,20 +293,17 @@ class _RecordsPageState extends State<RecordsPage> {
                                   return;
                                 }
 
-                                await DatabaseService.insertTransaction(
-                                  selectedCategory!,
-                                  amount,
-                                  selectedDate,
-                                  'expense',
-                                  selectedAccount!,
-                                  commentController.text.trim(),
-                                );
-
-                                final prefs = await SharedPreferences.getInstance();
-                                await prefs.setString(_lastScannedQrKey, qrPayload.trim());
-
                                 if (!dialogContext.mounted) return;
-                                Navigator.pop(dialogContext, amount);
+                                Navigator.pop(
+                                  dialogContext,
+                                  _QrExpenseDraft(
+                                    account: selectedAccount!,
+                                    category: selectedCategory!,
+                                    amount: amount,
+                                    date: selectedDate,
+                                    comment: commentController.text.trim(),
+                                  ),
+                                );
                               },
                               child: const Text('OK'),
                             ),
@@ -312,32 +323,28 @@ class _RecordsPageState extends State<RecordsPage> {
     amountController.dispose();
     commentController.dispose();
 
-    if (savedAmount != null) {
-      await loadTransactions();
-      return savedAmount;
-    }
-    return null;
+    return draft;
   }
 
-  Future<void> _launchPaymentAppFlow(String qrPayload, double enteredAmount) async {
+  Future<String?> _launchPaymentAppFlow(String qrPayload, double enteredAmount) async {
     final payload = qrPayload.trim();
-    if (payload.isEmpty) return;
+    if (payload.isEmpty) return null;
     final payloadWithAmount = _buildPaymentPayload(payload, enteredAmount);
 
     final prefs = await SharedPreferences.getInstance();
     final storedDefault = prefs.getString(_defaultPaymentPackageKey);
 
     final smartApps = await _getSmartPaymentApps();
-    if (!mounted) return;
+    if (!mounted) return null;
 
     final packageToLaunch = await _showPaymentAppPicker(
       smartApps: smartApps,
       defaultPackage: storedDefault,
     );
-    if (!mounted || packageToLaunch == null) return;
+    if (!mounted || packageToLaunch == null) return null;
 
     final launched = await _launchQrInApp(packageToLaunch, payloadWithAmount);
-    if (!mounted) return;
+    if (!mounted) return null;
 
     if (!launched) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -345,11 +352,11 @@ class _RecordsPageState extends State<RecordsPage> {
           content: Text('Selected app cannot open this QR payload. Please choose another app.'),
         ),
       );
-      return;
+      return null;
     }
 
     await prefs.setString(_defaultPaymentPackageKey, packageToLaunch);
-    await prefs.setString(_lastScannedQrKey, payloadWithAmount);
+    return payloadWithAmount;
   }
 
   Future<List<AppInfo>> _getSmartPaymentApps() async {
@@ -827,6 +834,22 @@ class _RecordsPageState extends State<RecordsPage> {
       ),
     );
   }
+}
+
+class _QrExpenseDraft {
+  final String account;
+  final String category;
+  final double amount;
+  final DateTime date;
+  final String comment;
+
+  const _QrExpenseDraft({
+    required this.account,
+    required this.category,
+    required this.amount,
+    required this.date,
+    required this.comment,
+  });
 }
 
 class _QrScanPage extends StatefulWidget {
