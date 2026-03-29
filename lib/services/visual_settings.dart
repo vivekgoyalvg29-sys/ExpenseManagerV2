@@ -6,6 +6,7 @@ class VisualSettings {
   static const String _fontScaleKey = 'visual_text_scale';
   static const String _themeModeKey = 'visual_theme_mode';
   static const String _localeCodeKey = 'visual_locale_code';
+  static const String _comparisonModeKey = 'visual_comparison_mode';
 
   static const List<VisualFontOption> fontOptions = [
     VisualFontOption(key: 'default', label: 'Default', fontFamily: null),
@@ -18,12 +19,14 @@ class VisualSettings {
   final double textScale;
   final ThemeMode themeMode;
   final String localeCode;
+  final ComparisonMode comparisonMode;
 
   const VisualSettings({
     required this.fontKey,
     required this.textScale,
     required this.themeMode,
     required this.localeCode,
+    required this.comparisonMode,
   });
 
   static const VisualSettings defaults = VisualSettings(
@@ -31,6 +34,7 @@ class VisualSettings {
     textScale: 1.0,
     themeMode: ThemeMode.light,
     localeCode: 'en',
+    comparisonMode: ComparisonMode.budgetVsExpense,
   );
 
   String? get fontFamily =>
@@ -44,12 +48,14 @@ class VisualSettings {
     double? textScale,
     ThemeMode? themeMode,
     String? localeCode,
+    ComparisonMode? comparisonMode,
   }) {
     return VisualSettings(
       fontKey: fontKey ?? this.fontKey,
       textScale: textScale ?? this.textScale,
       themeMode: themeMode ?? this.themeMode,
       localeCode: localeCode ?? this.localeCode,
+      comparisonMode: comparisonMode ?? this.comparisonMode,
     );
   }
 
@@ -59,6 +65,7 @@ class VisualSettings {
     final storedScale = prefs.getDouble(_fontScaleKey) ?? defaults.textScale;
     final storedThemeMode = prefs.getString(_themeModeKey) ?? ThemeMode.light.name;
     final storedLocaleCode = prefs.getString(_localeCodeKey) ?? defaults.localeCode;
+    final storedComparisonMode = prefs.getString(_comparisonModeKey) ?? defaults.comparisonMode.name;
 
     final validFont = fontOptions.any((option) => option.key == storedFont)
         ? storedFont
@@ -68,12 +75,17 @@ class VisualSettings {
       (mode) => mode.name == storedThemeMode,
       orElse: () => ThemeMode.light,
     );
+    final validComparisonMode = ComparisonMode.values.firstWhere(
+      (mode) => mode.name == storedComparisonMode,
+      orElse: () => ComparisonMode.budgetVsExpense,
+    );
 
     return VisualSettings(
       fontKey: validFont,
       textScale: storedScale.clamp(0.85, 1.35),
       themeMode: validThemeMode,
       localeCode: storedLocaleCode,
+      comparisonMode: validComparisonMode,
     );
   }
 
@@ -83,7 +95,13 @@ class VisualSettings {
     await prefs.setDouble(_fontScaleKey, textScale);
     await prefs.setString(_themeModeKey, themeMode.name);
     await prefs.setString(_localeCodeKey, localeCode);
+    await prefs.setString(_comparisonModeKey, comparisonMode.name);
   }
+}
+
+enum ComparisonMode {
+  budgetVsExpense,
+  incomeVsExpense,
 }
 
 class VisualFontOption {

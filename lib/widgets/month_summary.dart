@@ -10,6 +10,9 @@ class MonthSummary extends StatelessWidget {
   final double expense;
   final Widget? trailing;
   final Widget? monthTrailing;
+  final String leftLabel;
+  final String middleLabel;
+  final String rightLabel;
 
   const MonthSummary({
     super.key,
@@ -20,6 +23,9 @@ class MonthSummary extends StatelessWidget {
     required this.expense,
     this.trailing,
     this.monthTrailing,
+    this.leftLabel = 'Budget',
+    this.middleLabel = 'Expense',
+    this.rightLabel = 'Remaining',
   });
 
   @override
@@ -46,7 +52,7 @@ class MonthSummary extends StatelessWidget {
         children: [
           Expanded(
             child: _SummaryMetric(
-              label: 'Budget',
+              label: leftLabel,
               value: formatIndianCurrency(budget),
               labelStyle: labelStyle,
               valueStyle: valueStyle?.copyWith(color: Colors.green[700]),
@@ -55,7 +61,7 @@ class MonthSummary extends StatelessWidget {
           Container(width: 1, height: 36, color: Theme.of(context).dividerColor),
           Expanded(
             child: _SummaryMetric(
-              label: 'Expense',
+              label: middleLabel,
               value: formatIndianCurrency(expense),
               labelStyle: labelStyle,
               valueStyle: valueStyle?.copyWith(color: Colors.red[700]),
@@ -64,7 +70,7 @@ class MonthSummary extends StatelessWidget {
           Container(width: 1, height: 36, color: Theme.of(context).dividerColor),
           Expanded(
             child: _SummaryMetric(
-              label: 'Remaining',
+              label: rightLabel,
               value: formatIndianCurrency(remaining),
               labelStyle: labelStyle,
               valueStyle: valueStyle?.copyWith(

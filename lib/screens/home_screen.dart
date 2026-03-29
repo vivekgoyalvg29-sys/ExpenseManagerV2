@@ -356,6 +356,51 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _openComparisonModeSettings() async {
+    final controller = _visualSettingsController(context);
+    ComparisonMode mode = controller.value.comparisonMode;
+    final applied = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Comparison mode'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<ComparisonMode>(
+                value: ComparisonMode.budgetVsExpense,
+                groupValue: mode,
+                title: const Text('Budget vs Expense'),
+                onChanged: (changed) {
+                  if (changed == null) return;
+                  setState(() => mode = changed);
+                },
+              ),
+              RadioListTile<ComparisonMode>(
+                value: ComparisonMode.incomeVsExpense,
+                groupValue: mode,
+                title: const Text('Income vs Expense'),
+                onChanged: (changed) {
+                  if (changed == null) return;
+                  setState(() => mode = changed);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Apply')),
+          ],
+        ),
+      ),
+    );
+    if (applied == true) {
+      await controller.updateSettings(controller.value.copyWith(comparisonMode: mode));
+      if (!mounted) return;
+      setState(() => _refreshVersion++);
+    }
+  }
+
   Future<void> _openSearchPopup() async {
     final tx = await DatabaseService.getTransactions();
     if (!mounted) return;
@@ -540,6 +585,9 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'language':
         await _openLanguageSettings();
         return;
+      case 'comparison_mode':
+        await _openComparisonModeSettings();
+        return;
       case 'open_sms':
         await _showSmsTab();
         return;
@@ -659,6 +707,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 tile(icon: Icons.dark_mode_outlined, title: 'Theme', subtitle: settings.themeMode.name, onTap: () => handleSelection('theme')),
                 tile(icon: Icons.font_download_outlined, title: 'Font', subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}%', onTap: () => handleSelection('customize_visuals')),
                 tile(icon: Icons.language_outlined, title: 'Language', subtitle: AppLocalizations.languageLabels[settings.localeCode] ?? 'English', onTap: () => handleSelection('language')),
+                tile(
+                  icon: Icons.compare_arrows_outlined,
+                  title: 'Comparison mode',
+                  subtitle: settings.comparisonMode == ComparisonMode.budgetVsExpense
+                      ? 'Budget vs Expense'
+                      : 'Income vs Expense',
+                  onTap: () => handleSelection('comparison_mode'),
+                ),
               ],
             ),
             tile(icon: Icons.sms_outlined, title: 'Open SMSs', subtitle: DataStore.isSmsTabVisible ? 'Already enabled' : 'Add SMS tab', onTap: () => handleSelection('open_sms')),
