@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/data_store.dart';
 import '../services/database_service.dart';
+import '../services/visual_settings.dart';
 import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
@@ -118,12 +119,8 @@ class _RecordsPageState extends State<RecordsPage> {
       );
 
       if (!mounted || qrPayload == null || qrPayload.trim().isEmpty) return;
-      final qrAmount = _extractUpiAmount(qrPayload);
 
-      final draft = await _showQrTransactionDialog(
-        prefilledAmount: qrAmount,
-        lockAmountField: qrAmount != null,
-      );
+      final draft = await _showQrTransactionDialog();
       if (!mounted || draft == null) return;
 
       final launchedPayload = await _launchPaymentAppFlow(qrPayload, draft.amount);
@@ -148,10 +145,7 @@ class _RecordsPageState extends State<RecordsPage> {
     }
   }
 
-  Future<_QrExpenseDraft?> _showQrTransactionDialog({
-    double? prefilledAmount,
-    bool lockAmountField = false,
-  }) async {
+  Future<_QrExpenseDraft?> _showQrTransactionDialog() async {
     String? selectedAccount;
     for (final account in DataStore.accounts) {
       if ((account['type'] ?? '').toString() != 'expense') continue;
@@ -166,9 +160,7 @@ class _RecordsPageState extends State<RecordsPage> {
       if (selectedCategory != null && selectedCategory!.isNotEmpty) break;
     }
 
-    final amountController = TextEditingController(
-      text: prefilledAmount != null ? prefilledAmount.toStringAsFixed(2) : '',
-    );
+    final amountController = TextEditingController();
     final commentController = TextEditingController();
     DateTime selectedDate = DateTime.now();
     String? validationError;
@@ -253,13 +245,7 @@ class _RecordsPageState extends State<RecordsPage> {
                         TextField(
                           controller: amountController,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          readOnly: lockAmountField,
-                          decoration: InputDecoration(
-                            labelText: 'Amount',
-                            helperText: lockAmountField
-                                ? 'Amount is taken from merchant QR.'
-                                : null,
-                          ),
+                          decoration: const InputDecoration(labelText: 'Amount'),
                         ),
                         const SizedBox(height: 12),
                         ListTile(
@@ -601,24 +587,10 @@ class _RecordsPageState extends State<RecordsPage> {
       return qrPayload;
     }
 
+    final amountValue = amount.toStringAsFixed(2);
     final query = Map<String, String>.from(parsed.queryParameters);
-    final qrAmount = _parsePositiveAmount(query['am']);
-    final amountValue = (qrAmount ?? amount).toStringAsFixed(2);
     query['am'] = amountValue;
     return parsed.replace(queryParameters: query).toString();
-  }
-
-  double? _extractUpiAmount(String qrPayload) {
-    final parsed = Uri.tryParse(qrPayload.trim());
-    if (parsed == null || parsed.scheme.toLowerCase() != 'upi') return null;
-    return _parsePositiveAmount(parsed.queryParameters['am']);
-  }
-
-  double? _parsePositiveAmount(String? value) {
-    if (value == null) return null;
-    final parsed = double.tryParse(value.trim());
-    if (parsed == null || parsed <= 0) return null;
-    return parsed;
   }
 
   Future<bool> _launchQrInApp(String packageName, String qrPayload) async {
@@ -637,13 +609,24 @@ class _RecordsPageState extends State<RecordsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final comparisonMode = VisualSettingsScope.of(context).value.comparisonMode;
     double expense = 0;
+    double income = 0;
 
     for (var tx in filteredTransactions) {
       if (tx["type"] == "expense") {
         expense += (tx["amount"] as num).toDouble();
+      } else if (tx["type"] == "income") {
+        income += (tx["amount"] as num).toDouble();
       }
     }
+
+    final isIncomeMode = comparisonMode == ComparisonMode.incomeVsExpense;
+    final firstLabel = isIncomeMode ? 'Income' : 'Budget';
+    final secondLabel = 'Expense';
+    final thirdLabel = isIncomeMode ? 'Net' : 'Remaining';
+    final firstValue = isIncomeMode ? income : monthBudgetTotal;
+    final thirdValue = isIncomeMode ? (income - expense) : (monthBudgetTotal - expense);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -724,8 +707,12 @@ class _RecordsPageState extends State<RecordsPage> {
                   currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
                 });
               },
-              budget: monthBudgetTotal,
+              budget: firstValue,
               expense: expense,
+              budgetLabel: firstLabel,
+              expenseLabel: secondLabel,
+              remainingLabel: thirdLabel,
+              remainingOverride: thirdValue,
             ),
             Expanded(
               child: SectionTile(
