@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/data_store.dart';
 import '../services/database_service.dart';
+import '../services/visual_settings.dart';
 import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
@@ -638,12 +639,20 @@ class _RecordsPageState extends State<RecordsPage> {
   @override
   Widget build(BuildContext context) {
     double expense = 0;
+    double income = 0;
 
     for (var tx in filteredTransactions) {
       if (tx["type"] == "expense") {
         expense += (tx["amount"] as num).toDouble();
+      } else if (tx["type"] == "income") {
+        income += (tx["amount"] as num).toDouble();
       }
     }
+
+    final comparisonMode = VisualSettingsScope.of(context).value.comparisonMode;
+    final isIncomeVsExpense = comparisonMode == ComparisonMode.incomeVsExpense;
+    final leftValue = isIncomeVsExpense ? income : monthBudgetTotal;
+    final middleValue = expense;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -724,8 +733,11 @@ class _RecordsPageState extends State<RecordsPage> {
                   currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
                 });
               },
-              budget: monthBudgetTotal,
-              expense: expense,
+              budget: leftValue,
+              expense: middleValue,
+              leftLabel: isIncomeVsExpense ? 'Income' : 'Budget',
+              middleLabel: 'Expense',
+              rightLabel: isIncomeVsExpense ? 'Net' : 'Remaining',
             ),
             Expanded(
               child: SectionTile(

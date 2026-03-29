@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/data_store.dart';
 import '../services/database_service.dart';
+import '../services/visual_settings.dart';
 import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
@@ -60,6 +61,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
   List<Map<String, dynamic>> transactions = [];
   List<Map<String, dynamic>> budgets = [];
 
+  ComparisonMode get _comparisonMode => VisualSettingsScope.of(context).value.comparisonMode;
+  bool get _isIncomeVsExpense => _comparisonMode == ComparisonMode.incomeVsExpense;
+
   @override
   void initState() {
     super.initState();
@@ -102,13 +106,19 @@ class _AnalysisPageState extends State<AnalysisPage> {
     DataStore.categories = categories;
     DataStore.accounts = accounts;
 
-    final filteredExpenses = _filteredExpenseTransactions();
+    final filteredExpenses = _filteredTransactionsOfType('expense');
+    final filteredIncome = _filteredTransactionsOfType('income');
     final totalExpense = filteredExpenses.fold<double>(
       0.0,
       (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
     );
+    final totalIncome = filteredIncome.fold<double>(
+      0.0,
+      (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
+    );
 
-    final groupedSpent = <String, double>{};
+    final groupedExpense = <String, double>{};
+    final groupedIncome = <String, double>{};
     final latestDates = <String, DateTime>{};
 
     for (final transaction in filteredExpenses) {
@@ -117,7 +127,21 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
       final amount = (transaction['amount'] as num).toDouble();
       final date = DateTime.parse(transaction['date'] as String);
-      groupedSpent[key] = (groupedSpent[key] ?? 0) + amount;
+      groupedExpense[key] = (groupedExpense[key] ?? 0) + amount;
+
+      final previousLatest = latestDates[key];
+      if (previousLatest == null || date.isAfter(previousLatest)) {
+        latestDates[key] = date;
+      }
+    }
+
+    for (final transaction in filteredIncome) {
+      final key = _analysisKeyForTransaction(transaction);
+      if (key.isEmpty) continue;
+
+      final amount = (transaction['amount'] as num).toDouble();
+      final date = DateTime.parse(transaction['date'] as String);
+      groupedIncome[key] = (groupedIncome[key] ?? 0) + amount;
 
       final previousLatest = latestDates[key];
       if (previousLatest == null || date.isAfter(previousLatest)) {
@@ -126,7 +150,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     final groupedBudget = <String, double>{};
-    if (analysisType == AnalysisType.category) {
+    if (analysisType == AnalysisType.category && !_isIncomeVsExpense) {
       for (final budgetData in budgets) {
         if (_isBudgetInActiveRange(budgetData)) {
           final category = (budgetData['category'] as String?)?.trim() ?? '';
@@ -137,29 +161,43 @@ class _AnalysisPageState extends State<AnalysisPage> {
       }
     }
 
-    final activeKeys = analysisType == AnalysisType.category
-        ? <String>{...groupedBudget.keys, ...groupedSpent.keys}
-        : groupedSpent.keys.toSet();
+    final activeKeys = _isIncomeVsExpense
+        ? <String>{...groupedIncome.keys, ...groupedExpense.keys}
+        : (analysisType == AnalysisType.category
+              ? <String>{...groupedBudget.keys, ...groupedExpense.keys}
+              : groupedExpense.keys.toSet());
 
     final result = activeKeys
         .map(
           (key) => {
             'label': key,
-            'spent': groupedSpent[key] ?? 0.0,
+            'spent': groupedExpense[key] ?? 0.0,
             'budget': groupedBudget[key] ?? 0.0,
-            'percentage': totalExpense == 0 ? 0 : (((groupedSpent[key] ?? 0.0) / totalExpense) * 100).round(),
+            'income': groupedIncome[key] ?? 0.0,
+            'net': (groupedIncome[key] ?? 0.0) - (groupedExpense[key] ?? 0.0),
+            'percentage': _isIncomeVsExpense
+                ? (totalIncome == 0 ? 0 : (((groupedIncome[key] ?? 0.0) / totalIncome) * 100).round())
+                : (totalExpense == 0 ? 0 : (((groupedExpense[key] ?? 0.0) / totalExpense) * 100).round()),
             'latestDate': latestDates[key],
           },
         )
         .toList();
 
     result.sort((a, b) {
-      final aPrimary = analysisSortField == AnalysisSortField.budget
-          ? (a['budget'] as num?) ?? 0
-          : (a['spent'] as num?) ?? 0;
-      final bPrimary = analysisSortField == AnalysisSortField.budget
-          ? (b['budget'] as num?) ?? 0
-          : (b['spent'] as num?) ?? 0;
+      final aPrimary = _isIncomeVsExpense
+          ? (analysisSortField == AnalysisSortField.budget
+                ? (a['income'] as num?) ?? 0
+                : (a['spent'] as num?) ?? 0)
+          : (analysisSortField == AnalysisSortField.budget
+                ? (a['budget'] as num?) ?? 0
+                : (a['spent'] as num?) ?? 0);
+      final bPrimary = _isIncomeVsExpense
+          ? (analysisSortField == AnalysisSortField.budget
+                ? (b['income'] as num?) ?? 0
+                : (b['spent'] as num?) ?? 0)
+          : (analysisSortField == AnalysisSortField.budget
+                ? (b['budget'] as num?) ?? 0
+                : (b['spent'] as num?) ?? 0);
       final amountCompare = bPrimary.compareTo(aPrimary);
       if (amountCompare != 0) return amountCompare;
 
@@ -191,14 +229,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  List<Map<String, dynamic>> _filteredExpenseTransactions() {
+  List<Map<String, dynamic>> _filteredTransactionsOfType(String type) {
     return transactions.where((transaction) {
-      if (transaction['type'] != 'expense') return false;
+      if (transaction['type'] != type) return false;
       final rawDate = transaction['date'];
       if (rawDate == null) return false;
       return _isDateInActiveRange(DateTime.parse(rawDate as String));
     }).toList();
   }
+
+  List<Map<String, dynamic>> _filteredExpenseTransactions() => _filteredTransactionsOfType('expense');
+
+  List<Map<String, dynamic>> _filteredIncomeTransactions() => _filteredTransactionsOfType('income');
 
   String _analysisKeyForTransaction(Map<String, dynamic> transaction) {
     if (analysisType == AnalysisType.account) {
@@ -244,6 +286,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
+  double _activeTotalIncome() {
+    return _filteredIncomeTransactions().fold<double>(
+      0.0,
+      (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
+    );
+  }
+
   double _activeTotalBudget() {
     return budgets.where(_isBudgetInActiveRange).fold<double>(
           0.0,
@@ -252,7 +301,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   List<AggregationBarData> _analysisChartData() {
-    final filtered = _filteredExpenseTransactions();
+    final filtered = _isIncomeVsExpense ? _filteredTransactionsOfType('income') : _filteredExpenseTransactions();
     if (analysisMode == AnalysisMode.selectedMonth) {
       final grouped = <int, double>{};
       for (final transaction in filtered) {
@@ -409,7 +458,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   value: AnalysisSortField.budget,
                   groupValue: analysisSortField,
-                  title: const Text('Budget'),
+                  title: Text(_isIncomeVsExpense ? 'Income' : 'Budget'),
                   onChanged: (value) {
                     if (value == null) return;
                     applyChanges(() => analysisSortField = value);
@@ -487,18 +536,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   String _emptyStateMessage() {
     final label = analysisType == AnalysisType.category ? 'category' : 'account';
+    final dataLabel = _isIncomeVsExpense ? 'income/expense' : 'expense';
     switch (analysisMode) {
       case AnalysisMode.cumulativeToSelectedMonth:
-        return 'No $label expense data up to this month.';
+        return 'No $label $dataLabel data up to this month.';
       case AnalysisMode.cumulativeYear:
-        return 'No $label expense data for this year.';
+        return 'No $label $dataLabel data for this year.';
       case AnalysisMode.selectedMonth:
-        return 'No $label expense data for this month.';
+        return 'No $label $dataLabel data for this month.';
     }
   }
 
   List<Map<String, dynamic>> _transactionsForLabel(String label) {
-    final matching = _filteredExpenseTransactions().where((transaction) {
+    final base = _isIncomeVsExpense
+        ? <Map<String, dynamic>>[
+            ..._filteredIncomeTransactions(),
+            ..._filteredExpenseTransactions(),
+          ]
+        : _filteredExpenseTransactions();
+    final matching = base.where((transaction) {
       return _analysisKeyForTransaction(transaction) == label;
     }).toList();
 
@@ -684,7 +740,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
   @override
   Widget build(BuildContext context) {
     final expense = _activeTotalExpense();
+    final income = _activeTotalIncome();
     final budgetTotal = _activeTotalBudget();
+    final leftValue = _isIncomeVsExpense ? income : budgetTotal;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -705,8 +763,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 });
                 loadAnalysis();
               },
-              budget: budgetTotal,
+              budget: leftValue,
               expense: expense,
+              leftLabel: _isIncomeVsExpense ? 'Income' : 'Budget',
+              middleLabel: 'Expense',
+              rightLabel: _isIncomeVsExpense ? 'Net' : 'Remaining',
               monthTrailing: IconButton(
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
@@ -720,7 +781,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
               child: AggregationBarChart(
                 data: _analysisChartData(),
-                emptyMessage: 'No expense data available for this aggregation.',
+                emptyMessage: _isIncomeVsExpense
+                    ? 'No income data available for this aggregation.'
+                    : 'No expense data available for this aggregation.',
               ),
             ),
             Expanded(
@@ -735,6 +798,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           final label = data['label'] as String;
                           final spent = (data['spent'] as num).toDouble();
                           final budget = (data['budget'] as num).toDouble();
+                          final incomeAmount = (data['income'] as num?)?.toDouble() ?? 0.0;
+                          final netAmount = (data['net'] as num?)?.toDouble() ?? 0.0;
                           final ratio = analysisType == AnalysisType.account
                               ? 0.0
                               : (budget == 0 ? (spent > 0 ? 1.01 : 0.0) : spent / budget);
@@ -784,7 +849,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                   ),
                                   const SizedBox(height: 6),
                                   // Progress bar with overlaid text + % at end
-                                  if (analysisType == AnalysisType.category) ...[
+                                  if (analysisType == AnalysisType.category && !_isIncomeVsExpense) ...[
                                     Row(
                                       children: [
                                         Expanded(
@@ -851,13 +916,16 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                       ],
                                     ),
                                   ] else ...[
-                                    // Account view — just show amount
                                     Text(
-                                      formatIndianCurrency(spent),
+                                      _isIncomeVsExpense
+                                          ? 'Income ${formatIndianCurrency(incomeAmount)} • Expense ${formatIndianCurrency(spent)} • Net ${formatIndianCurrency(netAmount)}'
+                                          : formatIndianCurrency(spent),
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.grey[700],
+                                        color: _isIncomeVsExpense
+                                            ? (netAmount >= 0 ? Colors.green[700] : Colors.red[700])
+                                            : Colors.grey[700],
                                       ),
                                     ),
                                   ],
