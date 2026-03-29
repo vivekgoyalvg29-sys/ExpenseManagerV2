@@ -58,7 +58,7 @@ class AggregationBarChart extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: theme.dividerColor),
       ),
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 8),
       child: SizedBox(
         height: chartHeight,
         child: Row(
@@ -102,45 +102,52 @@ class _ChartBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ratio = maxValue == 0 ? 0.0 : (value / maxValue).clamp(0.0, 1.0).toDouble();
-    final height = 28 + (ratio * 116);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        SizedBox(
-          height: 150,
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
-              height: height,
-              constraints: const BoxConstraints(minWidth: 18, maxWidth: 26),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-              alignment: Alignment.center,
-              child: RotatedBox(
-                quarterTurns: 3,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    formatIndianCurrency(value),
-                    maxLines: 1,
-                    overflow: TextOverflow.fade,
-                    softWrap: false,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final availableHeight = constraints.maxHeight;
+              final minBarHeight = availableHeight * 0.18;
+              final maxBarHeight = availableHeight;
+              final height = minBarHeight + ((maxBarHeight - minBarHeight) * ratio);
+
+              return Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  height: height,
+                  constraints: const BoxConstraints(minWidth: 18, maxWidth: 26),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: RotatedBox(
+                    quarterTurns: 3,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        formatIndianCurrency(value),
+                        maxLines: 1,
+                        overflow: TextOverflow.fade,
+                        softWrap: false,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
         const SizedBox(height: 6),
