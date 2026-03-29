@@ -10,6 +10,10 @@ class MonthSummary extends StatelessWidget {
   final double expense;
   final Widget? trailing;
   final Widget? monthTrailing;
+  final String budgetLabel;
+  final String expenseLabel;
+  final String remainingLabel;
+  final double? remainingOverride;
 
   const MonthSummary({
     super.key,
@@ -20,15 +24,19 @@ class MonthSummary extends StatelessWidget {
     required this.expense,
     this.trailing,
     this.monthTrailing,
+    this.budgetLabel = 'Budget',
+    this.expenseLabel = 'Expense',
+    this.remainingLabel = 'Remaining',
+    this.remainingOverride,
   });
 
   @override
   Widget build(BuildContext context) {
-    final remaining = budget - expense;
+    final remaining = remainingOverride ?? (budget - expense);
 
     final labelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w700,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          color: const Color(0xFF52606D),
           fontSize: 12,
         );
 
@@ -46,25 +54,25 @@ class MonthSummary extends StatelessWidget {
         children: [
           Expanded(
             child: _SummaryMetric(
-              label: 'Budget',
+              label: budgetLabel,
               value: formatIndianCurrency(budget),
               labelStyle: labelStyle,
               valueStyle: valueStyle?.copyWith(color: Colors.green[700]),
             ),
           ),
-          Container(width: 1, height: 36, color: Theme.of(context).dividerColor),
+          Container(width: 1, height: 36, color: const Color(0xFFE3E7EE)),
           Expanded(
             child: _SummaryMetric(
-              label: 'Expense',
+              label: expenseLabel,
               value: formatIndianCurrency(expense),
               labelStyle: labelStyle,
               valueStyle: valueStyle?.copyWith(color: Colors.red[700]),
             ),
           ),
-          Container(width: 1, height: 36, color: Theme.of(context).dividerColor),
+          Container(width: 1, height: 36, color: const Color(0xFFE3E7EE)),
           Expanded(
             child: _SummaryMetric(
-              label: 'Remaining',
+              label: remainingLabel,
               value: formatIndianCurrency(remaining),
               labelStyle: labelStyle,
               valueStyle: valueStyle?.copyWith(
