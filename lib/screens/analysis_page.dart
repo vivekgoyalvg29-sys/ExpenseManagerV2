@@ -4,10 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/data_store.dart';
 import '../services/database_service.dart';
+import '../services/visual_settings.dart';
 import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
-import '../widgets/aggregation_bar_chart.dart';
 import '../widgets/month_summary.dart';
 import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
@@ -33,6 +33,8 @@ enum TransactionSortOrder {
 enum AnalysisSortField {
   budget,
   expense,
+  income,
+  net,
 }
 
 class AnalysisPage extends StatefulWidget {
@@ -102,7 +104,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
     DataStore.categories = categories;
     DataStore.accounts = accounts;
 
-    final filteredExpenses = _filteredExpenseTransactions();
+    final isIncomeMode = _isIncomeVsExpenseMode();
+    if (isIncomeMode && analysisSortField == AnalysisSortField.budget) {
+      analysisSortField = AnalysisSortField.expense;
+      await _persistPreferences();
+    } else if (!isIncomeMode &&
+        (analysisSortField == AnalysisSortField.income || analysisSortField == AnalysisSortField.net)) {
+      analysisSortField = AnalysisSortField.budget;
+      await _persistPreferences();
+    }
+    final filteredExpenses = _filteredTransactionsByType('expense');
+    final filteredIncome = _filteredTransactionsByType('income');
     final totalExpense = filteredExpenses.fold<double>(
       0.0,
       (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
@@ -125,6 +137,21 @@ class _AnalysisPageState extends State<AnalysisPage> {
       }
     }
 
+    final groupedIncome = <String, double>{};
+    for (final transaction in filteredIncome) {
+      final key = _analysisKeyForTransaction(transaction);
+      if (key.isEmpty) continue;
+
+      final amount = (transaction['amount'] as num).toDouble();
+      final date = DateTime.parse(transaction['date'] as String);
+      groupedIncome[key] = (groupedIncome[key] ?? 0) + amount;
+
+      final previousLatest = latestDates[key];
+      if (previousLatest == null || date.isAfter(previousLatest)) {
+        latestDates[key] = date;
+      }
+    }
+
     final groupedBudget = <String, double>{};
     if (analysisType == AnalysisType.category) {
       for (final budgetData in budgets) {
@@ -137,15 +164,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
       }
     }
 
-    final activeKeys = analysisType == AnalysisType.category
-        ? <String>{...groupedBudget.keys, ...groupedSpent.keys}
-        : groupedSpent.keys.toSet();
+    final activeKeys = isIncomeMode
+        ? <String>{...groupedIncome.keys, ...groupedSpent.keys}
+        : analysisType == AnalysisType.category
+            ? <String>{...groupedBudget.keys, ...groupedSpent.keys}
+            : groupedSpent.keys.toSet();
 
     final result = activeKeys
         .map(
           (key) => {
             'label': key,
             'spent': groupedSpent[key] ?? 0.0,
+            'income': groupedIncome[key] ?? 0.0,
             'budget': groupedBudget[key] ?? 0.0,
             'percentage': totalExpense == 0 ? 0 : (((groupedSpent[key] ?? 0.0) / totalExpense) * 100).round(),
             'latestDate': latestDates[key],
@@ -154,12 +184,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
         .toList();
 
     result.sort((a, b) {
-      final aPrimary = analysisSortField == AnalysisSortField.budget
-          ? (a['budget'] as num?) ?? 0
-          : (a['spent'] as num?) ?? 0;
-      final bPrimary = analysisSortField == AnalysisSortField.budget
-          ? (b['budget'] as num?) ?? 0
-          : (b['spent'] as num?) ?? 0;
+      final aPrimary = _primarySortValue(a);
+      final bPrimary = _primarySortValue(b);
       final amountCompare = bPrimary.compareTo(aPrimary);
       if (amountCompare != 0) return amountCompare;
 
@@ -191,9 +217,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  List<Map<String, dynamic>> _filteredExpenseTransactions() {
+  bool _isIncomeVsExpenseMode() {
+    return VisualSettingsScope.of(context).value.comparisonMode == ComparisonMode.incomeVsExpense;
+  }
+
+  List<Map<String, dynamic>> _filteredTransactionsByType(String type) {
     return transactions.where((transaction) {
-      if (transaction['type'] != 'expense') return false;
+      if (transaction['type'] != type) return false;
       final rawDate = transaction['date'];
       if (rawDate == null) return false;
       return _isDateInActiveRange(DateTime.parse(rawDate as String));
@@ -238,7 +268,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   double _activeTotalExpense() {
-    return _filteredExpenseTransactions().fold<double>(
+    return _filteredTransactionsByType('expense').fold<double>(
+      0.0,
+      (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
+    );
+  }
+
+  double _activeTotalIncome() {
+    return _filteredTransactionsByType('income').fold<double>(
       0.0,
       (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
     );
@@ -251,35 +288,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
         );
   }
 
-  List<AggregationBarData> _analysisChartData() {
-    final filtered = _filteredExpenseTransactions();
-    if (analysisMode == AnalysisMode.selectedMonth) {
-      final grouped = <int, double>{};
-      for (final transaction in filtered) {
-        final date = DateTime.parse(transaction['date'] as String);
-        grouped[date.day] = (grouped[date.day] ?? 0) + (transaction['amount'] as num).toDouble();
-      }
-      final sortedDays = grouped.keys.toList()
-        ..sort();
-      return sortedDays
-          .map((day) => AggregationBarData(label: '$day', value: grouped[day] ?? 0))
-          .toList();
+  double _primarySortValue(Map<String, dynamic> item) {
+    switch (analysisSortField) {
+      case AnalysisSortField.budget:
+        return ((item['budget'] as num?) ?? 0).toDouble();
+      case AnalysisSortField.expense:
+        return ((item['spent'] as num?) ?? 0).toDouble();
+      case AnalysisSortField.income:
+        return ((item['income'] as num?) ?? 0).toDouble();
+      case AnalysisSortField.net:
+        return (((item['income'] as num?) ?? 0) - ((item['spent'] as num?) ?? 0)).toDouble();
     }
-
-    final groupedByMonth = <int, double>{};
-    for (final transaction in filtered) {
-      final date = DateTime.parse(transaction['date'] as String);
-      groupedByMonth[date.month] = (groupedByMonth[date.month] ?? 0) + (transaction['amount'] as num).toDouble();
-    }
-    final sortedMonths = groupedByMonth.keys.toList()..sort();
-    return sortedMonths
-        .map(
-          (month) => AggregationBarData(
-            label: DateFormat('MMM').format(DateTime(currentMonth.year, month)),
-            value: groupedByMonth[month] ?? 0,
-          ),
-        )
-        .toList();
   }
 
   Color _progressColor(double ratio) {
@@ -404,17 +423,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 const Divider(height: 1),
                 const _MenuSectionHeader('Sort'),
                 const _MenuSectionHeader('Main analysis'),
-                RadioListTile<AnalysisSortField>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: AnalysisSortField.budget,
-                  groupValue: analysisSortField,
-                  title: const Text('Budget'),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    applyChanges(() => analysisSortField = value);
-                  },
-                ),
+                if (!_isIncomeVsExpenseMode())
+                  RadioListTile<AnalysisSortField>(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    value: AnalysisSortField.budget,
+                    groupValue: analysisSortField,
+                    title: const Text('Budget'),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      applyChanges(() => analysisSortField = value);
+                    },
+                  ),
                 RadioListTile<AnalysisSortField>(
                   dense: true,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -426,6 +446,30 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     applyChanges(() => analysisSortField = value);
                   },
                 ),
+                if (_isIncomeVsExpenseMode()) ...[
+                  RadioListTile<AnalysisSortField>(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    value: AnalysisSortField.income,
+                    groupValue: analysisSortField,
+                    title: const Text('Income'),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      applyChanges(() => analysisSortField = value);
+                    },
+                  ),
+                  RadioListTile<AnalysisSortField>(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    value: AnalysisSortField.net,
+                    groupValue: analysisSortField,
+                    title: const Text('Net'),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      applyChanges(() => analysisSortField = value);
+                    },
+                  ),
+                ],
                 const _MenuSectionHeader('Sub menu'),
                 RadioListTile<TransactionSortOrder>(
                   dense: true,
@@ -487,20 +531,23 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   String _emptyStateMessage() {
     final label = analysisType == AnalysisType.category ? 'category' : 'account';
+    final metric = _isIncomeVsExpenseMode() ? 'income/expense' : 'expense';
     switch (analysisMode) {
       case AnalysisMode.cumulativeToSelectedMonth:
-        return 'No $label expense data up to this month.';
+        return 'No $label $metric data up to this month.';
       case AnalysisMode.cumulativeYear:
-        return 'No $label expense data for this year.';
+        return 'No $label $metric data for this year.';
       case AnalysisMode.selectedMonth:
-        return 'No $label expense data for this month.';
+        return 'No $label $metric data for this month.';
     }
   }
 
   List<Map<String, dynamic>> _transactionsForLabel(String label) {
-    final matching = _filteredExpenseTransactions().where((transaction) {
-      return _analysisKeyForTransaction(transaction) == label;
-    }).toList();
+    final isIncomeMode = _isIncomeVsExpenseMode();
+    final source = isIncomeMode
+        ? [..._filteredTransactionsByType('income'), ..._filteredTransactionsByType('expense')]
+        : _filteredTransactionsByType('expense');
+    final matching = source.where((transaction) => _analysisKeyForTransaction(transaction) == label).toList();
 
     matching.sort((a, b) {
       final aDate = DateTime.parse(a['date'] as String);
@@ -683,7 +730,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isIncomeMode = _isIncomeVsExpenseMode();
     final expense = _activeTotalExpense();
+    final income = _activeTotalIncome();
     final budgetTotal = _activeTotalBudget();
 
     return Scaffold(
@@ -705,8 +754,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 });
                 loadAnalysis();
               },
-              budget: budgetTotal,
+              budget: isIncomeMode ? income : budgetTotal,
               expense: expense,
+              budgetLabel: isIncomeMode ? 'Income' : 'Budget',
+              expenseLabel: 'Expense',
+              remainingLabel: isIncomeMode ? 'Net' : 'Remaining',
+              remainingOverride: isIncomeMode ? (income - expense) : null,
               monthTrailing: IconButton(
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
@@ -714,13 +767,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 icon: const Icon(Icons.more_vert, size: 20),
                 onPressed: _showAnalysisOptions,
                 tooltip: 'Analysis options',
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-              child: AggregationBarChart(
-                data: _analysisChartData(),
-                emptyMessage: 'No expense data available for this aggregation.',
               ),
             ),
             Expanded(
@@ -735,6 +781,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           final label = data['label'] as String;
                           final spent = (data['spent'] as num).toDouble();
                           final budget = (data['budget'] as num).toDouble();
+                          final incomeValue = (data['income'] as num).toDouble();
+                          final net = incomeValue - spent;
                           final ratio = analysisType == AnalysisType.account
                               ? 0.0
                               : (budget == 0 ? (spent > 0 ? 1.01 : 0.0) : spent / budget);
@@ -784,7 +832,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                   ),
                                   const SizedBox(height: 6),
                                   // Progress bar with overlaid text + % at end
-                                  if (analysisType == AnalysisType.category) ...[
+                                  if (!isIncomeMode && analysisType == AnalysisType.category) ...[
                                     Row(
                                       children: [
                                         Expanded(
@@ -850,7 +898,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                         ],
                                       ],
                                     ),
-                                  ] else ...[
+                                  ] else if (!isIncomeMode) ...[
                                     // Account view — just show amount
                                     Text(
                                       formatIndianCurrency(spent),
@@ -859,6 +907,28 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                         fontWeight: FontWeight.w600,
                                         color: Colors.grey[700],
                                       ),
+                                    ),
+                                  ] else ...[
+                                    Wrap(
+                                      spacing: 14,
+                                      runSpacing: 6,
+                                      children: [
+                                        _ModeStatChip(
+                                          label: 'Income',
+                                          value: formatIndianCurrency(incomeValue),
+                                          color: Colors.green[700]!,
+                                        ),
+                                        _ModeStatChip(
+                                          label: 'Expense',
+                                          value: formatIndianCurrency(spent),
+                                          color: Colors.red[700]!,
+                                        ),
+                                        _ModeStatChip(
+                                          label: 'Net',
+                                          value: formatIndianCurrency(net),
+                                          color: net >= 0 ? Colors.blue[700]! : Colors.red[700]!,
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ],
@@ -892,6 +962,35 @@ class _MenuSectionHeader extends StatelessWidget {
               color: const Color(0xFF52606D),
             ),
       ),
+    );
+  }
+}
+
+class _ModeStatChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _ModeStatChip({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$label: ',
+          style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w600),
+        ),
+        Text(
+          value,
+          style: TextStyle(fontSize: 12.5, color: color, fontWeight: FontWeight.w700),
+        ),
+      ],
     );
   }
 }
