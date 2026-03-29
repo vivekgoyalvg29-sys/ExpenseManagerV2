@@ -37,3 +37,24 @@ build/app/outputs/flutter-apk/app-release.apk
 Notes:
 - `flutter build appbundle` creates an `.aab` file (for Play Store upload).
 - `flutter build apk` creates an installable `.apk` file.
+
+## Recreate the Flutter project scaffold (unsupported Gradle fix)
+
+If Android builds fail with an unsupported Gradle project error, recreate the app scaffold and copy only Dart sources/assets:
+
+```bash
+./scripts/recreate_flutter_project.sh ../ExpenseManagerV2_refreshed
+```
+
+This script runs:
+
+```bash
+flutter create -t app <app-directory>
+```
+
+and then copies:
+- `lib/`
+- `assets/`
+- `pubspec.yaml`
+
+> Note: Re-apply any platform-specific customizations (for example Android/iOS widget integration, Firebase config files, and entitlements) in the newly created project.
