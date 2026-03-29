@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/data_store.dart';
 import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
+import '../widgets/aggregation_bar_chart.dart';
 import '../widgets/month_section_card.dart';
 import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
+import '../widgets/side_overlay_sheet.dart';
 
 class BudgetsPage extends StatefulWidget {
   const BudgetsPage({super.key});
@@ -17,16 +21,39 @@ class BudgetsPage extends StatefulWidget {
 }
 
 class _BudgetsPageState extends State<BudgetsPage> {
+  static const _budgetAggregationKey = 'budget.aggregation';
+  static const _budgetSortKey = 'budget.sort';
+  static const _budgetShowPercentageKey = 'budget.showPercentage';
+
   DateTime currentMonth = DateTime.now();
   List<Map<String, dynamic>> budgets = [];
   Set<int> selectedIndexes = {};
   bool selectionMode = false;
+  BudgetAggregation budgetAggregation = BudgetAggregation.selectedMonth;
   BudgetSortOrder sortOrder = BudgetSortOrder.amount;
+  bool showPercentage = true;
 
   @override
   void initState() {
     super.initState();
-    loadBudgets();
+    _restorePreferences();
+  }
+
+  Future<void> _restorePreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    budgetAggregation = BudgetAggregation.values[prefs.getInt(_budgetAggregationKey) ?? budgetAggregation.index];
+    sortOrder = BudgetSortOrder.values[prefs.getInt(_budgetSortKey) ?? sortOrder.index];
+    showPercentage = prefs.getBool(_budgetShowPercentageKey) ?? true;
+    if (!mounted) return;
+    setState(() {});
+    await loadBudgets();
+  }
+
+  Future<void> _persistPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_budgetAggregationKey, budgetAggregation.index);
+    await prefs.setInt(_budgetSortKey, sortOrder.index);
+    await prefs.setBool(_budgetShowPercentageKey, showPercentage);
   }
 
   Future<void> loadBudgets() async {
@@ -108,10 +135,19 @@ class _BudgetsPageState extends State<BudgetsPage> {
   }
 
   List<Map<String, dynamic>> get filteredBudgets {
-    final current = budgets
-        .where((b) => b['month'] == currentMonth.month && b['year'] == currentMonth.year)
+    final current = budgets.where(_isBudgetInRange)
         .toList();
     current.sort((a, b) {
+      if (budgetAggregation != BudgetAggregation.selectedMonth) {
+        final aYear = (a['year'] as num?)?.toInt() ?? 0;
+        final bYear = (b['year'] as num?)?.toInt() ?? 0;
+        final yearCompare = aYear.compareTo(bYear);
+        if (yearCompare != 0) return yearCompare;
+        final aMonth = (a['month'] as num?)?.toInt() ?? 0;
+        final bMonth = (b['month'] as num?)?.toInt() ?? 0;
+        final monthCompare = aMonth.compareTo(bMonth);
+        if (monthCompare != 0) return monthCompare;
+      }
       if (sortOrder == BudgetSortOrder.amount) {
         final amountCompare = ((b['amount'] as num?) ?? 0).compareTo((a['amount'] as num?) ?? 0);
         if (amountCompare != 0) return amountCompare;
@@ -121,9 +157,161 @@ class _BudgetsPageState extends State<BudgetsPage> {
     return current;
   }
 
-  void _onSortSelected(BudgetSortOrder value) {
-    if (value == sortOrder) return;
-    setState(() => sortOrder = value);
+  bool _isBudgetInRange(Map<String, dynamic> budget) {
+    final year = (budget['year'] as num?)?.toInt() ?? 0;
+    if (year != currentMonth.year) return false;
+    final month = (budget['month'] as num?)?.toInt() ?? 0;
+    if (budgetAggregation == BudgetAggregation.selectedMonth) return month == currentMonth.month;
+    if (budgetAggregation == BudgetAggregation.cumulativeToSelectedMonth) return month <= currentMonth.month;
+    return true;
+  }
+
+  List<AggregationBarData> _budgetChartData() {
+    if (budgetAggregation == BudgetAggregation.selectedMonth) {
+      final grouped = <String, double>{};
+      for (final budget in filteredBudgets) {
+        final category = (budget['category'] as String?)?.trim() ?? '';
+        if (category.isEmpty) continue;
+        grouped[category] = (grouped[category] ?? 0) + (budget['amount'] as num).toDouble();
+      }
+      final rows = grouped.entries.toList();
+      rows.sort((a, b) {
+        if (sortOrder == BudgetSortOrder.alphabetical) return a.key.compareTo(b.key);
+        final amountCompare = b.value.compareTo(a.value);
+        if (amountCompare != 0) return amountCompare;
+        return a.key.compareTo(b.key);
+      });
+      return rows.map((e) => AggregationBarData(label: e.key, value: e.value)).toList();
+    }
+
+    final groupedByMonth = <int, double>{};
+    for (final budget in filteredBudgets) {
+      final month = (budget['month'] as num?)?.toInt() ?? 0;
+      groupedByMonth[month] = (groupedByMonth[month] ?? 0) + (budget['amount'] as num).toDouble();
+    }
+    final ordered = groupedByMonth.keys.toList()..sort();
+    return ordered
+        .map(
+          (month) => AggregationBarData(
+            label: DateFormat('MMM').format(DateTime(currentMonth.year, month)),
+            value: groupedByMonth[month] ?? 0,
+          ),
+        )
+        .toList();
+  }
+
+  Future<void> _applyBudgetPreferenceChange(VoidCallback updateParent) async {
+    setState(updateParent);
+    await _persistPreferences();
+  }
+
+  void _showBudgetOptions() {
+    showSideOverlaySheet<void>(
+      context: context,
+      direction: SideOverlayDirection.right,
+      builder: (drawerContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            Future<void> apply(VoidCallback updateParent) async {
+              await _applyBudgetPreferenceChange(() {
+                updateParent();
+                setModalState(() {});
+              });
+            }
+
+            return ListView(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Budget options',
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(drawerContext).pop(),
+                        icon: const Icon(Icons.close),
+                        tooltip: 'Close options',
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                const _MenuSectionHeader('Aggregation'),
+                RadioListTile<BudgetAggregation>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  value: BudgetAggregation.selectedMonth,
+                  groupValue: budgetAggregation,
+                  title: const Text('Selected month'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    apply(() => budgetAggregation = value);
+                  },
+                ),
+                RadioListTile<BudgetAggregation>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  value: BudgetAggregation.cumulativeToSelectedMonth,
+                  groupValue: budgetAggregation,
+                  title: const Text('Cumulative till selected month'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    apply(() => budgetAggregation = value);
+                  },
+                ),
+                RadioListTile<BudgetAggregation>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  value: BudgetAggregation.cumulativeYear,
+                  groupValue: budgetAggregation,
+                  title: const Text('Cumulative full year'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    apply(() => budgetAggregation = value);
+                  },
+                ),
+                const Divider(height: 1),
+                const _MenuSectionHeader('Sort'),
+                RadioListTile<BudgetSortOrder>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  value: BudgetSortOrder.amount,
+                  groupValue: sortOrder,
+                  title: const Text('Amount'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    apply(() => sortOrder = value);
+                  },
+                ),
+                RadioListTile<BudgetSortOrder>(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  value: BudgetSortOrder.alphabetical,
+                  groupValue: sortOrder,
+                  title: const Text('Alphabetical'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    apply(() => sortOrder = value);
+                  },
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  value: showPercentage,
+                  title: const Text('Show percentage'),
+                  onChanged: (value) => apply(() => showPercentage = value),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Map<String, dynamic>? _categoryDetails(String categoryName) {
@@ -176,36 +364,19 @@ class _BudgetsPageState extends State<BudgetsPage> {
           children: [
             MonthSectionCard(
               currentMonth: currentMonth,
-              onPrev: () => setState(() => currentMonth = DateTime(currentMonth.year, currentMonth.month - 1)),
-              onNext: () => setState(() => currentMonth = DateTime(currentMonth.year, currentMonth.month + 1)),
-              monthTrailing: PopupMenuButton<BudgetSortOrder>(
+              onPrev: () {
+                setState(() => currentMonth = DateTime(currentMonth.year, currentMonth.month - 1));
+              },
+              onNext: () {
+                setState(() => currentMonth = DateTime(currentMonth.year, currentMonth.month + 1));
+              },
+              monthTrailing: IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
                 icon: const Icon(Icons.more_vert, size: 20),
+                onPressed: _showBudgetOptions,
                 tooltip: 'Budget options',
-                constraints: const BoxConstraints(minWidth: 120),
-                padding: const EdgeInsets.all(4),
-                onSelected: _onSortSelected,
-                itemBuilder: (_) => [
-                  const PopupMenuItem<BudgetSortOrder>(
-                    enabled: false,
-                    height: 30,
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('Sort', style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
-                  CheckedPopupMenuItem<BudgetSortOrder>(
-                    value: BudgetSortOrder.amount,
-                    checked: sortOrder == BudgetSortOrder.amount,
-                    height: 34,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: const Text('Amount'),
-                  ),
-                  CheckedPopupMenuItem<BudgetSortOrder>(
-                    value: BudgetSortOrder.alphabetical,
-                    checked: sortOrder == BudgetSortOrder.alphabetical,
-                    height: 34,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: const Text('Alphabetical'),
-                  ),
-                ],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -230,6 +401,13 @@ class _BudgetsPageState extends State<BudgetsPage> {
                 ],
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              child: AggregationBarChart(
+                data: _budgetChartData(),
+                emptyMessage: 'No budget data available for this aggregation.',
+              ),
+            ),
             Expanded(
               child: SectionTile(
                 child: filteredBudgets.isEmpty
@@ -245,6 +423,12 @@ class _BudgetsPageState extends State<BudgetsPage> {
                               ? 0
                               : (amount / totalBudget * 100).round();
                           final category = _categoryDetails(budget['category'] as String);
+                          final monthYearLabel = DateFormat('MMM yyyy').format(
+                            DateTime(
+                              (budget['year'] as num?)?.toInt() ?? currentMonth.year,
+                              (budget['month'] as num?)?.toInt() ?? currentMonth.month,
+                            ),
+                          );
 
                           return ListTile(
                             visualDensity: VisualDensity.compact,
@@ -273,11 +457,19 @@ class _BudgetsPageState extends State<BudgetsPage> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  '${formatIndianCurrency(amount)} ($percentage%)',
+                                  showPercentage
+                                      ? '${formatIndianCurrency(amount)} ($percentage%)'
+                                      : formatIndianCurrency(amount),
                                   style: const TextStyle(fontWeight: FontWeight.w400, fontSize: 13.5),
                                 ),
                               ],
                             ),
+                            subtitle: budgetAggregation == BudgetAggregation.selectedMonth
+                                ? null
+                                : Text(
+                                    monthYearLabel,
+                                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                  ),
                             onLongPress: () => setState(() {
                               selectionMode = true;
                               selectedIndexes.add(index);
@@ -306,6 +498,32 @@ class _BudgetsPageState extends State<BudgetsPage> {
 enum BudgetSortOrder {
   amount,
   alphabetical,
+}
+
+enum BudgetAggregation {
+  selectedMonth,
+  cumulativeToSelectedMonth,
+  cumulativeYear,
+}
+
+class _MenuSectionHeader extends StatelessWidget {
+  final String title;
+
+  const _MenuSectionHeader(this.title);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 2),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF52606D),
+            ),
+      ),
+    );
+  }
 }
 
 class _BudgetSummaryStat extends StatelessWidget {

@@ -7,6 +7,7 @@ import '../services/database_service.dart';
 import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
+import '../widgets/aggregation_bar_chart.dart';
 import '../widgets/month_summary.dart';
 import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
@@ -248,6 +249,36 @@ class _AnalysisPageState extends State<AnalysisPage> {
           0.0,
           (sum, budget) => sum + (budget['amount'] as num).toDouble(),
         );
+  }
+
+  List<AggregationBarData> _analysisChartData() {
+    final filtered = _filteredExpenseTransactions();
+    if (analysisMode == AnalysisMode.selectedMonth) {
+      final grouped = <int, double>{};
+      for (final transaction in filtered) {
+        final date = DateTime.parse(transaction['date'] as String);
+        grouped[date.day] = (grouped[date.day] ?? 0) + (transaction['amount'] as num).toDouble();
+      }
+      final sortedDays = grouped.keys.toList()..sort();
+      return sortedDays
+          .map((day) => AggregationBarData(label: '$day', value: grouped[day] ?? 0))
+          .toList();
+    }
+
+    final groupedByMonth = <int, double>{};
+    for (final transaction in filtered) {
+      final date = DateTime.parse(transaction['date'] as String);
+      groupedByMonth[date.month] = (groupedByMonth[date.month] ?? 0) + (transaction['amount'] as num).toDouble();
+    }
+    final sortedMonths = groupedByMonth.keys.toList()..sort();
+    return sortedMonths
+        .map(
+          (month) => AggregationBarData(
+            label: DateFormat('MMM').format(DateTime(currentMonth.year, month)),
+            value: groupedByMonth[month] ?? 0,
+          ),
+        )
+        .toList();
   }
 
   Color _progressColor(double ratio) {
@@ -682,6 +713,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 icon: const Icon(Icons.more_vert, size: 20),
                 onPressed: _showAnalysisOptions,
                 tooltip: 'Analysis options',
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              child: AggregationBarChart(
+                data: _analysisChartData(),
+                emptyMessage: 'No expense data available for this aggregation.',
               ),
             ),
             Expanded(
