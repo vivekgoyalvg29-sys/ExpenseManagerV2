@@ -356,6 +356,49 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _openComparisonModeSettings() async {
+    final controller = _visualSettingsController(context);
+    ComparisonMode selectedMode = controller.value.comparisonMode;
+    final applied = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Comparison mode'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<ComparisonMode>(
+                value: ComparisonMode.budgetVsExpense,
+                groupValue: selectedMode,
+                title: const Text('Budget vs Expense'),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => selectedMode = value);
+                },
+              ),
+              RadioListTile<ComparisonMode>(
+                value: ComparisonMode.incomeVsExpense,
+                groupValue: selectedMode,
+                title: const Text('Income vs Expense'),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => selectedMode = value);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Apply')),
+          ],
+        ),
+      ),
+    );
+    if (applied == true) {
+      await controller.updateSettings(controller.value.copyWith(comparisonMode: selectedMode));
+    }
+  }
+
   Future<void> _openSearchPopup() async {
     final tx = await DatabaseService.getTransactions();
     if (!mounted) return;
@@ -543,6 +586,9 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'open_sms':
         await _showSmsTab();
         return;
+      case 'comparison_mode':
+        await _openComparisonModeSettings();
+        return;
       case 'delete_everything':
         await _deleteEverything();
         return;
@@ -603,30 +649,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'WhereIsMyMoney',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          softWrap: false,
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
+                        Text('FinTrack', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
-                        Text(
-                          _appVersion,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
+                        Text(_appVersion, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                         if (displayName.isNotEmpty) ...[
                           const SizedBox(height: 2),
-                          Text(
-                            displayName,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                ),
-                          ),
+                          Text(displayName, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                         ],
                       ],
                     ),
@@ -659,6 +687,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 tile(icon: Icons.dark_mode_outlined, title: 'Theme', subtitle: settings.themeMode.name, onTap: () => handleSelection('theme')),
                 tile(icon: Icons.font_download_outlined, title: 'Font', subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}%', onTap: () => handleSelection('customize_visuals')),
                 tile(icon: Icons.language_outlined, title: 'Language', subtitle: AppLocalizations.languageLabels[settings.localeCode] ?? 'English', onTap: () => handleSelection('language')),
+                tile(
+                  icon: Icons.compare_arrows_outlined,
+                  title: 'Comparison mode',
+                  subtitle: settings.comparisonMode == ComparisonMode.budgetVsExpense ? 'Budget vs Expense' : 'Income vs Expense',
+                  onTap: () => handleSelection('comparison_mode'),
+                ),
               ],
             ),
             tile(icon: Icons.sms_outlined, title: 'Open SMSs', subtitle: DataStore.isSmsTabVisible ? 'Already enabled' : 'Add SMS tab', onTap: () => handleSelection('open_sms')),
@@ -679,7 +713,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () => _openAppMenu(controller.value), tooltip: 'Open menu'),
         title: Text(
-          'WhereIsMyMoney',
+          'FinTrack',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: Colors.white,
@@ -705,7 +739,7 @@ class _HomeScreenState extends State<HomeScreen> {
             type: BottomNavigationBarType.fixed,
             elevation: 0,
             backgroundColor: Colors.transparent,
-            selectedItemColor: const Color(0xFF4F46E5),
+            selectedItemColor: Colors.green,
             unselectedItemColor: Theme.of(context).colorScheme.onSurfaceVariant,
             onTap: (index) => setState(() => currentIndex = index),
             items: [for (final item in items) BottomNavigationBarItem(icon: Icon(item.icon), label: item.label)],
@@ -735,10 +769,7 @@ class _MenuSectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 2),
       child: Text(
         title,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurfaceVariant),
       ),
     );
   }
