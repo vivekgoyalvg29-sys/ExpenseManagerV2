@@ -14,15 +14,16 @@ class SectionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       margin: margin ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       padding: padding,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withOpacity(theme.brightness == Brightness.dark ? 0.25 : 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

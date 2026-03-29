@@ -605,10 +605,20 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Text('WhereIsMyMoney', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
-                        Text(_appVersion, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF52606D))),
+                        Text(
+                          _appVersion,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
                         if (displayName.isNotEmpty) ...[
                           const SizedBox(height: 2),
-                          Text(displayName, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: const Color(0xFF52606D))),
+                          Text(
+                            displayName,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
                         ],
                       ],
                     ),
@@ -657,7 +667,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (currentIndex >= items.length) currentIndex = 0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F5F9),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () => _openAppMenu(controller.value), tooltip: 'Open menu'),
         title: Text(
@@ -688,7 +698,7 @@ class _HomeScreenState extends State<HomeScreen> {
             elevation: 0,
             backgroundColor: Colors.transparent,
             selectedItemColor: const Color(0xFF4F46E5),
-            unselectedItemColor: Colors.black54,
+            unselectedItemColor: Theme.of(context).colorScheme.onSurfaceVariant,
             onTap: (index) => setState(() => currentIndex = index),
             items: [for (final item in items) BottomNavigationBarItem(icon: Icon(item.icon), label: item.label)],
           ),
@@ -717,7 +727,10 @@ class _MenuSectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 2),
       child: Text(
         title,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700, color: const Color(0xFF52606D)),
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
       ),
     );
   }

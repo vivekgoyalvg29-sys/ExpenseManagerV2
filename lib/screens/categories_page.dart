@@ -87,7 +87,10 @@ class _CategoriesPageState extends State<CategoriesPage> {
                       }),
                       child: CircleAvatar(
                         backgroundColor: selected ? Colors.green : Colors.grey.shade300,
-                        child: Icon(icon, color: selected ? Colors.white : Colors.black87),
+                        child: Icon(
+                          icon,
+                          color: selected ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
                     );
                   }).toList(),
@@ -172,7 +175,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
     final incomeCategories = DataStore.categories.where((c) => c['type'] == 'income').toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F5F9),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
@@ -342,7 +345,9 @@ class _CategorySection extends StatelessWidget {
             onPressed: onToggleFavorite == null ? null : () => onToggleFavorite!(cat),
             icon: Icon(
               (cat['is_favorite'] == true) ? Icons.star : Icons.star_border,
-              color: (cat['is_favorite'] == true) ? Colors.black : Colors.black54,
+              color: (cat['is_favorite'] == true)
+                  ? Theme.of(context).colorScheme.onSurface
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           onLongPress: () => onLongPress(index),
