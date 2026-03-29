@@ -116,7 +116,7 @@ class FinTrackTheme {
     final isDark = brightness == Brightness.dark;
     final base = ThemeData(
       brightness: brightness,
-      primarySwatch: Colors.green,
+      primarySwatch: Colors.blue,
       scaffoldBackgroundColor: isDark ? const Color(0xFF101418) : const Color(0xFFF3F5F9),
     );
 
@@ -137,7 +137,7 @@ class FinTrackTheme {
       ),
       popupMenuTheme: const PopupMenuThemeData(),
       appBarTheme: AppBarTheme(
-        backgroundColor: isDark ? const Color(0xFF0B0D10) : Colors.black,
+        backgroundColor: isDark ? const Color(0xFF0B0D10) : const Color(0xFF4F46E5),
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
