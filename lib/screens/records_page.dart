@@ -118,8 +118,12 @@ class _RecordsPageState extends State<RecordsPage> {
       );
 
       if (!mounted || qrPayload == null || qrPayload.trim().isEmpty) return;
+      final qrAmount = _extractUpiAmount(qrPayload);
 
-      final draft = await _showQrTransactionDialog();
+      final draft = await _showQrTransactionDialog(
+        prefilledAmount: qrAmount,
+        lockAmountField: qrAmount != null,
+      );
       if (!mounted || draft == null) return;
 
       final launchedPayload = await _launchPaymentAppFlow(qrPayload, draft.amount);
@@ -144,7 +148,10 @@ class _RecordsPageState extends State<RecordsPage> {
     }
   }
 
-  Future<_QrExpenseDraft?> _showQrTransactionDialog() async {
+  Future<_QrExpenseDraft?> _showQrTransactionDialog({
+    double? prefilledAmount,
+    bool lockAmountField = false,
+  }) async {
     String? selectedAccount;
     for (final account in DataStore.accounts) {
       if ((account['type'] ?? '').toString() != 'expense') continue;
@@ -159,7 +166,9 @@ class _RecordsPageState extends State<RecordsPage> {
       if (selectedCategory != null && selectedCategory!.isNotEmpty) break;
     }
 
-    final amountController = TextEditingController();
+    final amountController = TextEditingController(
+      text: prefilledAmount != null ? prefilledAmount.toStringAsFixed(2) : '',
+    );
     final commentController = TextEditingController();
     DateTime selectedDate = DateTime.now();
     String? validationError;
@@ -244,7 +253,13 @@ class _RecordsPageState extends State<RecordsPage> {
                         TextField(
                           controller: amountController,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(labelText: 'Amount'),
+                          readOnly: lockAmountField,
+                          decoration: InputDecoration(
+                            labelText: 'Amount',
+                            helperText: lockAmountField
+                                ? 'Amount is taken from merchant QR.'
+                                : null,
+                          ),
                         ),
                         const SizedBox(height: 12),
                         ListTile(
@@ -586,10 +601,24 @@ class _RecordsPageState extends State<RecordsPage> {
       return qrPayload;
     }
 
-    final amountValue = amount.toStringAsFixed(2);
     final query = Map<String, String>.from(parsed.queryParameters);
+    final qrAmount = _parsePositiveAmount(query['am']);
+    final amountValue = (qrAmount ?? amount).toStringAsFixed(2);
     query['am'] = amountValue;
     return parsed.replace(queryParameters: query).toString();
+  }
+
+  double? _extractUpiAmount(String qrPayload) {
+    final parsed = Uri.tryParse(qrPayload.trim());
+    if (parsed == null || parsed.scheme.toLowerCase() != 'upi') return null;
+    return _parsePositiveAmount(parsed.queryParameters['am']);
+  }
+
+  double? _parsePositiveAmount(String? value) {
+    if (value == null) return null;
+    final parsed = double.tryParse(value.trim());
+    if (parsed == null || parsed <= 0) return null;
+    return parsed;
   }
 
   Future<bool> _launchQrInApp(String packageName, String qrPayload) async {
