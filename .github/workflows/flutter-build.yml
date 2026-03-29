@@ -1,7 +1,10 @@
 name: Build Flutter APK
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - Restore-main
+  workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
