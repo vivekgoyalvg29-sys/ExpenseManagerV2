@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/data_store.dart';
@@ -157,6 +156,37 @@ class _BudgetsPageState extends State<BudgetsPage> {
     return current;
   }
 
+  bool get _isCategoryAggregatedView => budgetAggregation != BudgetAggregation.selectedMonth;
+
+  List<Map<String, dynamic>> get displayBudgets {
+    if (!_isCategoryAggregatedView) return filteredBudgets;
+
+    final grouped = <String, double>{};
+    for (final budget in filteredBudgets) {
+      final category = (budget['category'] as String?)?.trim() ?? '';
+      if (category.isEmpty) continue;
+      grouped[category] = (grouped[category] ?? 0) + (budget['amount'] as num).toDouble();
+    }
+
+    final rows = grouped.entries
+        .map((entry) => <String, dynamic>{
+              'category': entry.key,
+              'amount': entry.value,
+            })
+        .toList();
+
+    rows.sort((a, b) {
+      if (sortOrder == BudgetSortOrder.alphabetical) {
+        return (a['category'] as String).compareTo(b['category'] as String);
+      }
+      final amountCompare = ((b['amount'] as num?) ?? 0).compareTo((a['amount'] as num?) ?? 0);
+      if (amountCompare != 0) return amountCompare;
+      return (a['category'] as String).compareTo(b['category'] as String);
+    });
+
+    return rows;
+  }
+
   bool _isBudgetInRange(Map<String, dynamic> budget) {
     final year = (budget['year'] as num?)?.toInt() ?? 0;
     if (year != currentMonth.year) return false;
@@ -167,37 +197,20 @@ class _BudgetsPageState extends State<BudgetsPage> {
   }
 
   List<AggregationBarData> _budgetChartData() {
-    if (budgetAggregation == BudgetAggregation.selectedMonth) {
-      final grouped = <String, double>{};
-      for (final budget in filteredBudgets) {
-        final category = (budget['category'] as String?)?.trim() ?? '';
-        if (category.isEmpty) continue;
-        grouped[category] = (grouped[category] ?? 0) + (budget['amount'] as num).toDouble();
-      }
-      final rows = grouped.entries.toList();
-      rows.sort((a, b) {
-        if (sortOrder == BudgetSortOrder.alphabetical) return a.key.compareTo(b.key);
-        final amountCompare = b.value.compareTo(a.value);
-        if (amountCompare != 0) return amountCompare;
-        return a.key.compareTo(b.key);
-      });
-      return rows.map((e) => AggregationBarData(label: e.key, value: e.value)).toList();
-    }
-
-    final groupedByMonth = <int, double>{};
+    final grouped = <String, double>{};
     for (final budget in filteredBudgets) {
-      final month = (budget['month'] as num?)?.toInt() ?? 0;
-      groupedByMonth[month] = (groupedByMonth[month] ?? 0) + (budget['amount'] as num).toDouble();
+      final category = (budget['category'] as String?)?.trim() ?? '';
+      if (category.isEmpty) continue;
+      grouped[category] = (grouped[category] ?? 0) + (budget['amount'] as num).toDouble();
     }
-    final ordered = groupedByMonth.keys.toList()..sort();
-    return ordered
-        .map(
-          (month) => AggregationBarData(
-            label: DateFormat('MMM').format(DateTime(currentMonth.year, month)),
-            value: groupedByMonth[month] ?? 0,
-          ),
-        )
-        .toList();
+    final rows = grouped.entries.toList();
+    rows.sort((a, b) {
+      if (sortOrder == BudgetSortOrder.alphabetical) return a.key.compareTo(b.key);
+      final amountCompare = b.value.compareTo(a.value);
+      if (amountCompare != 0) return amountCompare;
+      return a.key.compareTo(b.key);
+    });
+    return rows.map((e) => AggregationBarData(label: e.key, value: e.value)).toList();
   }
 
   Future<void> _applyBudgetPreferenceChange(VoidCallback updateParent) async {
@@ -322,7 +335,8 @@ class _BudgetsPageState extends State<BudgetsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final totalBudget = filteredBudgets.fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
+    final visibleBudgets = displayBudgets;
+    final totalBudget = visibleBudgets.fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
     final summaryLabelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
           color: const Color(0xFF52606D),
           fontWeight: FontWeight.w700,
@@ -384,7 +398,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                   Expanded(
                     child: _BudgetSummaryStat(
                       label: 'Categories',
-                      value: '${filteredBudgets.length}',
+                      value: '${visibleBudgets.length}',
                       labelStyle: summaryLabelStyle,
                       valueStyle: summaryValueStyle,
                     ),
@@ -410,26 +424,19 @@ class _BudgetsPageState extends State<BudgetsPage> {
             ),
             Expanded(
               child: SectionTile(
-                child: filteredBudgets.isEmpty
+                child: visibleBudgets.isEmpty
                     ? const Center(child: Text('No budgets set'))
                     : ListView.separated(
                         padding: EdgeInsets.zero,
-                        itemCount: filteredBudgets.length,
+                        itemCount: visibleBudgets.length,
                         separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (context, index) {
-                          final budget = filteredBudgets[index];
+                          final budget = visibleBudgets[index];
                           final amount = (budget['amount'] as num).toDouble();
                           final percentage = totalBudget == 0
                               ? 0
                               : (amount / totalBudget * 100).round();
                           final category = _categoryDetails(budget['category'] as String);
-                          final monthYearLabel = DateFormat('MMM yyyy').format(
-                            DateTime(
-                              (budget['year'] as num?)?.toInt() ?? currentMonth.year,
-                              (budget['month'] as num?)?.toInt() ?? currentMonth.month,
-                            ),
-                          );
-
                           return ListTile(
                             visualDensity: VisualDensity.compact,
                             minVerticalPadding: 6,
@@ -464,17 +471,15 @@ class _BudgetsPageState extends State<BudgetsPage> {
                                 ),
                               ],
                             ),
-                            subtitle: budgetAggregation == BudgetAggregation.selectedMonth
+                            subtitle: null,
+                            onLongPress: _isCategoryAggregatedView
                                 ? null
-                                : Text(
-                                    monthYearLabel,
-                                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                                  ),
-                            onLongPress: () => setState(() {
-                              selectionMode = true;
-                              selectedIndexes.add(index);
-                            }),
+                                : () => setState(() {
+                                      selectionMode = true;
+                                      selectedIndexes.add(index);
+                                    }),
                             onTap: () {
+                              if (_isCategoryAggregatedView) return;
                               if (selectionMode) {
                                 setState(() => selectedIndexes.contains(index)
                                     ? selectedIndexes.remove(index)

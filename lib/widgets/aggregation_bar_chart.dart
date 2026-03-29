@@ -55,12 +55,14 @@ class AggregationBarChart extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: ConstrainedBox(
           constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width - 52),
-          child: IntrinsicHeight(
+          child: SizedBox(
+            width: (data.length * 54).toDouble(),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 for (final item in data)
-                  Expanded(
+                  SizedBox(
+                    width: 54,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: _ChartBar(
