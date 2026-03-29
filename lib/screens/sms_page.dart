@@ -152,7 +152,7 @@ class _SmsPageState extends State<SmsPage> {
     final allCollapsed = monthKeys.isNotEmpty && _collapsedMonths.length == monthKeys.length;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F5F9),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: _selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
@@ -188,7 +188,7 @@ class _SmsPageState extends State<SmsPage> {
                             Icon(
                               Icons.sms_failed_outlined,
                               size: 72,
-                              color: Colors.black38,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                             SizedBox(height: 14),
                             Text(
@@ -199,7 +199,7 @@ class _SmsPageState extends State<SmsPage> {
                             Text(
                               'Load transactions from SMSs to see them here.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.black54),
+                              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                             ),
                             SizedBox(height: 16),
                             FilledButton.icon(

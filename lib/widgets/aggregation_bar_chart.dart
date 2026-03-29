@@ -28,19 +28,23 @@ class AggregationBarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     if (data.isEmpty) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 24),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE3E7EE)),
+          border: Border.all(color: theme.dividerColor),
         ),
         child: Text(
           emptyMessage,
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w500),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       );
     }
@@ -50,9 +54,9 @@ class AggregationBarChart extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE3E7EE)),
+        border: Border.all(color: theme.dividerColor),
       ),
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
       child: SizedBox(
@@ -150,7 +154,7 @@ class _ChartBar extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: Colors.grey[800],
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
       ],

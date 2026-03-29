@@ -348,7 +348,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
         );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F5F9),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
@@ -403,7 +403,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                       valueStyle: summaryValueStyle,
                     ),
                   ),
-                  Container(width: 1, height: 36, color: const Color(0xFFE3E7EE)),
+                  Container(width: 1, height: 36, color: Theme.of(context).dividerColor),
                   Expanded(
                     child: _BudgetSummaryStat(
                       label: 'Total Budget',

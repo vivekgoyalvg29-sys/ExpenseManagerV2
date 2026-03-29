@@ -691,7 +691,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final budgetTotal = _activeTotalBudget();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F5F9),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: PageContentLayout(
         child: Column(
           children: [
