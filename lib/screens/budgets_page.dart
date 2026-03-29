@@ -420,6 +420,15 @@ class _BudgetsPageState extends State<BudgetsPage> {
               child: AggregationBarChart(
                 data: _budgetChartData(),
                 emptyMessage: 'No budget data available for this aggregation.',
+                labelBuilder: (context, item) {
+                  final category = _categoryDetails(item.label);
+                  return AppPageIcon(
+                    icon: iconFromCodePoint(category?['icon']),
+                    imagePath: category?['icon_path']?.toString(),
+                    size: 11,
+                    boxSize: 22,
+                  );
+                },
               ),
             ),
             Expanded(

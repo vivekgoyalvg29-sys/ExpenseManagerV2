@@ -259,7 +259,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
         final date = DateTime.parse(transaction['date'] as String);
         grouped[date.day] = (grouped[date.day] ?? 0) + (transaction['amount'] as num).toDouble();
       }
-      final sortedDays = grouped.keys.toList()..sort();
+      final sortedDays = grouped.keys.toList()
+        ..sort((a, b) {
+          final amountCompare = (grouped[b] ?? 0).compareTo(grouped[a] ?? 0);
+          if (amountCompare != 0) return amountCompare;
+          return a.compareTo(b);
+        });
       return sortedDays
           .map((day) => AggregationBarData(label: '$day', value: grouped[day] ?? 0))
           .toList();

@@ -111,7 +111,7 @@ class _FinTrackAppState extends State<FinTrackApp> {
       valueListenable: widget.controller,
       builder: (context, settings, _) => MaterialApp(
         navigatorKey: appNavigatorKey,
-        title: 'FinTrack',
+        title: 'WhereIsMyMoney',
         theme: FinTrackTheme.build(settings, brightness: Brightness.light),
         darkTheme: FinTrackTheme.build(settings, brightness: Brightness.dark),
         themeMode: settings.themeMode,
@@ -148,7 +148,7 @@ class _FinTrackAppState extends State<FinTrackApp> {
             return const Scaffold(
               backgroundColor: Colors.black,
               body: Center(
-                child: CircularProgressIndicator(color: Colors.green),
+                child: CircularProgressIndicator(color: const Color(0xFF4F46E5)),
               ),
             );
           }

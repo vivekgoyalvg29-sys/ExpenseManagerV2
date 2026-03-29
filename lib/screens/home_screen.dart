@@ -603,7 +603,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('FinTrack', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
+                        Text('WhereIsMyMoney', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
                         Text(_appVersion, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF52606D))),
                         if (displayName.isNotEmpty) ...[
@@ -661,7 +661,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () => _openAppMenu(controller.value), tooltip: 'Open menu'),
         title: Text(
-          'FinTrack',
+          'WhereIsMyMoney',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: Colors.white,
@@ -687,7 +687,7 @@ class _HomeScreenState extends State<HomeScreen> {
             type: BottomNavigationBarType.fixed,
             elevation: 0,
             backgroundColor: Colors.transparent,
-            selectedItemColor: Colors.green,
+            selectedItemColor: const Color(0xFF4F46E5),
             unselectedItemColor: Colors.black54,
             onTap: (index) => setState(() => currentIndex = index),
             items: [for (final item in items) BottomNavigationBarItem(icon: Icon(item.icon), label: item.label)],

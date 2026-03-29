@@ -2,7 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+const IconData defaultAppIcon = Icons.category;
+
 const List<IconData> selectableIcons = [
+  defaultAppIcon,
   Icons.wallet,
   Icons.savings,
   Icons.credit_card,
@@ -25,7 +28,7 @@ const List<IconData> selectableIcons = [
   Icons.bolt,
 ];
 
-IconData iconFromCodePoint(dynamic codePoint, {IconData fallback = Icons.category}) {
+IconData iconFromCodePoint(dynamic codePoint, {IconData fallback = defaultAppIcon}) {
   if (codePoint is int) {
     for (final icon in selectableIcons) {
       if (icon.codePoint == codePoint) {
@@ -41,19 +44,26 @@ class AppPageIcon extends StatelessWidget {
   final IconData? icon;
   final String? imagePath;
   final double size;
+  final double boxSize;
 
-  const AppPageIcon({super.key, this.icon, this.imagePath, this.size = 18});
+  const AppPageIcon({
+    super.key,
+    this.icon,
+    this.imagePath,
+    this.size = 18,
+    this.boxSize = 36,
+  });
 
   @override
   Widget build(BuildContext context) {
     final hasImage = imagePath != null && imagePath!.isNotEmpty && File(imagePath!).existsSync();
 
     return Container(
-      width: 36,
-      height: 36,
+      width: boxSize,
+      height: boxSize,
       decoration: BoxDecoration(
         color: const Color(0xFFE8F1FF),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(boxSize / 3),
       ),
       alignment: Alignment.center,
       clipBehavior: Clip.antiAlias,
@@ -61,8 +71,8 @@ class AppPageIcon extends StatelessWidget {
           ? Image.file(
               File(imagePath!),
               fit: BoxFit.cover,
-              width: 36,
-              height: 36,
+              width: boxSize,
+              height: boxSize,
               errorBuilder: (_, __, ___) => Icon(
                 icon ?? Icons.image_outlined,
                 size: size,

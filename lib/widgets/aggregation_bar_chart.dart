@@ -15,11 +15,15 @@ class AggregationBarData {
 class AggregationBarChart extends StatelessWidget {
   final List<AggregationBarData> data;
   final String emptyMessage;
+  final Widget Function(BuildContext context, AggregationBarData item)? labelBuilder;
+  final double chartHeight;
 
   const AggregationBarChart({
     super.key,
     required this.data,
     required this.emptyMessage,
+    this.labelBuilder,
+    this.chartHeight = 210,
   });
 
   @override
@@ -51,30 +55,25 @@ class AggregationBarChart extends StatelessWidget {
         border: Border.all(color: const Color(0xFFE3E7EE)),
       ),
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width - 52),
-          child: SizedBox(
-            width: (data.length * 54).toDouble(),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (final item in data)
-                  SizedBox(
-                    width: 54,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: _ChartBar(
-                        value: item.value,
-                        maxValue: normalizedMax,
-                        label: item.label,
-                      ),
-                    ),
+      child: SizedBox(
+        height: chartHeight,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (final item in data)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: _ChartBar(
+                    value: item.value,
+                    maxValue: normalizedMax,
+                    label: item.label,
+                    labelBuilder: labelBuilder,
+                    item: item,
                   ),
-              ],
-            ),
-          ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -85,11 +84,15 @@ class _ChartBar extends StatelessWidget {
   final double value;
   final double maxValue;
   final String label;
+  final Widget Function(BuildContext context, AggregationBarData item)? labelBuilder;
+  final AggregationBarData item;
 
   const _ChartBar({
     required this.value,
     required this.maxValue,
     required this.label,
+    required this.labelBuilder,
+    required this.item,
   });
 
   @override
@@ -137,16 +140,19 @@ class _ChartBar extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[800],
+        if (labelBuilder != null)
+          labelBuilder!(context, item)
+        else
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[800],
+            ),
           ),
-        ),
       ],
     );
   }
