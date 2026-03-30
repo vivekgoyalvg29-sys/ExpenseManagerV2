@@ -110,44 +110,47 @@ class _RecordsPageState extends State<RecordsPage> {
   }
 
   Future<void> _openQrScannerFlow() async {
-    if (_isProcessingQr) return;
-    setState(() => _isProcessingQr = true);
-    try {
-      final qrPayload = await Navigator.push<String>(
-        context,
-        MaterialPageRoute(builder: (_) => const _QrScanPage()),
-      );
+  if (_isProcessingQr) return;
+  setState(() => _isProcessingQr = true);
+  try {
+    final qrPayload = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const _QrScanPage()),
+    );
 
-      if (!mounted || qrPayload == null || qrPayload.trim().isEmpty) return;
-      final qrAmount = _extractUpiAmount(qrPayload);
+    if (!mounted || qrPayload == null || qrPayload.trim().isEmpty) return;
+    final qrAmount = _extractUpiAmount(qrPayload);
 
-      final draft = await _showQrTransactionDialog(
-        prefilledAmount: qrAmount,
-        lockAmountField: qrAmount != null,
-      );
-      if (!mounted || draft == null) return;
+    final draft = await _showQrTransactionDialog(
+      prefilledAmount: qrAmount,
+      lockAmountField: qrAmount != null,
+    );
+    if (!mounted || draft == null) return;
 
-      final launchedPayload = await _launchPaymentAppFlow(qrPayload, draft.amount);
-      if (!mounted || launchedPayload == null) return;
+    // Always use the QR's own amount for the payment payload when present.
+    // The draft.amount may have been manually entered only when no QR amount exists.
+    final paymentAmount = qrAmount ?? draft.amount;
+    final launchedPayload = await _launchPaymentAppFlow(qrPayload, paymentAmount);
+    if (!mounted || launchedPayload == null) return;
 
-      await DatabaseService.insertTransaction(
-        draft.category,
-        draft.amount,
-        draft.date,
-        'expense',
-        draft.account,
-        draft.comment,
-      );
+    await DatabaseService.insertTransaction(
+      draft.category,
+      draft.amount,   // save what was shown to the user
+      draft.date,
+      'expense',
+      draft.account,
+      draft.comment,
+    );
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_lastScannedQrKey, launchedPayload);
-      await loadTransactions();
-    } finally {
-      if (mounted) {
-        setState(() => _isProcessingQr = false);
-      }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastScannedQrKey, launchedPayload);
+    await loadTransactions();
+  } finally {
+    if (mounted) {
+      setState(() => _isProcessingQr = false);
     }
   }
+}
 
   Future<_QrExpenseDraft?> _showQrTransactionDialog({
     double? prefilledAmount,
@@ -596,18 +599,28 @@ class _RecordsPageState extends State<RecordsPage> {
     return List<AppInfo>.from(installed);
   }
 
-  String _buildPaymentPayload(String qrPayload, double amount) {
-    final parsed = Uri.tryParse(qrPayload);
-    if (parsed == null || parsed.scheme.toLowerCase() != 'upi') {
-      return qrPayload;
-    }
-
-    final query = Map<String, String>.from(parsed.queryParameters);
-    final qrAmount = _parsePositiveAmount(query['am']);
-    final amountValue = (qrAmount ?? amount).toStringAsFixed(2);
-    query['am'] = amountValue;
-    return parsed.replace(queryParameters: query).toString();
+  String _buildPaymentPayload(String qrPayload, double enteredAmount) {
+  final parsed = Uri.tryParse(qrPayload);
+  if (parsed == null || parsed.scheme.toLowerCase() != 'upi') {
+    return qrPayload;
   }
+
+  final query = Map<String, String>.from(parsed.queryParameters);
+  final existingAmount = _parsePositiveAmount(query['am']);
+
+  if (existingAmount != null) {
+    // Merchant QR already has a fixed amount — preserve it exactly as-is.
+    // Overwriting it causes "Bank limit exceeded" because the merchant's
+    // payment gateway validates the amount hasn't changed.
+    return qrPayload;
+  }
+
+  // Dynamic QR (no amount) — remove am entirely so the payment app
+  // shows its own amount entry screen without a pre-injected value.
+  query.remove('am');
+
+  return parsed.replace(queryParameters: query).toString();
+}
 
   double? _extractUpiAmount(String qrPayload) {
     final parsed = Uri.tryParse(qrPayload.trim());
