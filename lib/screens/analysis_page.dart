@@ -973,18 +973,92 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                       ],
                                     ),
                                   ] else ...[
-                                    Text(
-                                      _isIncomeVsExpense
-                                          ? 'Income ${formatIndianCurrency(incomeAmount)} • Expense ${formatIndianCurrency(spent)} • Net ${formatIndianCurrency(netAmount)}'
-                                          : formatIndianCurrency(spent),
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: _isIncomeVsExpense
-                                            ? (netAmount >= 0 ? Colors.green[700] : Colors.red[700])
-                                            : Colors.grey[700],
+                                    if (_isIncomeVsExpense && analysisType == AnalysisType.category) ...[
+                                      // In income vs expense mode, show category expense vs income with same bar styling.
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Stack(
+                                              alignment: Alignment.centerLeft,
+                                              children: [
+                                                Container(
+                                                  height: 16,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey[200],
+                                                    borderRadius: BorderRadius.circular(999),
+                                                  ),
+                                                ),
+                                                FractionallySizedBox(
+                                                  widthFactor: incomeAmount == 0
+                                                      ? (spent > 0 ? 1.0 : 0.0)
+                                                      : (spent / incomeAmount).clamp(0.0, 1.0),
+                                                  child: Container(
+                                                    height: 16,
+                                                    decoration: BoxDecoration(
+                                                      gradient: _progressGradient(
+                                                        incomeAmount == 0 ? 0.0 : spent / incomeAmount,
+                                                      ),
+                                                      borderRadius: BorderRadius.circular(999),
+                                                    ),
+                                                  ),
+                                                ),
+                                                Padding(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                  child: Text(
+                                                    '${formatIndianCurrency(spent)} / ${formatIndianCurrency(incomeAmount)}',
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: Colors.white,
+                                                      shadows: [
+                                                        Shadow(
+                                                          color: Colors.black45,
+                                                          blurRadius: 2,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          if (showPercentage) ...[
+                                            const SizedBox(width: 8),
+                                            SizedBox(
+                                              width: 42,
+                                              child: Text(
+                                                incomeAmount == 0
+                                                    ? '0%'
+                                                    : '${((spent / incomeAmount) * 100).clamp(0, 999).round()}%',
+                                                textAlign: TextAlign.right,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: _progressColor(
+                                                    incomeAmount == 0 ? 0.0 : spent / incomeAmount,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
                                       ),
-                                    ),
+                                    ] else ...[
+                                      Text(
+                                        _isIncomeVsExpense
+                                            ? 'Income ${formatIndianCurrency(incomeAmount)} • Expense ${formatIndianCurrency(spent)} • Net ${formatIndianCurrency(netAmount)}'
+                                            : formatIndianCurrency(spent),
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: _isIncomeVsExpense
+                                              ? (netAmount >= 0 ? Colors.green[700] : Colors.red[700])
+                                              : Colors.grey[700],
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ],
                               ),

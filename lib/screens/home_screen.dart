@@ -699,6 +699,16 @@ class _HomeScreenState extends State<HomeScreen> {
             tile(icon: Icons.receipt_long_outlined, title: 'Delete transactions', onTap: () => handleSelection('delete_transactions')),
             tile(icon: Icons.restart_alt_outlined, title: 'Reset app', onTap: () => handleSelection('reset_app')),
             const Divider(height: 1, thickness: 1),
+            const _MenuSectionHeader('Mode'),
+            tile(
+              icon: Icons.compare_arrows_outlined,
+              title: 'Comparison mode',
+              subtitle: settings.comparisonMode == ComparisonMode.budgetVsExpense
+                  ? 'Budget vs Expense'
+                  : 'Income vs Expense',
+              onTap: () => handleSelection('comparison_mode'),
+            ),
+            const Divider(height: 1, thickness: 1),
             const _MenuSectionHeader('Visuals & SMSs'),
             ExpansionTile(
               title: const Text('Appearance'),
@@ -707,14 +717,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 tile(icon: Icons.dark_mode_outlined, title: 'Theme', subtitle: settings.themeMode.name, onTap: () => handleSelection('theme')),
                 tile(icon: Icons.font_download_outlined, title: 'Font', subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}%', onTap: () => handleSelection('customize_visuals')),
                 tile(icon: Icons.language_outlined, title: 'Language', subtitle: AppLocalizations.languageLabels[settings.localeCode] ?? 'English', onTap: () => handleSelection('language')),
-                tile(
-                  icon: Icons.compare_arrows_outlined,
-                  title: 'Comparison mode',
-                  subtitle: settings.comparisonMode == ComparisonMode.budgetVsExpense
-                      ? 'Budget vs Expense'
-                      : 'Income vs Expense',
-                  onTap: () => handleSelection('comparison_mode'),
-                ),
               ],
             ),
             tile(icon: Icons.sms_outlined, title: 'Open SMSs', subtitle: DataStore.isSmsTabVisible ? 'Already enabled' : 'Add SMS tab', onTap: () => handleSelection('open_sms')),

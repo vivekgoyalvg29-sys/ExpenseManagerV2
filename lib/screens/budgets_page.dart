@@ -210,7 +210,17 @@ class _BudgetsPageState extends State<BudgetsPage> {
       if (amountCompare != 0) return amountCompare;
       return a.key.compareTo(b.key);
     });
-    return rows.map((e) => AggregationBarData(label: e.key, value: e.value)).toList();
+    return rows
+        .asMap()
+        .entries
+        .map(
+          (entry) => AggregationBarData(
+            label: entry.value.key,
+            value: entry.value.value,
+            bucket: entry.key,
+          ),
+        )
+        .toList();
   }
 
   Future<void> _applyBudgetPreferenceChange(VoidCallback updateParent) async {
