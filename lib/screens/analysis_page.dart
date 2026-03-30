@@ -56,6 +56,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   AnalysisSortField analysisSortField = AnalysisSortField.budget;
   TransactionSortOrder transactionSortOrder = TransactionSortOrder.newestFirst;
   bool showPercentage = true;
+  int? selectedChartBucket;
 
   List<Map<String, dynamic>> analysisData = [];
   List<Map<String, dynamic>> transactions = [];
@@ -106,8 +107,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
     DataStore.categories = categories;
     DataStore.accounts = accounts;
 
-    final filteredExpenses = _filteredTransactionsOfType('expense');
-    final filteredIncome = _filteredTransactionsOfType('income');
+    final filteredExpenses = _filteredTransactionsOfTypeWithChartFilter('expense');
+    final filteredIncome = _filteredTransactionsOfTypeWithChartFilter('income');
     final totalExpense = filteredExpenses.fold<double>(
       0.0,
       (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
@@ -220,6 +221,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     setState(() {
       analysisData = result;
+      if (!_chartDataContainsBucket(selectedChartBucket)) {
+        selectedChartBucket = null;
+      }
     });
 
     await WidgetSyncService.updateConfiguration(
@@ -234,13 +238,22 @@ class _AnalysisPageState extends State<AnalysisPage> {
       if (transaction['type'] != type) return false;
       final rawDate = transaction['date'];
       if (rawDate == null) return false;
-      return _isDateInActiveRange(DateTime.parse(rawDate as String));
+      final date = DateTime.parse(rawDate as String);
+      return _isDateInActiveRange(date) && _isDateInSelectedChartBucket(date);
     }).toList();
   }
 
   List<Map<String, dynamic>> _filteredExpenseTransactions() => _filteredTransactionsOfType('expense');
 
   List<Map<String, dynamic>> _filteredIncomeTransactions() => _filteredTransactionsOfType('income');
+
+  List<Map<String, dynamic>> _filteredTransactionsOfTypeWithChartFilter(String type) {
+    return _filteredTransactionsOfType(type).where((transaction) {
+      final rawDate = transaction['date'];
+      if (rawDate == null) return false;
+      return _isDateInSelectedChartBucket(DateTime.parse(rawDate as String));
+    }).toList();
+  }
 
   String _analysisKeyForTransaction(Map<String, dynamic> transaction) {
     if (analysisType == AnalysisType.account) {
@@ -254,6 +267,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
     if (analysisMode == AnalysisMode.selectedMonth) return date.month == currentMonth.month;
     if (analysisMode == AnalysisMode.cumulativeToSelectedMonth) return date.month <= currentMonth.month;
     return true;
+  }
+
+  bool _isDateInSelectedChartBucket(DateTime date) {
+    if (_isIncomeVsExpense) return true;
+    if (selectedChartBucket == null) return true;
+    if (analysisMode == AnalysisMode.selectedMonth) {
+      return date.day == selectedChartBucket;
+    }
+    return date.month == selectedChartBucket;
+  }
+
+  bool _chartDataContainsBucket(int? bucket) {
+    if (bucket == null) return true;
+    return _analysisChartData().any((item) => item.bucket == bucket);
   }
 
   bool _isBudgetInActiveRange(Map<String, dynamic> budgetData) {
@@ -311,7 +338,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       final sortedDays = grouped.keys.toList()
         ..sort();
       return sortedDays
-          .map((day) => AggregationBarData(label: '$day', value: grouped[day] ?? 0))
+          .map((day) => AggregationBarData(label: '$day', value: grouped[day] ?? 0, bucket: day))
           .toList();
     }
 
@@ -326,6 +353,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
           (month) => AggregationBarData(
             label: DateFormat('MMM').format(DateTime(currentMonth.year, month)),
             value: groupedByMonth[month] ?? 0,
+            bucket: month,
           ),
         )
         .toList();
@@ -550,10 +578,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
   List<Map<String, dynamic>> _transactionsForLabel(String label) {
     final base = _isIncomeVsExpense
         ? <Map<String, dynamic>>[
-            ..._filteredIncomeTransactions(),
-            ..._filteredExpenseTransactions(),
+            ..._filteredTransactionsOfTypeWithChartFilter('income'),
+            ..._filteredTransactionsOfTypeWithChartFilter('expense'),
           ]
-        : _filteredExpenseTransactions();
+        : _filteredTransactionsOfTypeWithChartFilter('expense');
     final matching = base.where((transaction) {
       return _analysisKeyForTransaction(transaction) == label;
     }).toList();
@@ -754,12 +782,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
               onPrev: () {
                 setState(() {
                   currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
+                  selectedChartBucket = null;
                 });
                 loadAnalysis();
               },
               onNext: () {
                 setState(() {
                   currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
+                  selectedChartBucket = null;
                 });
                 loadAnalysis();
               },
@@ -784,6 +814,33 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 emptyMessage: _isIncomeVsExpense
                     ? 'No income data available for this aggregation.'
                     : 'No expense data available for this aggregation.',
+                selectedBucket: _isIncomeVsExpense ? null : selectedChartBucket,
+                onBarTap: _isIncomeVsExpense
+                    ? null
+                    : (item) async {
+                        final tappedBucket = item.bucket;
+                        final nextBucket = selectedChartBucket == tappedBucket ? null : tappedBucket;
+                        setState(() {
+                          selectedChartBucket = nextBucket;
+                        });
+                        await loadAnalysis();
+                      },
+                trailing: !_isIncomeVsExpense && selectedChartBucket != null
+                    ? IconButton(
+                        onPressed: () async {
+                          setState(() {
+                            selectedChartBucket = null;
+                          });
+                          await loadAnalysis();
+                        },
+                        icon: const Icon(Icons.close_rounded, size: 16),
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        splashRadius: 14,
+                        tooltip: 'Clear filter',
+                      )
+                    : null,
               ),
             ),
             Expanded(

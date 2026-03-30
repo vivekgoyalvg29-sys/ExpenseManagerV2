@@ -5,10 +5,12 @@ import '../utils/indian_number_formatter.dart';
 class AggregationBarData {
   final String label;
   final double value;
+  final int bucket;
 
   const AggregationBarData({
     required this.label,
     required this.value,
+    required this.bucket,
   });
 }
 
@@ -17,6 +19,9 @@ class AggregationBarChart extends StatelessWidget {
   final String emptyMessage;
   final Widget Function(BuildContext context, AggregationBarData item)? labelBuilder;
   final double chartHeight;
+  final ValueChanged<AggregationBarData>? onBarTap;
+  final int? selectedBucket;
+  final Widget? trailing;
 
   const AggregationBarChart({
     super.key,
@@ -24,6 +29,9 @@ class AggregationBarChart extends StatelessWidget {
     required this.emptyMessage,
     this.labelBuilder,
     this.chartHeight = 210,
+    this.onBarTap,
+    this.selectedBucket,
+    this.trailing,
   });
 
   @override
@@ -59,26 +67,41 @@ class AggregationBarChart extends StatelessWidget {
         border: Border.all(color: theme.dividerColor),
       ),
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 8),
-      child: SizedBox(
-        height: chartHeight,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            for (final item in data)
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                  child: _ChartBar(
-                    value: item.value,
-                    maxValue: normalizedMax,
-                    label: item.label,
-                    labelBuilder: labelBuilder,
-                    item: item,
-                  ),
-                ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (trailing != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, right: 2, bottom: 2),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: trailing,
               ),
-          ],
-        ),
+            ),
+          SizedBox(
+            height: chartHeight,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (final item in data)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: _ChartBar(
+                        value: item.value,
+                        maxValue: normalizedMax,
+                        label: item.label,
+                        labelBuilder: labelBuilder,
+                        item: item,
+                        selected: selectedBucket != null && selectedBucket == item.bucket,
+                        onTap: onBarTap == null ? null : () => onBarTap!(item),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -90,6 +113,8 @@ class _ChartBar extends StatelessWidget {
   final String label;
   final Widget Function(BuildContext context, AggregationBarData item)? labelBuilder;
   final AggregationBarData item;
+  final VoidCallback? onTap;
+  final bool selected;
 
   const _ChartBar({
     required this.value,
@@ -97,6 +122,8 @@ class _ChartBar extends StatelessWidget {
     required this.label,
     required this.labelBuilder,
     required this.item,
+    required this.onTap,
+    required this.selected,
   });
 
   @override
@@ -116,31 +143,43 @@ class _ChartBar extends StatelessWidget {
 
               return Align(
                 alignment: Alignment.bottomCenter,
-                child: Container(
-                  height: height,
-                  constraints: const BoxConstraints(minWidth: 18, maxWidth: 26),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: onTap,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 140),
+                    height: height,
+                    constraints: const BoxConstraints(minWidth: 18, maxWidth: 26),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      border: selected ? Border.all(color: const Color(0xFF312E81), width: 1.2) : null,
+                      gradient: selected
+                          ? const LinearGradient(
+                              colors: [Color(0xFF312E81), Color(0xFF6D28D9)],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            )
+                          : const LinearGradient(
+                              colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
                     ),
-                  ),
-                  alignment: Alignment.center,
-                  child: RotatedBox(
-                    quarterTurns: 3,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Text(
-                        formatIndianCurrency(value),
-                        maxLines: 1,
-                        overflow: TextOverflow.fade,
-                        softWrap: false,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
+                    alignment: Alignment.center,
+                    child: RotatedBox(
+                      quarterTurns: 3,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(
+                          formatIndianCurrency(value),
+                          maxLines: 1,
+                          overflow: TextOverflow.fade,
+                          softWrap: false,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
