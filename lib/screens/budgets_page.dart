@@ -9,6 +9,7 @@ import '../widgets/icon_utils.dart';
 import '../widgets/aggregation_bar_chart.dart';
 import '../widgets/month_section_card.dart';
 import '../widgets/page_content_layout.dart';
+import '../widgets/segmented_toggle.dart';
 import '../widgets/section_tile.dart';
 import '../widgets/side_overlay_sheet.dart';
 
@@ -264,62 +265,30 @@ class _BudgetsPageState extends State<BudgetsPage> {
                 ),
                 const Divider(height: 1),
                 const _MenuSectionHeader('Aggregation'),
-                RadioListTile<BudgetAggregation>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: BudgetAggregation.selectedMonth,
-                  groupValue: budgetAggregation,
-                  title: const Text('Selected month'),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    apply(() => budgetAggregation = value);
-                  },
-                ),
-                RadioListTile<BudgetAggregation>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: BudgetAggregation.cumulativeToSelectedMonth,
-                  groupValue: budgetAggregation,
-                  title: const Text('Cumulative till selected month'),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    apply(() => budgetAggregation = value);
-                  },
-                ),
-                RadioListTile<BudgetAggregation>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: BudgetAggregation.cumulativeYear,
-                  groupValue: budgetAggregation,
-                  title: const Text('Cumulative full year'),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    apply(() => budgetAggregation = value);
-                  },
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: SegmentedToggle<BudgetAggregation>(
+                    options: const [
+                      SegmentedToggleOption(value: BudgetAggregation.selectedMonth, label: 'Month'),
+                      SegmentedToggleOption(value: BudgetAggregation.cumulativeToSelectedMonth, label: 'Till month'),
+                      SegmentedToggleOption(value: BudgetAggregation.cumulativeYear, label: 'Year'),
+                    ],
+                    selectedValue: budgetAggregation,
+                    onChanged: (value) => apply(() => budgetAggregation = value),
+                  ),
                 ),
                 const Divider(height: 1),
                 const _MenuSectionHeader('Sort'),
-                RadioListTile<BudgetSortOrder>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: BudgetSortOrder.amount,
-                  groupValue: sortOrder,
-                  title: const Text('Amount'),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    apply(() => sortOrder = value);
-                  },
-                ),
-                RadioListTile<BudgetSortOrder>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: BudgetSortOrder.alphabetical,
-                  groupValue: sortOrder,
-                  title: const Text('Alphabetical'),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    apply(() => sortOrder = value);
-                  },
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: SegmentedToggle<BudgetSortOrder>(
+                    options: const [
+                      SegmentedToggleOption(value: BudgetSortOrder.amount, label: 'Amount'),
+                      SegmentedToggleOption(value: BudgetSortOrder.alphabetical, label: 'A-Z'),
+                    ],
+                    selectedValue: sortOrder,
+                    onChanged: (value) => apply(() => sortOrder = value),
+                  ),
                 ),
                 const Divider(height: 1),
                 SwitchListTile(

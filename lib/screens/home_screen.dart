@@ -13,6 +13,7 @@ import '../services/database_service.dart';
 import '../services/excel_transfer_service.dart';
 import '../services/visual_settings.dart';
 import '../services/widget_sync_service.dart';
+import '../widgets/segmented_toggle.dart';
 import '../widgets/section_tile.dart';
 import '../widgets/side_overlay_sheet.dart';
 import 'accounts_page.dart';
@@ -110,18 +111,32 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<_NavItem> get _navItems {
+    final comparisonMode = _visualSettingsController(context).value.comparisonMode;
     final items = <_NavItem>[
       _NavItem(label: context.tr('Records'), icon: Icons.list, builder: _recordsBuilder),
       _NavItem(label: context.tr('Analysis'), icon: Icons.pie_chart, builder: _analysisBuilder),
-      _NavItem(label: context.tr('Budget'), icon: Icons.account_balance, builder: _budgetsBuilder),
       _NavItem(label: context.tr('Accounts'), icon: Icons.account_balance_wallet, builder: _accountsBuilder),
       _NavItem(label: context.tr('Categories'), icon: Icons.category, builder: _categoriesBuilder),
     ];
+    if (comparisonMode == ComparisonMode.budgetVsExpense) {
+      items.insert(2, _NavItem(label: context.tr('Budget'), icon: Icons.account_balance, builder: _budgetsBuilder));
+    }
     if (DataStore.isSmsTabVisible) {
       items.add(_NavItem(label: context.tr('SMSs'), icon: Icons.sms, builder: _smsBuilder));
     }
     return items;
   }
+  Future<void> _setComparisonMode(ComparisonMode mode) async {
+    final controller = _visualSettingsController(context);
+    if (controller.value.comparisonMode == mode) return;
+    await controller.updateSettings(controller.value.copyWith(comparisonMode: mode));
+    if (!mounted) return;
+    setState(() {
+      currentIndex = 0;
+      _refreshVersion++;
+    });
+  }
+
 
   Widget _buildCurrentPage() {
     final pageKey = ValueKey('$currentIndex-$_refreshVersion');
@@ -291,21 +306,21 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           title: const Text('Theme'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: ThemeMode.values
-                .map(
-                  (value) => RadioListTile<ThemeMode>(
-                    value: value,
-                    groupValue: mode,
-                    title: Text(value.name[0].toUpperCase() + value.name.substring(1)),
-                    onChanged: (changed) {
-                      if (changed == null) return;
-                      setState(() => mode = changed);
-                    },
-                  ),
-                )
-                .toList(),
+          content: SizedBox(
+            width: 280,
+            child: SegmentedToggle<ThemeMode>(
+              axis: SegmentedToggleAxis.vertical,
+              options: ThemeMode.values
+                  .map(
+                    (value) => SegmentedToggleOption(
+                      value: value,
+                      label: value.name[0].toUpperCase() + value.name.substring(1),
+                    ),
+                  )
+                  .toList(),
+              selectedValue: mode,
+              onChanged: (changed) => setState(() => mode = changed),
+            ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
@@ -329,19 +344,20 @@ class _HomeScreenState extends State<HomeScreen> {
           title: const Text('Language'),
           content: SizedBox(
             width: 320,
-            child: ListView(
-              shrinkWrap: true,
-              children: AppLocalizations.languageLabels.entries
-                  .map((entry) => RadioListTile<String>(
+            child: SingleChildScrollView(
+              child: SegmentedToggle<String>(
+                axis: SegmentedToggleAxis.vertical,
+                options: AppLocalizations.languageLabels.entries
+                    .map(
+                      (entry) => SegmentedToggleOption(
                         value: entry.key,
-                        groupValue: selected,
-                        title: Text(entry.value),
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() => selected = value);
-                        },
-                      ))
-                  .toList(),
+                        label: entry.value,
+                      ),
+                    )
+                    .toList(),
+                selectedValue: selected,
+                onChanged: (value) => setState(() => selected = value),
+              ),
             ),
           ),
           actions: [
@@ -585,9 +601,6 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'language':
         await _openLanguageSettings();
         return;
-      case 'comparison_mode':
-        await _openComparisonModeSettings();
-        return;
       case 'open_sms':
         await _showSmsTab();
         return;
@@ -700,13 +713,27 @@ class _HomeScreenState extends State<HomeScreen> {
             tile(icon: Icons.restart_alt_outlined, title: 'Reset app', onTap: () => handleSelection('reset_app')),
             const Divider(height: 1, thickness: 1),
             const _MenuSectionHeader('Mode'),
-            tile(
-              icon: Icons.compare_arrows_outlined,
-              title: 'Comparison mode',
-              subtitle: settings.comparisonMode == ComparisonMode.budgetVsExpense
-                  ? 'Budget vs Expense'
-                  : 'Income vs Expense',
-              onTap: () => handleSelection('comparison_mode'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: SegmentedToggle<ComparisonMode>(
+                axis: SegmentedToggleAxis.vertical,
+                options: const [
+                  SegmentedToggleOption(
+                    value: ComparisonMode.budgetVsExpense,
+                    label: 'Budget vs Expense',
+                  ),
+                  SegmentedToggleOption(
+                    value: ComparisonMode.incomeVsExpense,
+                    label: 'Income vs Expense',
+                  ),
+                ],
+                selectedValue: settings.comparisonMode,
+                onChanged: (value) async {
+                  await _setComparisonMode(value);
+                  if (!drawerContext.mounted) return;
+                  Navigator.of(drawerContext).pop();
+                },
+              ),
             ),
             const Divider(height: 1, thickness: 1),
             const _MenuSectionHeader('Visuals & SMSs'),
