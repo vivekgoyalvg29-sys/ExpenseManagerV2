@@ -32,83 +32,89 @@ class SegmentedToggle<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selectedIndex = options.indexWhere((option) => option.value == selectedValue);
+    final safeSelectedIndex = (selectedIndex < 0 ? 0 : selectedIndex).clamp(0, options.length - 1);
+
     final theme = Theme.of(context);
     final selectedColor = theme.colorScheme.primary;
     final bgColor = theme.colorScheme.surfaceVariant.withOpacity(0.55);
-    final knobInsets = axis == SegmentedToggleAxis.horizontal
-        ? const EdgeInsets.symmetric(vertical: 3, horizontal: 3)
-        : const EdgeInsets.symmetric(vertical: 3, horizontal: 3);
+
+    const double inset = 3;
+    const double horizontalHeight = 36;
+    const double verticalCellHeight = 40;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final count = options.length;
-        final double size = axis == SegmentedToggleAxis.horizontal
-            ? ((constraints.maxWidth.isFinite ? constraints.maxWidth : 300.0) / count)
-            : 38.0;
-        final double knobWidth = axis == SegmentedToggleAxis.horizontal
-            ? size - 6.0
-            : ((constraints.maxWidth.isFinite ? constraints.maxWidth : 180.0) - 6.0);
-        final double knobHeight = axis == SegmentedToggleAxis.vertical ? size - 6.0 : 36.0;
-        final double knobOffset = selectedIndex < 0 ? 0.0 : selectedIndex * size;
+        final outerWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : 320.0;
+        final outerHeight = axis == SegmentedToggleAxis.horizontal ? horizontalHeight : verticalCellHeight * count;
 
-        return Container(
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: theme.dividerColor),
-          ),
-          padding: knobInsets,
-          child: Stack(
-            children: [
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                left: axis == SegmentedToggleAxis.horizontal ? knobOffset : 0.0,
-                top: axis == SegmentedToggleAxis.vertical ? knobOffset : 0.0,
-                child: Container(
+        final knobHeight = axis == SegmentedToggleAxis.horizontal ? (outerHeight - inset * 2) : (verticalCellHeight - inset * 2);
+        final knobWidth = axis == SegmentedToggleAxis.horizontal ? (outerWidth / count - inset * 2) : (outerWidth - inset * 2);
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            width: outerWidth,
+            height: outerHeight,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: theme.dividerColor),
+            ),
+            child: Stack(
+              children: [
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  left: axis == SegmentedToggleAxis.horizontal ? (outerWidth / count) * safeSelectedIndex + inset : inset,
+                  top: axis == SegmentedToggleAxis.horizontal ? inset : verticalCellHeight * safeSelectedIndex + inset,
                   width: knobWidth,
                   height: knobHeight,
-                  decoration: BoxDecoration(
-                    color: selectedColor,
-                    borderRadius: BorderRadius.circular(999),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x33000000),
-                        blurRadius: 8,
-                        offset: Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              axis == SegmentedToggleAxis.horizontal
-                  ? Row(
-                      children: [
-                        for (final option in options)
-                          Expanded(
-                            child: _ToggleOptionLabel(
-                              label: option.label,
-                              selected: option.value == selectedValue,
-                              onTap: () => onChanged(option.value),
-                            ),
-                          ),
-                      ],
-                    )
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final option in options)
-                          SizedBox(
-                            height: 38,
-                            child: _ToggleOptionLabel(
-                              label: option.label,
-                              selected: option.value == selectedValue,
-                              onTap: () => onChanged(option.value),
-                            ),
-                          ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: selectedColor,
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x33000000),
+                          blurRadius: 8,
+                          offset: Offset(0, 3),
+                        ),
                       ],
                     ),
-            ],
+                  ),
+                ),
+                axis == SegmentedToggleAxis.horizontal
+                    ? Row(
+                        children: [
+                          for (final option in options)
+                            Expanded(
+                              child: SizedBox(
+                                height: horizontalHeight,
+                                child: _ToggleOptionLabel(
+                                  label: option.label,
+                                  selected: option.value == selectedValue,
+                                  onTap: () => onChanged(option.value),
+                                ),
+                              ),
+                            ),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          for (final option in options)
+                            SizedBox(
+                              height: verticalCellHeight,
+                              child: _ToggleOptionLabel(
+                                label: option.label,
+                                selected: option.value == selectedValue,
+                                onTap: () => onChanged(option.value),
+                              ),
+                            ),
+                        ],
+                      ),
+              ],
+            ),
           ),
         );
       },

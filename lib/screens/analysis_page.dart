@@ -15,6 +15,7 @@ import '../widgets/mini_progress_bar.dart';
 import '../widgets/segmented_toggle.dart';
 import '../widgets/section_tile.dart';
 import '../widgets/side_overlay_sheet.dart';
+import '../widgets/income_expense_pie_chart.dart';
 import 'add_transaction_page.dart';
 
 enum AnalysisMode {
@@ -59,6 +60,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
   TransactionSortOrder transactionSortOrder = TransactionSortOrder.newestFirst;
   bool showPercentage = true;
   int? selectedChartBucket;
+  IncomeExpensePieSlice? selectedPieSlice;
+  bool? _lastWasIncomeMode;
 
   List<Map<String, dynamic>> analysisData = [];
   List<Map<String, dynamic>> transactions = [];
@@ -71,6 +74,28 @@ class _AnalysisPageState extends State<AnalysisPage> {
   void initState() {
     super.initState();
     _restorePreferences();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final isIncomeMode = _isIncomeVsExpense;
+    if (_lastWasIncomeMode == null) {
+      _lastWasIncomeMode = isIncomeMode;
+      return;
+    }
+    if (_lastWasIncomeMode != isIncomeMode) {
+      // Switching comparison mode should reset drill-down selections.
+      selectedChartBucket = null;
+      selectedPieSlice = null;
+      _lastWasIncomeMode = isIncomeMode;
+      // Reload so chart/bottom list reflects the new mode.
+      // Use a post-frame to avoid calling setState during build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        loadAnalysis();
+      });
+    }
   }
 
   Future<void> _restorePreferences() async {
@@ -108,97 +133,248 @@ class _AnalysisPageState extends State<AnalysisPage> {
     budgets = budgetData;
     DataStore.categories = categories;
     DataStore.accounts = accounts;
+    if (_isIncomeVsExpense) {
+      // Income mode uses pie selection; time bucket (bar) selection must not affect the bottom list.
+      selectedChartBucket = null;
 
-    final filteredExpenses = _filteredTransactionsOfTypeForBottom('expense');
-    final filteredIncome = _filteredTransactionsOfTypeForBottom('income');
-    final totalIncomeAggregation = _filteredTransactionsOfType('income').fold<double>(
-      0.0,
-      (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
-    );
-    final totalExpense = filteredExpenses.fold<double>(
-      0.0,
-      (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
-    );
-    final totalIncome = filteredIncome.fold<double>(
-      0.0,
-      (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
-    );
+      final incomeTx = _filteredTransactionsOfType('income');
+      final expenseTx = _filteredTransactionsOfType('expense');
 
-    final groupedExpense = <String, double>{};
-    final groupedIncome = <String, double>{};
-    final latestDates = <String, DateTime>{};
+      final groupedIncome = <String, double>{};
+      final groupedExpense = <String, double>{};
+      final latestIncomeDates = <String, DateTime>{};
+      final latestExpenseDates = <String, DateTime>{};
 
-    for (final transaction in filteredExpenses) {
-      final key = _analysisKeyForTransaction(transaction);
-      if (key.isEmpty) continue;
-
-      final amount = (transaction['amount'] as num).toDouble();
-      final date = DateTime.parse(transaction['date'] as String);
-      groupedExpense[key] = (groupedExpense[key] ?? 0) + amount;
-
-      final previousLatest = latestDates[key];
-      if (previousLatest == null || date.isAfter(previousLatest)) {
-        latestDates[key] = date;
+      for (final transaction in incomeTx) {
+        final key = _incomeKeyForTransaction(transaction);
+        if (key.isEmpty) continue;
+        final amount = (transaction['amount'] as num).toDouble();
+        final date = DateTime.parse(transaction['date'] as String);
+        groupedIncome[key] = (groupedIncome[key] ?? 0) + amount;
+        final previous = latestIncomeDates[key];
+        if (previous == null || date.isAfter(previous)) latestIncomeDates[key] = date;
       }
-    }
 
-    for (final transaction in filteredIncome) {
-      final key = _analysisKeyForTransaction(transaction);
-      if (key.isEmpty) continue;
-
-      final amount = (transaction['amount'] as num).toDouble();
-      final date = DateTime.parse(transaction['date'] as String);
-      groupedIncome[key] = (groupedIncome[key] ?? 0) + amount;
-
-      final previousLatest = latestDates[key];
-      if (previousLatest == null || date.isAfter(previousLatest)) {
-        latestDates[key] = date;
+      for (final transaction in expenseTx) {
+        final key = _expenseKeyForTransaction(transaction);
+        if (key.isEmpty) continue;
+        final amount = (transaction['amount'] as num).toDouble();
+        final date = DateTime.parse(transaction['date'] as String);
+        groupedExpense[key] = (groupedExpense[key] ?? 0) + amount;
+        final previous = latestExpenseDates[key];
+        if (previous == null || date.isAfter(previous)) latestExpenseDates[key] = date;
       }
-    }
 
-    final groupedBudget = <String, double>{};
-    if (analysisType == AnalysisType.category && !_isIncomeVsExpense) {
-      for (final budgetData in budgets) {
-        if (_isBudgetInActiveRange(budgetData)) {
-          final category = (budgetData['category'] as String?)?.trim() ?? '';
-          if (category.isEmpty) continue;
-          final amount = (budgetData['amount'] as num).toDouble();
-          groupedBudget[category] = (groupedBudget[category] ?? 0) + amount;
+      final totalIncomeAggregation = groupedIncome.values.fold<double>(0.0, (sum, v) => sum + v);
+      final totalExpenseAggregation = groupedExpense.values.fold<double>(0.0, (sum, v) => sum + v);
+
+      final result = <Map<String, dynamic>>[];
+
+      final showIncome = selectedPieSlice == null || selectedPieSlice == IncomeExpensePieSlice.income;
+      final showExpense = selectedPieSlice == null || selectedPieSlice == IncomeExpensePieSlice.expense;
+
+      if (showIncome) {
+        for (final entry in groupedIncome.entries) {
+          if (entry.value <= 0) continue;
+          final percentage = totalIncomeAggregation == 0
+              ? 0
+              : (((entry.value / totalIncomeAggregation) * 100).clamp(0, 999)).round();
+          result.add({
+            'rowType': 'income',
+            'label': entry.key,
+            'spent': 0.0,
+            'income': entry.value,
+            'budget': 0.0,
+            'net': entry.value,
+            'percentage': percentage,
+            'totalIncomeAggregation': totalIncomeAggregation,
+            'totalExpenseAggregation': totalExpenseAggregation,
+            'latestDate': latestIncomeDates[entry.key],
+          });
         }
       }
-    }
 
-    final activeKeys = _isIncomeVsExpense
-        ? groupedExpense.keys.toSet()
-        : (analysisType == AnalysisType.category
-              ? <String>{...groupedBudget.keys, ...groupedExpense.keys}
-              : groupedExpense.keys.toSet());
-
-    final result = activeKeys
-        .map(
-          (key) => {
-            'label': key,
-            'spent': groupedExpense[key] ?? 0.0,
-            'budget': groupedBudget[key] ?? 0.0,
-            'income': groupedIncome[key] ?? 0.0,
-            'net': (groupedIncome[key] ?? 0.0) - (groupedExpense[key] ?? 0.0),
-            'percentage': _isIncomeVsExpense
-                ? (totalIncomeAggregation == 0 ? 0 : (((groupedExpense[key] ?? 0.0) / totalIncomeAggregation) * 100).round())
-                : (totalExpense == 0 ? 0 : (((groupedExpense[key] ?? 0.0) / totalExpense) * 100).round()),
+      if (showExpense) {
+        for (final entry in groupedExpense.entries) {
+          if (entry.value <= 0) continue;
+          final percentage = totalExpenseAggregation == 0
+              ? 0
+              : (((entry.value / totalExpenseAggregation) * 100).clamp(0, 999)).round();
+          result.add({
+            'rowType': 'expense',
+            'label': entry.key,
+            'spent': entry.value,
+            'income': 0.0,
+            'budget': 0.0,
+            'net': -entry.value,
+            'percentage': percentage,
             'totalIncomeAggregation': totalIncomeAggregation,
-            'latestDate': latestDates[key],
-          },
-        )
-        .toList();
+            'totalExpenseAggregation': totalExpenseAggregation,
+            'latestDate': latestExpenseDates[entry.key],
+          });
+        }
+      }
 
-    if (selectedChartBucket != null) {
-      result.removeWhere((entry) => ((entry['spent'] as num?) ?? 0) <= 0);
-    }
+      // Sorting rules:
+      // - When a pie slice is selected: sort by that side's amount desc (menu sorting ignored).
+      // - When no slice is selected: use existing menu sorting (based on analysisSortField).
+      result.sort((a, b) {
+        final aRow = a['rowType'] as String;
+        final bRow = b['rowType'] as String;
 
-    result.sort((a, b) {
+        if (selectedPieSlice == IncomeExpensePieSlice.income) {
+          final cmp = (b['income'] as num).compareTo(a['income'] as num);
+          return cmp != 0 ? cmp : (a['label'] as String).compareTo(b['label'] as String);
+        }
+        if (selectedPieSlice == IncomeExpensePieSlice.expense) {
+          final cmp = (b['spent'] as num).compareTo(a['spent'] as num);
+          return cmp != 0 ? cmp : (a['label'] as String).compareTo(b['label'] as String);
+        }
+
+        num aPrimary;
+        num bPrimary;
+        if (analysisSortField == AnalysisSortField.budget) {
+          // In income mode, "Budget" label in menu corresponds to Income sorting.
+          aPrimary = aRow == 'income' ? (a['income'] as num) : 0;
+          bPrimary = bRow == 'income' ? (b['income'] as num) : 0;
+        } else {
+          // "Expense" label in menu.
+          aPrimary = aRow == 'expense' ? (a['spent'] as num) : 0;
+          bPrimary = bRow == 'expense' ? (b['spent'] as num) : 0;
+        }
+
+        final amountCompare = bPrimary.compareTo(aPrimary);
+        if (amountCompare != 0) return amountCompare;
+
+        final secondaryCompare = (b['spent'] as num).compareTo(a['spent'] as num);
+        if (secondaryCompare != 0) return secondaryCompare;
+
+        final aDate = a['latestDate'] as DateTime?;
+        final bDate = b['latestDate'] as DateTime?;
+        if (aDate != null && bDate != null) {
+          final dateCompare = bDate.compareTo(aDate);
+          if (dateCompare != 0) return dateCompare;
+        }
+
+        return (a['label'] as String).compareTo(b['label'] as String);
+      });
+
+      if (!mounted) return;
+      setState(() {
+        analysisData = result;
+      });
+    } else {
+      // Budget mode uses the bar-chart time bucket selection to filter the bottom list.
+      final filteredExpenses = _filteredTransactionsOfTypeForBottom('expense');
+      final totalIncomeAggregation = _filteredTransactionsOfType('income').fold<double>(
+        0.0,
+        (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
+      );
+      final totalExpense = filteredExpenses.fold<double>(
+        0.0,
+        (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
+      );
+
+      final groupedExpense = <String, double>{};
+      final groupedIncome = <String, double>{};
+      final latestDates = <String, DateTime>{};
+
+      for (final transaction in filteredExpenses) {
+        final key = _analysisKeyForTransaction(transaction);
+        if (key.isEmpty) continue;
+
+        final amount = (transaction['amount'] as num).toDouble();
+        final date = DateTime.parse(transaction['date'] as String);
+        groupedExpense[key] = (groupedExpense[key] ?? 0) + amount;
+
+        final previousLatest = latestDates[key];
+        if (previousLatest == null || date.isAfter(previousLatest)) {
+          latestDates[key] = date;
+        }
+      }
+
+      // groupedIncome is only used when building rows in income/budget combined mode earlier;
+      // keep it for compatibility with the existing UI.
+      if (analysisMode != AnalysisMode.cumulativeYear) {
+        final filteredIncome = _filteredTransactionsOfTypeForBottom('income');
+        for (final transaction in filteredIncome) {
+          final key = _analysisKeyForTransaction(transaction);
+          if (key.isEmpty) continue;
+          final amount = (transaction['amount'] as num).toDouble();
+          final date = DateTime.parse(transaction['date'] as String);
+          groupedIncome[key] = (groupedIncome[key] ?? 0) + amount;
+          final previousLatest = latestDates[key];
+          if (previousLatest == null || date.isAfter(previousLatest)) {
+            latestDates[key] = date;
+          }
+        }
+      }
+
+      final groupedBudget = <String, double>{};
+      if (analysisType == AnalysisType.category) {
+        for (final budgetData in budgets) {
+          if (_isBudgetInActiveRange(budgetData)) {
+            final category = (budgetData['category'] as String?)?.trim() ?? '';
+            if (category.isEmpty) continue;
+            final amount = (budgetData['amount'] as num).toDouble();
+            groupedBudget[category] = (groupedBudget[category] ?? 0) + amount;
+          }
+        }
+      }
+
+      final activeKeys = analysisType == AnalysisType.category
+          ? <String>{...groupedBudget.keys, ...groupedExpense.keys}
+          : groupedExpense.keys.toSet();
+
+      final result = activeKeys
+          .map((key) => {
+                'rowType': 'expense',
+                'label': key,
+                'spent': groupedExpense[key] ?? 0.0,
+                'budget': groupedBudget[key] ?? 0.0,
+                'income': groupedIncome[key] ?? 0.0,
+                'net': (groupedIncome[key] ?? 0.0) - (groupedExpense[key] ?? 0.0),
+                'percentage': totalExpense == 0
+                    ? 0
+                    : (((groupedExpense[key] ?? 0.0) / totalExpense) * 100).round(),
+                'totalIncomeAggregation': totalIncomeAggregation,
+                'totalExpenseAggregation': totalExpense,
+                'latestDate': latestDates[key],
+              })
+          .toList();
+
       if (selectedChartBucket != null) {
-        final spentCompare = ((b['spent'] as num?) ?? 0).compareTo((a['spent'] as num?) ?? 0);
-        if (spentCompare != 0) return spentCompare;
+        result.removeWhere((entry) => ((entry['spent'] as num?) ?? 0) <= 0);
+      }
+
+      result.sort((a, b) {
+        if (selectedChartBucket != null) {
+          final spentCompare = ((b['spent'] as num?) ?? 0).compareTo((a['spent'] as num?) ?? 0);
+          if (spentCompare != 0) return spentCompare;
+          final bDate = b['latestDate'] as DateTime?;
+          final aDate = a['latestDate'] as DateTime?;
+          if (aDate != null && bDate != null) {
+            final dateCompare = bDate.compareTo(aDate);
+            if (dateCompare != 0) return dateCompare;
+          }
+          if (bDate != null) return 1;
+          if (aDate != null) return -1;
+          return (a['label'] as String).compareTo(b['label'] as String);
+        }
+
+        final aPrimary = analysisSortField == AnalysisSortField.budget
+            ? (a['budget'] as num?) ?? 0
+            : (a['spent'] as num?) ?? 0;
+        final bPrimary = analysisSortField == AnalysisSortField.budget
+            ? (b['budget'] as num?) ?? 0
+            : (b['spent'] as num?) ?? 0;
+
+        final amountCompare = bPrimary.compareTo(aPrimary);
+        if (amountCompare != 0) return amountCompare;
+
+        final secondaryCompare = ((b['spent'] as num?) ?? 0).compareTo((a['spent'] as num?) ?? 0);
+        if (secondaryCompare != 0) return secondaryCompare;
+
         final bDate = b['latestDate'] as DateTime?;
         final aDate = a['latestDate'] as DateTime?;
         if (aDate != null && bDate != null) {
@@ -207,48 +383,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
         }
         if (bDate != null) return 1;
         if (aDate != null) return -1;
+
         return (a['label'] as String).compareTo(b['label'] as String);
-      }
-      final aPrimary = _isIncomeVsExpense
-          ? (analysisSortField == AnalysisSortField.budget
-                ? (a['income'] as num?) ?? 0
-                : (a['spent'] as num?) ?? 0)
-          : (analysisSortField == AnalysisSortField.budget
-                ? (a['budget'] as num?) ?? 0
-                : (a['spent'] as num?) ?? 0);
-      final bPrimary = _isIncomeVsExpense
-          ? (analysisSortField == AnalysisSortField.budget
-                ? (b['income'] as num?) ?? 0
-                : (b['spent'] as num?) ?? 0)
-          : (analysisSortField == AnalysisSortField.budget
-                ? (b['budget'] as num?) ?? 0
-                : (b['spent'] as num?) ?? 0);
-      final amountCompare = bPrimary.compareTo(aPrimary);
-      if (amountCompare != 0) return amountCompare;
+      });
 
-      final secondaryCompare = ((b['spent'] as num?) ?? 0).compareTo((a['spent'] as num?) ?? 0);
-      if (secondaryCompare != 0) return secondaryCompare;
-
-      final bDate = b['latestDate'] as DateTime?;
-      final aDate = a['latestDate'] as DateTime?;
-      if (aDate != null && bDate != null) {
-        final dateCompare = bDate.compareTo(aDate);
-        if (dateCompare != 0) return dateCompare;
-      }
-      if (bDate != null) return 1;
-      if (aDate != null) return -1;
-
-      return (a['label'] as String).compareTo(b['label'] as String);
-    });
-
-    if (!mounted) return;
-
-    setState(() {
-      analysisData = result;
-      if (!_chartDataContainsBucket(selectedChartBucket)) {
-        selectedChartBucket = null;
-      }
-    });
+      if (!mounted) return;
+      setState(() {
+        analysisData = result;
+        if (!_chartDataContainsBucket(selectedChartBucket)) {
+          selectedChartBucket = null;
+        }
+      });
+    }
 
     await WidgetSyncService.updateConfiguration(
       mode: _widgetMode(),
@@ -280,6 +426,19 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   String _analysisKeyForTransaction(Map<String, dynamic> transaction) {
+    if (analysisType == AnalysisType.account) {
+      return (transaction['account'] as String?)?.trim() ?? '';
+    }
+    return (transaction['title'] as String?)?.trim() ?? '';
+  }
+
+  String _incomeKeyForTransaction(Map<String, dynamic> transaction) {
+    // In income mode, income rows are always grouped by account.
+    return (transaction['account'] as String?)?.trim() ?? '';
+  }
+
+  String _expenseKeyForTransaction(Map<String, dynamic> transaction) {
+    // In both modes, expense grouping respects the analysis menu type.
     if (analysisType == AnalysisType.account) {
       return (transaction['account'] as String?)?.trim() ?? '';
     }
@@ -321,8 +480,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return int.tryParse(value.toString()) ?? 0;
   }
 
-  Map<String, dynamic>? _entryForLabel(String label) {
-    final source = analysisType == AnalysisType.category ? DataStore.categories : DataStore.accounts;
+  Map<String, dynamic>? _entryForLabel(String label, {String rowType = 'expense'}) {
+    final source = _isIncomeVsExpense && rowType == 'income'
+        ? DataStore.accounts
+        : (analysisType == AnalysisType.category ? DataStore.categories : DataStore.accounts);
+
     return source.cast<Map<String, dynamic>?>().firstWhere(
       (item) => item?['name'] == label,
       orElse: () => null,
@@ -544,14 +706,19 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
   }
 
-  List<Map<String, dynamic>> _transactionsForLabel(String label) {
-    final base = _isIncomeVsExpense
-        ? <Map<String, dynamic>>[
-            ..._filteredTransactionsOfTypeForBottom('income'),
-            ..._filteredTransactionsOfTypeForBottom('expense'),
-          ]
-        : _filteredTransactionsOfTypeForBottom('expense');
+  List<Map<String, dynamic>> _transactionsForLabel(String label, {required String rowType}) {
+    final base = !_isIncomeVsExpense
+        ? _filteredTransactionsOfTypeForBottom('expense')
+        : rowType == 'income'
+            ? _filteredTransactionsOfType('income')
+            : _filteredTransactionsOfType('expense');
+
     final matching = base.where((transaction) {
+      if (_isIncomeVsExpense) {
+        return rowType == 'income'
+            ? _incomeKeyForTransaction(transaction) == label
+            : _expenseKeyForTransaction(transaction) == label;
+      }
       return _analysisKeyForTransaction(transaction) == label;
     }).toList();
 
@@ -591,6 +758,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   void _showRelatedTransactions(Map<String, dynamic> data) {
     final label = data['label'] as String;
+    final rowType = (data['rowType'] as String?) ?? 'expense';
     final dateFormat = DateFormat('dd MMM yyyy');
 
     showModalBottomSheet<void>(
@@ -600,7 +768,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       builder: (bottomSheetContext) {
         return StatefulBuilder(
           builder: (context, _) {
-            final groupedTransactions = _transactionsForLabel(label);
+            final groupedTransactions = _transactionsForLabel(label, rowType: rowType);
             return SafeArea(
               child: SizedBox(
                 height: MediaQuery.of(context).size.height * 0.68,
@@ -644,7 +812,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                 final subtitle = analysisType == AnalysisType.category
                                     ? (transaction['account'] as String?)?.trim() ?? ''
                                     : (transaction['title'] as String?)?.trim() ?? '';
-                                final entry = _entryForLabel(label);
+                                final entry = _entryForLabel(label, rowType: rowType);
 
                                 return Material(
                                   color: Colors.transparent,
@@ -782,37 +950,57 @@ class _AnalysisPageState extends State<AnalysisPage> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-              child: AggregationBarChart(
-                data: _analysisChartData(),
-                emptyMessage: _isIncomeVsExpense
-                    ? 'No income data available for this aggregation.'
-                    : 'No expense data available for this aggregation.',
-                selectedBucket: selectedChartBucket,
-                onBarTap: (item) async {
-                  final tappedBucket = item.bucket;
-                  final nextBucket = selectedChartBucket == tappedBucket ? null : tappedBucket;
-                  setState(() {
-                    selectedChartBucket = nextBucket;
-                  });
-                  await loadAnalysis();
-                },
-                trailing: selectedChartBucket != null
-                    ? IconButton(
-                        onPressed: () async {
-                          setState(() {
-                            selectedChartBucket = null;
-                          });
-                          await loadAnalysis();
-                        },
-                        icon: const Icon(Icons.close_rounded, size: 16),
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.all(4),
-                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                        splashRadius: 14,
-                        tooltip: 'Clear filter',
-                      )
-                    : null,
-              ),
+              child: _isIncomeVsExpense
+                  ? IncomeExpensePieChart(
+                      incomeTotal: income,
+                      expenseTotal: expense,
+                      selectedSlice: selectedPieSlice,
+                      incomeColor: Theme.of(context).colorScheme.primary,
+                      expenseColor: _progressColor(income == 0 ? (expense > 0 ? 2.0 : 0.0) : expense / income),
+                      onSliceTap: (slice) async {
+                        setState(() {
+                          selectedPieSlice = selectedPieSlice == slice ? null : slice;
+                        });
+                        await loadAnalysis();
+                      },
+                      onClear: selectedPieSlice != null
+                          ? () async {
+                              setState(() {
+                                selectedPieSlice = null;
+                              });
+                              await loadAnalysis();
+                            }
+                          : null,
+                    )
+                  : AggregationBarChart(
+                      data: _analysisChartData(),
+                      emptyMessage: 'No expense data available for this aggregation.',
+                      selectedBucket: selectedChartBucket,
+                      onBarTap: (item) async {
+                        final tappedBucket = item.bucket;
+                        final nextBucket = selectedChartBucket == tappedBucket ? null : tappedBucket;
+                        setState(() {
+                          selectedChartBucket = nextBucket;
+                        });
+                        await loadAnalysis();
+                      },
+                      trailing: selectedChartBucket != null
+                          ? IconButton(
+                              onPressed: () async {
+                                setState(() {
+                                  selectedChartBucket = null;
+                                });
+                                await loadAnalysis();
+                              },
+                              icon: const Icon(Icons.close_rounded, size: 16),
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                              splashRadius: 14,
+                              tooltip: 'Clear filter',
+                            )
+                          : null,
+                    ),
             ),
             Expanded(
               child: SectionTile(
@@ -824,26 +1012,44 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         itemBuilder: (context, index) {
                           final data = analysisData[index];
                           final label = data['label'] as String;
+                          final rowType = (data['rowType'] as String?) ?? 'expense';
                           final spent = (data['spent'] as num).toDouble();
                           final budget = (data['budget'] as num).toDouble();
                           final incomeAmount = (data['income'] as num?)?.toDouble() ?? 0.0;
                           final netAmount = (data['net'] as num?)?.toDouble() ?? 0.0;
-                          final ratio = analysisType == AnalysisType.account
-                              ? 0.0
-                              : (budget == 0 ? (spent > 0 ? 1.01 : 0.0) : spent / budget);
-                          final progress = analysisType == AnalysisType.account
-                              ? 0.0
-                              : (budget == 0
-                                  ? (spent > 0 ? 1.0 : 0.0)
-                                  : (spent == 0 ? 0.02 : ratio.clamp(0.0, 1.0).toDouble()));
-                          final budgetRatio = (ratio * 100).isFinite
-                              ? (ratio * 100).clamp(0, 999).round()
-                              : 0;
+                          final totalIncomeAggregation = (data['totalIncomeAggregation'] as num?)?.toDouble() ?? 0.0;
+                          final totalExpenseAggregation = (data['totalExpenseAggregation'] as num?)?.toDouble() ?? 0.0;
 
-                          final entry = _entryForLabel(label);
+                          final ratio = !_isIncomeVsExpense
+                              ? (analysisType == AnalysisType.account
+                                  ? 0.0
+                                  : (budget == 0 ? (spent > 0 ? 1.01 : 0.0) : spent / budget))
+                              : rowType == 'income'
+                                  ? (totalIncomeAggregation == 0 ? 0.0 : incomeAmount / totalIncomeAggregation)
+                                  : (totalExpenseAggregation == 0 ? 0.0 : spent / totalExpenseAggregation);
+
+                          final progress = !_isIncomeVsExpense
+                              ? (analysisType == AnalysisType.account
+                                  ? 0.0
+                                  : (budget == 0
+                                      ? (spent > 0 ? 1.0 : 0.0)
+                                      : (spent == 0 ? 0.02 : ratio.clamp(0.0, 1.0).toDouble())))
+                              : (rowType == 'income'
+                                  ? (totalIncomeAggregation == 0
+                                      ? 0.0
+                                      : (incomeAmount == 0 ? 0.0 : ratio.clamp(0.0, 1.0).toDouble()))
+                                  : (totalExpenseAggregation == 0
+                                      ? 0.0
+                                      : (spent == 0 ? 0.0 : ratio.clamp(0.0, 1.0).toDouble())));
+
+                          final budgetRatio = (ratio * 100).isFinite ? (ratio * 100).clamp(0, 999).round() : 0;
+
+                          final entry = _entryForLabel(label, rowType: rowType);
 
                           return InkWell(
-                            onTap: () => _showRelatedTransactions(data),
+                            onTap: (_isIncomeVsExpense && (data['rowType'] as String?) == 'income')
+                                ? null
+                                : () => _showRelatedTransactions(data),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               child: Column(
@@ -855,9 +1061,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                       AppPageIcon(
                                         icon: iconFromCodePoint(
                                           entry?['icon'],
-                                          fallback: analysisType == AnalysisType.category
-                                              ? Icons.category
-                                              : Icons.account_balance_wallet,
+                                          fallback: rowType == 'income'
+                                              ? Icons.account_balance_wallet
+                                              : (analysisType == AnalysisType.category ? Icons.category : Icons.account_balance_wallet),
                                         ),
                                         imagePath: entry?['icon_path']?.toString(),
                                       ),
@@ -877,14 +1083,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                   ),
                                   const SizedBox(height: 6),
                                   // Progress bar with overlaid text + % at end
-                                  if (analysisType == AnalysisType.category && !_isIncomeVsExpense) ...[
+                                  if (!_isIncomeVsExpense && analysisType == AnalysisType.category) ...[
                                     Row(
                                       children: [
                                         Expanded(
                                           child: Stack(
                                             alignment: Alignment.centerLeft,
                                             children: [
-                                              // Background bar
                                               Container(
                                                 height: 16,
                                                 decoration: BoxDecoration(
@@ -892,7 +1097,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                   borderRadius: BorderRadius.circular(999),
                                                 ),
                                               ),
-                                              // Filled bar
                                               FractionallySizedBox(
                                                 widthFactor: progress.clamp(0.0, 1.0),
                                                 child: Container(
@@ -903,7 +1107,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                   ),
                                                 ),
                                               ),
-                                              // Overlaid text
                                               Padding(
                                                 padding: const EdgeInsets.symmetric(horizontal: 8),
                                                 child: Text(
@@ -943,96 +1146,80 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                         ],
                                       ],
                                     ),
+                                  ] else if (!_isIncomeVsExpense) ...[
+                                    Text(
+                                      formatIndianCurrency(spent),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
                                   ] else ...[
-                                    if (_isIncomeVsExpense) ...[
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Stack(
-                                              alignment: Alignment.centerLeft,
-                                              children: [
-                                                Container(
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Stack(
+                                            alignment: Alignment.centerLeft,
+                                            children: [
+                                              Container(
+                                                height: 16,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey[200],
+                                                  borderRadius: BorderRadius.circular(999),
+                                                ),
+                                              ),
+                                              FractionallySizedBox(
+                                                widthFactor: progress.clamp(0.0, 1.0),
+                                                child: Container(
                                                   height: 16,
                                                   decoration: BoxDecoration(
-                                                    color: Colors.grey[200],
+                                                    gradient: _progressGradient(ratio),
                                                     borderRadius: BorderRadius.circular(999),
                                                   ),
                                                 ),
-                                                FractionallySizedBox(
-                                                  widthFactor: ((data['totalIncomeAggregation'] as num?) ?? 0) == 0
-                                                      ? (spent > 0 ? 1.0 : 0.0)
-                                                      : (spent / (data['totalIncomeAggregation'] as num).toDouble()).clamp(0.0, 1.0),
-                                                  child: Container(
-                                                    height: 16,
-                                                    decoration: BoxDecoration(
-                                                      gradient: _progressGradient(
-                                                        ((data['totalIncomeAggregation'] as num?) ?? 0) == 0
-                                                            ? 0.0
-                                                            : spent / (data['totalIncomeAggregation'] as num).toDouble(),
+                                              ),
+                                              Padding(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                child: Text(
+                                                  rowType == 'income'
+                                                      ? '${formatIndianCurrency(incomeAmount)} / ${formatIndianCurrency(totalIncomeAggregation)}'
+                                                      : '${formatIndianCurrency(spent)} / ${formatIndianCurrency(totalExpenseAggregation)}',
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Colors.white,
+                                                    shadows: [
+                                                      Shadow(
+                                                        color: Colors.black45,
+                                                        blurRadius: 2,
                                                       ),
-                                                      borderRadius: BorderRadius.circular(999),
-                                                    ),
-                                                  ),
-                                                ),
-                                                Padding(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                                                  child: Text(
-                                                    '${formatIndianCurrency(spent)} / ${formatIndianCurrency((data['totalIncomeAggregation'] as num?)?.toDouble() ?? 0.0)}',
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                    style: const TextStyle(
-                                                      fontSize: 10,
-                                                      fontWeight: FontWeight.w700,
-                                                      color: Colors.white,
-                                                      shadows: [
-                                                        Shadow(
-                                                          color: Colors.black45,
-                                                          blurRadius: 2,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          if (showPercentage) ...[
-                                            const SizedBox(width: 8),
-                                            SizedBox(
-                                              width: 42,
-                                              child: Text(
-                                                ((data['totalIncomeAggregation'] as num?) ?? 0) == 0
-                                                    ? '0%'
-                                                    : '${((spent / (data['totalIncomeAggregation'] as num).toDouble()) * 100).clamp(0, 999).round()}%',
-                                                textAlign: TextAlign.right,
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: _progressColor(
-                                                    ((data['totalIncomeAggregation'] as num?) ?? 0) == 0
-                                                        ? 0.0
-                                                        : spent / (data['totalIncomeAggregation'] as num).toDouble(),
+                                                    ],
                                                   ),
                                                 ),
                                               ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ] else ...[
-                                      Text(
-                                        _isIncomeVsExpense
-                                            ? 'Income ${formatIndianCurrency(incomeAmount)} • Expense ${formatIndianCurrency(spent)} • Net ${formatIndianCurrency(netAmount)}'
-                                            : formatIndianCurrency(spent),
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: _isIncomeVsExpense
-                                              ? (netAmount >= 0 ? Colors.green[700] : Colors.red[700])
-                                              : Colors.grey[700],
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                        if (showPercentage) ...[
+                                          const SizedBox(width: 8),
+                                          SizedBox(
+                                            width: 42,
+                                            child: Text(
+                                              '$budgetRatio%',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: _progressColor(ratio),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
                                   ],
                                 ],
                               ),
