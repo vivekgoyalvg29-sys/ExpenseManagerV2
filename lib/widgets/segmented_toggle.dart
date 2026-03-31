@@ -42,12 +42,14 @@ class SegmentedToggle<T> extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final count = options.length;
-        final size = axis == SegmentedToggleAxis.horizontal
-            ? (constraints.maxWidth.isFinite ? constraints.maxWidth : 300) / count
+        final double size = axis == SegmentedToggleAxis.horizontal
+            ? ((constraints.maxWidth.isFinite ? constraints.maxWidth : 300.0) / count)
             : 38.0;
-        final knobWidth = axis == SegmentedToggleAxis.horizontal ? size - 6 : (constraints.maxWidth.isFinite ? constraints.maxWidth - 6 : 180);
-        final knobHeight = axis == SegmentedToggleAxis.vertical ? size - 6 : 36.0;
-        final knobOffset = selectedIndex < 0 ? 0.0 : selectedIndex * size;
+        final double knobWidth = axis == SegmentedToggleAxis.horizontal
+            ? size - 6.0
+            : ((constraints.maxWidth.isFinite ? constraints.maxWidth : 180.0) - 6.0);
+        final double knobHeight = axis == SegmentedToggleAxis.vertical ? size - 6.0 : 36.0;
+        final double knobOffset = selectedIndex < 0 ? 0.0 : selectedIndex * size;
 
         return Container(
           decoration: BoxDecoration(
@@ -61,8 +63,8 @@ class SegmentedToggle<T> extends StatelessWidget {
               AnimatedPositioned(
                 duration: const Duration(milliseconds: 180),
                 curve: Curves.easeOutCubic,
-                left: axis == SegmentedToggleAxis.horizontal ? knobOffset : 0,
-                top: axis == SegmentedToggleAxis.vertical ? knobOffset : 0,
+                left: axis == SegmentedToggleAxis.horizontal ? knobOffset : 0.0,
+                top: axis == SegmentedToggleAxis.vertical ? knobOffset : 0.0,
                 child: Container(
                   width: knobWidth,
                   height: knobHeight,
