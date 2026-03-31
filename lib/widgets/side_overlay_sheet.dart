@@ -22,6 +22,7 @@ Future<T?> showSideOverlaySheet<T>({
           builder: (context, constraints) {
             final panelWidth =
                 (constraints.maxWidth * widthFactor).clamp(280.0, maxWidth).toDouble();
+            final panelHeight = (constraints.maxHeight * 0.86).clamp(320.0, constraints.maxHeight - 24).toDouble();
 
             return Stack(
               children: [
@@ -38,10 +39,14 @@ Future<T?> showSideOverlaySheet<T>({
                   child: Material(
                     color: Theme.of(context).colorScheme.surface,
                     elevation: 20,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                     child: SizedBox(
                       width: panelWidth,
-                      height: double.infinity,
-                      child: builder(dialogContext),
+                      height: panelHeight,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: builder(dialogContext),
+                      ),
                     ),
                   ),
                 ),
