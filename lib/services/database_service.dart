@@ -1,5 +1,6 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:flutter/material.dart';
 
 class DatabaseService {
   static Database? _db;
@@ -356,5 +357,63 @@ class DatabaseService {
       limit: 1,
     );
     return result.isNotEmpty;
+  }
+
+  static Future<int> initializeDefaultCategoriesAndAccounts() async {
+    const incomeCategories = <String>[
+      'Salary',
+      'Bonus',
+      'Freelance',
+      'Interest',
+      'Dividends',
+      'Gifts',
+      'Reimbursements',
+      'Rental',
+      'Other',
+    ];
+    const expenseCategories = <String>[
+      'Housing',
+      'Utilities',
+      'Groceries',
+      'Dining',
+      'Transport',
+      'Health',
+      'Insurance',
+      'Education',
+      'Entertainment',
+      'Shopping',
+      'Subscriptions',
+      'Debt',
+      'Savings',
+      'Donations',
+      'Misc',
+    ];
+    const accounts = <String>[
+      'Cash',
+      'Bank',
+      'Savings',
+      'Credit Card',
+      'Wallet',
+    ];
+
+    var created = 0;
+    for (final name in incomeCategories) {
+      if (await categoryExists(name, 'income')) continue;
+      await insertCategory(name, 'income', Icons.trending_up.codePoint);
+      created++;
+    }
+    for (final name in expenseCategories) {
+      if (await categoryExists(name, 'expense')) continue;
+      await insertCategory(name, 'expense', Icons.shopping_bag_outlined.codePoint);
+      created++;
+    }
+    for (final name in accounts) {
+      for (final type in const ['income', 'expense']) {
+        if (await accountExists(name, type)) continue;
+        await insertAccount(name, type, Icons.account_balance_wallet_outlined.codePoint);
+        created++;
+      }
+    }
+    return created;
   }
 }

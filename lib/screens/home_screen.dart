@@ -33,6 +33,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const String _firstRunInitPromptedKey = 'first_run_init_prompted';
   late int currentIndex;
   int _refreshVersion = 0;
   String _appVersion = 'v1.0.0';
@@ -44,6 +45,9 @@ class _HomeScreenState extends State<HomeScreen> {
     currentIndex = widget.initialIndex;
     _loadPackageInfo();
     _loadUsername();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureFirstRunInitializationPrompt();
+    });
   }
 
   Future<void> _loadPackageInfo() async {
@@ -584,6 +588,52 @@ class _HomeScreenState extends State<HomeScreen> {
     await FirebaseAuth.instance.signOut();
   }
 
+  Future<void> _ensureFirstRunInitializationPrompt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final prompted = prefs.getBool(_firstRunInitPromptedKey) ?? false;
+    if (prompted || !mounted) return;
+
+    await prefs.setBool(_firstRunInitPromptedKey, true);
+    await _showInitializeDefaultsDialog(fromMenu: false);
+  }
+
+  Future<void> _showInitializeDefaultsDialog({required bool fromMenu}) async {
+    if (!mounted) return;
+    final shouldInitialize = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Initialize defaults?'),
+        content: const Text(
+          'Create default categories and accounts now?\n\nYou can still create or initialize them later from Main Menu > Data management.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(fromMenu ? 'Cancel' : 'Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+    if (shouldInitialize != true) return;
+
+    final created = await DatabaseService.initializeDefaultCategoriesAndAccounts();
+    if (!mounted) return;
+    setState(() => _refreshVersion++);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          created == 0
+              ? 'Defaults are already available.'
+              : 'Added $created default categories/accounts.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleAppBarAction(String action) async {
     switch (action) {
       case 'export':
@@ -615,6 +665,9 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       case 'logout':
         await _logout();
+        return;
+      case 'initialize_defaults':
+        await _showInitializeDefaultsDialog(fromMenu: true);
         return;
       case 'edit_profile':
         await _openEditProfileDialog();
@@ -708,31 +761,43 @@ class _HomeScreenState extends State<HomeScreen> {
             const _MenuSectionHeader('Data management'),
             tile(icon: Icons.upload_file_outlined, title: 'Export (Excel)', onTap: () => handleSelection('export')),
             tile(icon: Icons.download_outlined, title: 'Import (Excel)', onTap: () => handleSelection('import')),
+            tile(icon: Icons.playlist_add_check_circle_outlined, title: 'Initialize defaults', onTap: () => handleSelection('initialize_defaults')),
             tile(icon: Icons.delete_forever_outlined, title: 'Delete everything', onTap: () => handleSelection('delete_everything')),
             tile(icon: Icons.receipt_long_outlined, title: 'Delete transactions', onTap: () => handleSelection('delete_transactions')),
             tile(icon: Icons.restart_alt_outlined, title: 'Reset app', onTap: () => handleSelection('reset_app')),
             const Divider(height: 1, thickness: 1),
             const _MenuSectionHeader('Mode'),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: SegmentedToggle<ComparisonMode>(
-                axis: SegmentedToggleAxis.vertical,
-                options: const [
-                  SegmentedToggleOption(
-                    value: ComparisonMode.budgetVsExpense,
-                    label: 'Budget vs Expense',
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ChoiceChip(
+                    label: const Text('Budget vs Expense'),
+                    selected: settings.comparisonMode == ComparisonMode.budgetVsExpense,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+                    onSelected: (_) async {
+                      await _setComparisonMode(ComparisonMode.budgetVsExpense);
+                      if (!drawerContext.mounted) return;
+                      Navigator.of(drawerContext).pop();
+                    },
                   ),
-                  SegmentedToggleOption(
-                    value: ComparisonMode.incomeVsExpense,
-                    label: 'Income vs Expense',
+                  ChoiceChip(
+                    label: const Text('Income vs Expense'),
+                    selected: settings.comparisonMode == ComparisonMode.incomeVsExpense,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+                    onSelected: (_) async {
+                      await _setComparisonMode(ComparisonMode.incomeVsExpense);
+                      if (!drawerContext.mounted) return;
+                      Navigator.of(drawerContext).pop();
+                    },
                   ),
                 ],
-                selectedValue: settings.comparisonMode,
-                onChanged: (value) async {
-                  await _setComparisonMode(value);
-                  if (!drawerContext.mounted) return;
-                  Navigator.of(drawerContext).pop();
-                },
               ),
             ),
             const Divider(height: 1, thickness: 1),
