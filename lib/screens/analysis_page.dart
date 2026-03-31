@@ -11,6 +11,7 @@ import '../widgets/icon_utils.dart';
 import '../widgets/aggregation_bar_chart.dart';
 import '../widgets/month_summary.dart';
 import '../widgets/page_content_layout.dart';
+import '../widgets/segmented_toggle.dart';
 import '../widgets/section_tile.dart';
 import '../widgets/side_overlay_sheet.dart';
 import 'add_transaction_page.dart';
@@ -107,8 +108,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
     DataStore.categories = categories;
     DataStore.accounts = accounts;
 
-    final filteredExpenses = _filteredTransactionsOfTypeWithChartFilter('expense');
-    final filteredIncome = _filteredTransactionsOfTypeWithChartFilter('income');
+    final filteredExpenses = _filteredTransactionsOfTypeForBottom('expense');
+    final filteredIncome = _filteredTransactionsOfTypeForBottom('income');
+    final totalIncomeAggregation = _filteredTransactionsOfType('income').fold<double>(
+      0.0,
+      (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
+    );
     final totalExpense = filteredExpenses.fold<double>(
       0.0,
       (sum, transaction) => sum + (transaction['amount'] as num).toDouble(),
@@ -163,7 +168,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     final activeKeys = _isIncomeVsExpense
-        ? <String>{...groupedIncome.keys, ...groupedExpense.keys}
+        ? groupedExpense.keys.toSet()
         : (analysisType == AnalysisType.category
               ? <String>{...groupedBudget.keys, ...groupedExpense.keys}
               : groupedExpense.keys.toSet());
@@ -177,14 +182,32 @@ class _AnalysisPageState extends State<AnalysisPage> {
             'income': groupedIncome[key] ?? 0.0,
             'net': (groupedIncome[key] ?? 0.0) - (groupedExpense[key] ?? 0.0),
             'percentage': _isIncomeVsExpense
-                ? (totalIncome == 0 ? 0 : (((groupedIncome[key] ?? 0.0) / totalIncome) * 100).round())
+                ? (totalIncomeAggregation == 0 ? 0 : (((groupedExpense[key] ?? 0.0) / totalIncomeAggregation) * 100).round())
                 : (totalExpense == 0 ? 0 : (((groupedExpense[key] ?? 0.0) / totalExpense) * 100).round()),
+            'totalIncomeAggregation': totalIncomeAggregation,
             'latestDate': latestDates[key],
           },
         )
         .toList();
 
+    if (selectedChartBucket != null) {
+      result.removeWhere((entry) => ((entry['spent'] as num?) ?? 0) <= 0);
+    }
+
     result.sort((a, b) {
+      if (selectedChartBucket != null) {
+        final spentCompare = ((b['spent'] as num?) ?? 0).compareTo((a['spent'] as num?) ?? 0);
+        if (spentCompare != 0) return spentCompare;
+        final bDate = b['latestDate'] as DateTime?;
+        final aDate = a['latestDate'] as DateTime?;
+        if (aDate != null && bDate != null) {
+          final dateCompare = bDate.compareTo(aDate);
+          if (dateCompare != 0) return dateCompare;
+        }
+        if (bDate != null) return 1;
+        if (aDate != null) return -1;
+        return (a['label'] as String).compareTo(b['label'] as String);
+      }
       final aPrimary = _isIncomeVsExpense
           ? (analysisSortField == AnalysisSortField.budget
                 ? (a['income'] as num?) ?? 0
@@ -239,7 +262,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       final rawDate = transaction['date'];
       if (rawDate == null) return false;
       final date = DateTime.parse(rawDate as String);
-      return _isDateInActiveRange(date) && _isDateInSelectedChartBucket(date);
+      return _isDateInActiveRange(date);
     }).toList();
   }
 
@@ -247,7 +270,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   List<Map<String, dynamic>> _filteredIncomeTransactions() => _filteredTransactionsOfType('income');
 
-  List<Map<String, dynamic>> _filteredTransactionsOfTypeWithChartFilter(String type) {
+  List<Map<String, dynamic>> _filteredTransactionsOfTypeForBottom(String type) {
     return _filteredTransactionsOfType(type).where((transaction) {
       final rawDate = transaction['date'];
       if (rawDate == null) return false;
@@ -270,7 +293,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   bool _isDateInSelectedChartBucket(DateTime date) {
-    if (_isIncomeVsExpense) return true;
     if (selectedChartBucket == null) return true;
     if (analysisMode == AnalysisMode.selectedMonth) {
       return date.day == selectedChartBucket;
@@ -421,114 +443,60 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 ),
                 const Divider(height: 1),
                 const _MenuSectionHeader('Aggregation'),
-                RadioListTile<AnalysisMode>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: AnalysisMode.selectedMonth,
-                  groupValue: analysisMode,
-                  title: const Text('Selected month'),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    applyChanges(() => analysisMode = value);
-                  },
-                ),
-                RadioListTile<AnalysisMode>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: AnalysisMode.cumulativeToSelectedMonth,
-                  groupValue: analysisMode,
-                  title: const Text('Cumulative till selected month'),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    applyChanges(() => analysisMode = value);
-                  },
-                ),
-                RadioListTile<AnalysisMode>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: AnalysisMode.cumulativeYear,
-                  groupValue: analysisMode,
-                  title: const Text('Cumulative full year'),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    applyChanges(() => analysisMode = value);
-                  },
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: SegmentedToggle<AnalysisMode>(
+                    options: const [
+                      SegmentedToggleOption(value: AnalysisMode.selectedMonth, label: 'Month'),
+                      SegmentedToggleOption(value: AnalysisMode.cumulativeToSelectedMonth, label: 'Till month'),
+                      SegmentedToggleOption(value: AnalysisMode.cumulativeYear, label: 'Year'),
+                    ],
+                    selectedValue: analysisMode,
+                    onChanged: (value) => applyChanges(() => analysisMode = value),
+                  ),
                 ),
                 const Divider(height: 1),
                 const _MenuSectionHeader('Type'),
-                RadioListTile<AnalysisType>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: AnalysisType.category,
-                  groupValue: analysisType,
-                  title: const Text('Category'),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    applyChanges(() => analysisType = value);
-                  },
-                ),
-                RadioListTile<AnalysisType>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: AnalysisType.account,
-                  groupValue: analysisType,
-                  title: const Text('Account'),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    applyChanges(() => analysisType = value);
-                  },
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: SegmentedToggle<AnalysisType>(
+                    options: const [
+                      SegmentedToggleOption(value: AnalysisType.category, label: 'Category'),
+                      SegmentedToggleOption(value: AnalysisType.account, label: 'Account'),
+                    ],
+                    selectedValue: analysisType,
+                    onChanged: (value) => applyChanges(() => analysisType = value),
+                  ),
                 ),
                 const Divider(height: 1),
                 const _MenuSectionHeader('Sort'),
                 const _MenuSectionHeader('Main analysis'),
-                RadioListTile<AnalysisSortField>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: AnalysisSortField.budget,
-                  groupValue: analysisSortField,
-                  title: Text(_isIncomeVsExpense ? 'Income' : 'Budget'),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    applyChanges(() => analysisSortField = value);
-                  },
-                ),
-                RadioListTile<AnalysisSortField>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: AnalysisSortField.expense,
-                  groupValue: analysisSortField,
-                  title: const Text('Expense'),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    applyChanges(() => analysisSortField = value);
-                  },
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: SegmentedToggle<AnalysisSortField>(
+                    options: [
+                      SegmentedToggleOption(value: AnalysisSortField.budget, label: _isIncomeVsExpense ? 'Income' : 'Budget'),
+                      const SegmentedToggleOption(value: AnalysisSortField.expense, label: 'Expense'),
+                    ],
+                    selectedValue: analysisSortField,
+                    onChanged: (value) => applyChanges(() => analysisSortField = value),
+                  ),
                 ),
                 const _MenuSectionHeader('Sub menu'),
-                RadioListTile<TransactionSortOrder>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: TransactionSortOrder.newestFirst,
-                  groupValue: transactionSortOrder,
-                  title: const Text('Newest first'),
-                  onChanged: (value) async {
-                    if (value == null) return;
-                    setState(() => transactionSortOrder = value);
-                    setModalState(() {});
-                    await _persistPreferences();
-                  },
-                ),
-                RadioListTile<TransactionSortOrder>(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  value: TransactionSortOrder.oldestFirst,
-                  groupValue: transactionSortOrder,
-                  title: const Text('Oldest first'),
-                  onChanged: (value) async {
-                    if (value == null) return;
-                    setState(() => transactionSortOrder = value);
-                    setModalState(() {});
-                    await _persistPreferences();
-                  },
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: SegmentedToggle<TransactionSortOrder>(
+                    options: const [
+                      SegmentedToggleOption(value: TransactionSortOrder.newestFirst, label: 'Newest'),
+                      SegmentedToggleOption(value: TransactionSortOrder.oldestFirst, label: 'Oldest'),
+                    ],
+                    selectedValue: transactionSortOrder,
+                    onChanged: (value) async {
+                      setState(() => transactionSortOrder = value);
+                      setModalState(() {});
+                      await _persistPreferences();
+                    },
+                  ),
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
@@ -578,10 +546,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
   List<Map<String, dynamic>> _transactionsForLabel(String label) {
     final base = _isIncomeVsExpense
         ? <Map<String, dynamic>>[
-            ..._filteredTransactionsOfTypeWithChartFilter('income'),
-            ..._filteredTransactionsOfTypeWithChartFilter('expense'),
+            ..._filteredTransactionsOfTypeForBottom('income'),
+            ..._filteredTransactionsOfTypeForBottom('expense'),
           ]
-        : _filteredTransactionsOfTypeWithChartFilter('expense');
+        : _filteredTransactionsOfTypeForBottom('expense');
     final matching = base.where((transaction) {
       return _analysisKeyForTransaction(transaction) == label;
     }).toList();
@@ -814,18 +782,16 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 emptyMessage: _isIncomeVsExpense
                     ? 'No income data available for this aggregation.'
                     : 'No expense data available for this aggregation.',
-                selectedBucket: _isIncomeVsExpense ? null : selectedChartBucket,
-                onBarTap: _isIncomeVsExpense
-                    ? null
-                    : (item) async {
-                        final tappedBucket = item.bucket;
-                        final nextBucket = selectedChartBucket == tappedBucket ? null : tappedBucket;
-                        setState(() {
-                          selectedChartBucket = nextBucket;
-                        });
-                        await loadAnalysis();
-                      },
-                trailing: !_isIncomeVsExpense && selectedChartBucket != null
+                selectedBucket: selectedChartBucket,
+                onBarTap: (item) async {
+                  final tappedBucket = item.bucket;
+                  final nextBucket = selectedChartBucket == tappedBucket ? null : tappedBucket;
+                  setState(() {
+                    selectedChartBucket = nextBucket;
+                  });
+                  await loadAnalysis();
+                },
+                trailing: selectedChartBucket != null
                     ? IconButton(
                         onPressed: () async {
                           setState(() {
@@ -973,8 +939,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                       ],
                                     ),
                                   ] else ...[
-                                    if (_isIncomeVsExpense && analysisType == AnalysisType.category) ...[
-                                      // In income vs expense mode, show category expense vs income with same bar styling.
+                                    if (_isIncomeVsExpense) ...[
                                       Row(
                                         children: [
                                           Expanded(
@@ -989,14 +954,16 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                   ),
                                                 ),
                                                 FractionallySizedBox(
-                                                  widthFactor: incomeAmount == 0
+                                                  widthFactor: ((data['totalIncomeAggregation'] as num?) ?? 0) == 0
                                                       ? (spent > 0 ? 1.0 : 0.0)
-                                                      : (spent / incomeAmount).clamp(0.0, 1.0),
+                                                      : (spent / (data['totalIncomeAggregation'] as num).toDouble()).clamp(0.0, 1.0),
                                                   child: Container(
                                                     height: 16,
                                                     decoration: BoxDecoration(
                                                       gradient: _progressGradient(
-                                                        incomeAmount == 0 ? 0.0 : spent / incomeAmount,
+                                                        ((data['totalIncomeAggregation'] as num?) ?? 0) == 0
+                                                            ? 0.0
+                                                            : spent / (data['totalIncomeAggregation'] as num).toDouble(),
                                                       ),
                                                       borderRadius: BorderRadius.circular(999),
                                                     ),
@@ -1005,7 +972,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                 Padding(
                                                   padding: const EdgeInsets.symmetric(horizontal: 8),
                                                   child: Text(
-                                                    '${formatIndianCurrency(spent)} / ${formatIndianCurrency(incomeAmount)}',
+                                                    '${formatIndianCurrency(spent)} / ${formatIndianCurrency((data['totalIncomeAggregation'] as num?)?.toDouble() ?? 0.0)}',
                                                     maxLines: 1,
                                                     overflow: TextOverflow.ellipsis,
                                                     style: const TextStyle(
@@ -1029,15 +996,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                             SizedBox(
                                               width: 42,
                                               child: Text(
-                                                incomeAmount == 0
+                                                ((data['totalIncomeAggregation'] as num?) ?? 0) == 0
                                                     ? '0%'
-                                                    : '${((spent / incomeAmount) * 100).clamp(0, 999).round()}%',
+                                                    : '${((spent / (data['totalIncomeAggregation'] as num).toDouble()) * 100).clamp(0, 999).round()}%',
                                                 textAlign: TextAlign.right,
                                                 style: TextStyle(
                                                   fontSize: 12,
                                                   fontWeight: FontWeight.w700,
                                                   color: _progressColor(
-                                                    incomeAmount == 0 ? 0.0 : spent / incomeAmount,
+                                                    ((data['totalIncomeAggregation'] as num?) ?? 0) == 0
+                                                        ? 0.0
+                                                        : spent / (data['totalIncomeAggregation'] as num).toDouble(),
                                                   ),
                                                 ),
                                               ),
