@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 
 enum SideOverlayDirection { left, right }
 
@@ -29,7 +30,10 @@ Future<T?> showSideOverlaySheet<T>({
                 Positioned.fill(
                   child: GestureDetector(
                     onTap: () => Navigator.of(dialogContext).pop(),
-                    child: const SizedBox.expand(),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
+                      child: const SizedBox.expand(),
+                    ),
                   ),
                 ),
                 Align(

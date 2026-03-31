@@ -174,23 +174,61 @@ class _AnalysisPageState extends State<AnalysisPage> {
       final showExpense = selectedPieSlice == null || selectedPieSlice == IncomeExpensePieSlice.expense;
 
       if (showIncome) {
-        for (final entry in groupedIncome.entries) {
-          if (entry.value <= 0) continue;
-          final percentage = totalIncomeAggregation == 0
-              ? 0
-              : (((entry.value / totalIncomeAggregation) * 100).clamp(0, 999)).round();
-          result.add({
-            'rowType': 'income',
-            'label': entry.key,
-            'spent': 0.0,
-            'income': entry.value,
-            'budget': 0.0,
-            'net': entry.value,
-            'percentage': percentage,
-            'totalIncomeAggregation': totalIncomeAggregation,
-            'totalExpenseAggregation': totalExpenseAggregation,
-            'latestDate': latestIncomeDates[entry.key],
-          });
+        if (selectedPieSlice == IncomeExpensePieSlice.income) {
+          final incomeDetails = incomeTx
+              .where((tx) => _incomeKeyForTransaction(tx).isNotEmpty)
+              .toList()
+            ..sort((a, b) {
+              final aKey = _incomeKeyForTransaction(a);
+              final bKey = _incomeKeyForTransaction(b);
+              final byKey = aKey.compareTo(bKey);
+              if (byKey != 0) return byKey;
+              final aDate = DateTime.parse(a['date'] as String);
+              final bDate = DateTime.parse(b['date'] as String);
+              return bDate.compareTo(aDate);
+            });
+          for (final tx in incomeDetails) {
+            final key = _incomeKeyForTransaction(tx);
+            final amount = (tx['amount'] as num).toDouble();
+            final date = DateTime.parse(tx['date'] as String);
+            final percentage = totalIncomeAggregation == 0
+                ? 0
+                : (((amount / totalIncomeAggregation) * 100).clamp(0, 999)).round();
+            result.add({
+              'rowType': 'income_tx',
+              'label': key,
+              'spent': 0.0,
+              'income': amount,
+              'budget': 0.0,
+              'net': amount,
+              'percentage': percentage,
+              'totalIncomeAggregation': totalIncomeAggregation,
+              'totalExpenseAggregation': totalExpenseAggregation,
+              'latestDate': date,
+              'txId': tx['id'],
+              'txComment': (tx['comment'] ?? '').toString().trim(),
+              'txDate': tx['date'],
+            });
+          }
+        } else {
+          for (final entry in groupedIncome.entries) {
+            if (entry.value <= 0) continue;
+            final percentage = totalIncomeAggregation == 0
+                ? 0
+                : (((entry.value / totalIncomeAggregation) * 100).clamp(0, 999)).round();
+            result.add({
+              'rowType': 'income',
+              'label': entry.key,
+              'spent': 0.0,
+              'income': entry.value,
+              'budget': 0.0,
+              'net': entry.value,
+              'percentage': percentage,
+              'totalIncomeAggregation': totalIncomeAggregation,
+              'totalExpenseAggregation': totalExpenseAggregation,
+              'latestDate': latestIncomeDates[entry.key],
+            });
+          }
         }
       }
 
@@ -433,8 +471,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   String _incomeKeyForTransaction(Map<String, dynamic> transaction) {
-    // In income mode, income rows are always grouped by account.
-    return (transaction['account'] as String?)?.trim() ?? '';
+    if (analysisType == AnalysisType.account) {
+      return (transaction['account'] as String?)?.trim() ?? '';
+    }
+    return (transaction['title'] as String?)?.trim() ?? '';
   }
 
   String _expenseKeyForTransaction(Map<String, dynamic> transaction) {
@@ -955,8 +995,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       incomeTotal: income,
                       expenseTotal: expense,
                       selectedSlice: selectedPieSlice,
-                      incomeColor: Theme.of(context).colorScheme.primary,
-                      expenseColor: _progressColor(income == 0 ? (expense > 0 ? 2.0 : 0.0) : expense / income),
+                      chartHeight: 210,
+                      incomeColor: const Color(0xFF16A34A),
+                      expenseColor: const Color(0xFFDC2626),
                       onSliceTap: (slice) async {
                         setState(() {
                           selectedPieSlice = selectedPieSlice == slice ? null : slice;
@@ -1013,6 +1054,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           final data = analysisData[index];
                           final label = data['label'] as String;
                           final rowType = (data['rowType'] as String?) ?? 'expense';
+                          final isIncomeTransactionRow = rowType == 'income_tx';
                           final spent = (data['spent'] as num).toDouble();
                           final budget = (data['budget'] as num).toDouble();
                           final incomeAmount = (data['income'] as num?)?.toDouble() ?? 0.0;
@@ -1047,8 +1089,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           final entry = _entryForLabel(label, rowType: rowType);
 
                           return InkWell(
-                            onTap: (_isIncomeVsExpense && (data['rowType'] as String?) == 'income')
-                                ? null
+                            onTap: isIncomeTransactionRow
+                                ? () async {
+                                    final txId = data['txId'];
+                                    if (txId is! int) return;
+                                    final selected = transactions.where((tx) => tx['id'] == txId).toList();
+                                    if (selected.isEmpty) return;
+                                    await _editTransaction(selected.first);
+                                  }
                                 : () => _showRelatedTransactions(data),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1070,7 +1118,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                       const SizedBox(width: 10),
                                       Expanded(
                                         child: Text(
-                                          label,
+                                          isIncomeTransactionRow
+                                              ? ((data['txComment'] as String?)?.isNotEmpty ?? false
+                                                  ? '$label • ${data['txComment']}'
+                                                  : label)
+                                              : label,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
@@ -1083,7 +1135,16 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                   ),
                                   const SizedBox(height: 6),
                                   // Progress bar with overlaid text + % at end
-                                  if (!_isIncomeVsExpense && analysisType == AnalysisType.category) ...[
+                                  if (isIncomeTransactionRow) ...[
+                                    Text(
+                                      '${DateFormat('dd MMM yyyy').format(DateTime.parse((data['txDate'] as String?) ?? DateTime.now().toIso8601String()))} • ${formatIndianCurrency(incomeAmount)}',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
+                                  ] else if (!_isIncomeVsExpense && analysisType == AnalysisType.category) ...[
                                     Row(
                                       children: [
                                         Expanded(

@@ -15,6 +15,7 @@ class IncomeExpensePieChart extends StatelessWidget {
   final VoidCallback? onClear;
   final Color incomeColor;
   final Color expenseColor;
+  final double chartHeight;
 
   const IncomeExpensePieChart({
     super.key,
@@ -24,6 +25,7 @@ class IncomeExpensePieChart extends StatelessWidget {
     required this.onSliceTap,
     required this.incomeColor,
     required this.expenseColor,
+    this.chartHeight = 210,
     this.onClear,
   });
 
@@ -31,8 +33,8 @@ class IncomeExpensePieChart extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final size = math.min(constraints.maxWidth, constraints.maxHeight);
-        final diameter = size.isFinite ? size : 220.0;
+        final available = math.min(constraints.maxWidth, chartHeight);
+        final diameter = available.isFinite ? available : 210.0;
 
         return Stack(
           clipBehavior: Clip.none,
@@ -41,10 +43,7 @@ class IncomeExpensePieChart extends StatelessWidget {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTapDown: (details) {
-                  final box = context.findRenderObject() as RenderBox?;
-                  if (box == null) return;
-
-                  final local = box.globalToLocal(details.globalPosition);
+                  final local = details.localPosition;
                   final center = Offset(diameter / 2, diameter / 2);
                   final dx = local.dx - center.dx;
                   final dy = local.dy - center.dy;
@@ -129,9 +128,9 @@ class _PiePainter extends CustomPainter {
     if (total <= 0) {
       final paint = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 10
+        ..strokeWidth = 24
         ..color = Colors.grey.shade300;
-      canvas.drawCircle(center, radius * 0.82, paint);
+      canvas.drawCircle(center, radius * 0.86, paint);
       return;
     }
 
@@ -139,21 +138,24 @@ class _PiePainter extends CustomPainter {
     final incomeSweep = (incomeTotal / total) * math.pi * 2;
     final expenseSweep = (expenseTotal / total) * math.pi * 2;
 
+    const strokeWidth = 24.0;
+    final ringRadius = radius * 0.86;
+
     final bgPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 26
+      ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.butt
       ..color = Colors.black.withOpacity(0.05);
-    canvas.drawCircle(center, radius * 0.86, bgPaint);
+    canvas.drawCircle(center, ringRadius, bgPaint);
 
     final incomePaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 26
+      ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.butt;
 
     final expensePaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 26
+      ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.butt;
 
     final incomeSelected = selectedSlice == IncomeExpensePieSlice.income;
@@ -163,18 +165,83 @@ class _PiePainter extends CustomPainter {
     expensePaint.color = expenseSelected ? expenseColor : expenseColor.withOpacity(selectedSlice == null ? 1.0 : 0.35);
 
     canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius * 0.86),
+      Rect.fromCircle(center: center, radius: ringRadius),
       startAngle,
       incomeSweep,
       false,
       incomePaint,
     );
     canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius * 0.86),
+      Rect.fromCircle(center: center, radius: ringRadius),
       startAngle + incomeSweep,
       expenseSweep,
       false,
       expensePaint,
+    );
+
+    final incomeMidAngle = startAngle + (incomeSweep / 2);
+    final expenseMidAngle = startAngle + incomeSweep + (expenseSweep / 2);
+    final labelRadius = ringRadius;
+
+    _drawArcAmount(
+      canvas: canvas,
+      center: center,
+      angle: incomeMidAngle,
+      radius: labelRadius,
+      text: _compactAmount(incomeTotal),
+      color: Colors.white,
+    );
+    _drawArcAmount(
+      canvas: canvas,
+      center: center,
+      angle: expenseMidAngle,
+      radius: labelRadius,
+      text: _compactAmount(expenseTotal),
+      color: Colors.white,
+    );
+  }
+
+  static String _compactAmount(double value) {
+    if (value >= 10000000) return '${(value / 10000000).toStringAsFixed(1)}Cr';
+    if (value >= 100000) return '${(value / 100000).toStringAsFixed(1)}L';
+    if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)}K';
+    return value.toStringAsFixed(value == value.roundToDouble() ? 0 : 1);
+  }
+
+  void _drawArcAmount({
+    required Canvas canvas,
+    required Offset center,
+    required double angle,
+    required double radius,
+    required String text,
+    required Color color,
+  }) {
+    final offset = Offset(
+      center.dx + math.cos(angle) * radius,
+      center.dy + math.sin(angle) * radius,
+    );
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          shadows: const [
+            Shadow(color: Colors.black38, blurRadius: 2),
+          ],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout(maxWidth: 52);
+
+    painter.paint(
+      canvas,
+      Offset(
+        offset.dx - (painter.width / 2),
+        offset.dy - (painter.height / 2),
+      ),
     );
   }
 
