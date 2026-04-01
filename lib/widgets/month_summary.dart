@@ -13,6 +13,7 @@ class MonthSummary extends StatelessWidget {
   final String leftLabel;
   final String middleLabel;
   final String rightLabel;
+  final String? aggregationSubtitle;
 
   const MonthSummary({
     super.key,
@@ -26,6 +27,7 @@ class MonthSummary extends StatelessWidget {
     this.leftLabel = 'Budget',
     this.middleLabel = 'Expense',
     this.rightLabel = 'Remaining',
+    this.aggregationSubtitle,
   });
 
   @override
@@ -48,6 +50,7 @@ class MonthSummary extends StatelessWidget {
       onPrev: onPrev,
       onNext: onNext,
       monthTrailing: monthTrailing,
+      aggregationSubtitle: aggregationSubtitle,
       child: Row(
         children: [
           Expanded(

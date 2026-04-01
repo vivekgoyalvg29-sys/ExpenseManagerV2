@@ -10,6 +10,8 @@ class MonthSectionCard extends StatelessWidget {
   final Widget child;
   final Widget? monthTrailing;
   final double contentHeight;
+  /// Shown in a very light line under the month row (e.g. aggregation mode).
+  final String? aggregationSubtitle;
 
   const MonthSectionCard({
     super.key,
@@ -19,6 +21,7 @@ class MonthSectionCard extends StatelessWidget {
     required this.child,
     this.monthTrailing,
     this.contentHeight = 58,
+    this.aggregationSubtitle,
   });
 
   @override
@@ -35,6 +38,21 @@ class MonthSectionCard extends StatelessWidget {
               onNext: onNext,
               trailing: monthTrailing,
             ),
+            if (aggregationSubtitle != null && aggregationSubtitle!.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                aggregationSubtitle!,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontSize: 10.5,
+                      height: 1.05,
+                      fontWeight: FontWeight.w400,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
+                    ),
+              ),
+            ],
             const SizedBox(height: 8),
             SizedBox(
               height: contentHeight,

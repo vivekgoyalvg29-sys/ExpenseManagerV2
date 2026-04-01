@@ -40,7 +40,45 @@ class _HomeScreenState extends State<HomeScreen> {
   String _appVersion = 'v1.0.0';
   String _username = '';
   final ScrollController _menuScrollController = ScrollController();
-  final GlobalKey _appearanceExpansionKey = GlobalKey();
+  final GlobalKey _appearanceExpandedContentKey = GlobalKey();
+
+  void _scrollMenuAfterAppearanceExpand() {
+    void run() {
+      final ctx = _appearanceExpandedContentKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+          alignment: 1.0,
+        );
+      }
+      Future.delayed(const Duration(milliseconds: 120), () {
+        if (!_menuScrollController.hasClients) return;
+        final ctx2 = _appearanceExpandedContentKey.currentContext;
+        if (ctx2 != null && ctx2.mounted) {
+          Scrollable.ensureVisible(
+            ctx2,
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            alignment: 1.0,
+          );
+        }
+        if (_menuScrollController.hasClients) {
+          final maxExtent = _menuScrollController.position.maxScrollExtent;
+          if (maxExtent > 0) {
+            _menuScrollController.animateTo(
+              maxExtent,
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+            );
+          }
+        }
+      });
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => WidgetsBinding.instance.addPostFrameCallback((_) => run()));
+  }
 
   @override
   void initState() {
@@ -359,19 +397,17 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           title: const Text('Theme'),
-          content: Align(
-            alignment: Alignment.centerLeft,
-            child: IntrinsicWidth(
-              child: SegmentedToggle<ThemeMode>(
-                axis: SegmentedToggleAxis.vertical,
-                shrinkWidth: true,
-                options: const [
-                  SegmentedToggleOption(value: ThemeMode.light, label: 'Light'),
-                  SegmentedToggleOption(value: ThemeMode.dark, label: 'Dark'),
-                ],
-                selectedValue: mode,
-                onChanged: (changed) => setState(() => mode = changed),
-              ),
+          content: SizedBox(
+            width: 200,
+            child: SegmentedToggle<ThemeMode>(
+              axis: SegmentedToggleAxis.vertical,
+              shrinkWidth: true,
+              options: const [
+                SegmentedToggleOption(value: ThemeMode.light, label: 'Light'),
+                SegmentedToggleOption(value: ThemeMode.dark, label: 'Dark'),
+              ],
+              selectedValue: mode,
+              onChanged: (changed) => setState(() => mode = changed),
             ),
           ),
           actions: [
@@ -392,12 +428,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final applied = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Language'),
-          content: SingleChildScrollView(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: IntrinsicWidth(
+        builder: (context, setState) {
+          final maxW = (MediaQuery.sizeOf(context).width - 96).clamp(220.0, 340.0);
+          return AlertDialog(
+            title: const Text('Language'),
+            content: SingleChildScrollView(
+              child: SizedBox(
+                width: maxW,
                 child: SegmentedToggle<String>(
                   axis: SegmentedToggleAxis.vertical,
                   shrinkWidth: true,
@@ -414,12 +451,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Apply')),
-          ],
-        ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Apply')),
+            ],
+          );
+        },
       ),
     );
     if (applied == true) {
@@ -783,7 +820,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: ListView(
                 controller: _menuScrollController,
-                padding: EdgeInsets.zero,
+                padding: const EdgeInsets.only(bottom: 36),
                 children: [
                   const _MenuSectionHeader('Account'),
                   menuTile(
@@ -837,41 +874,38 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Divider(height: 1, thickness: 1),
                   const _MenuSectionHeader('Visuals', compact: true),
                   ExpansionTile(
-                    key: _appearanceExpansionKey,
                     title: const Text('Appearance'),
                     leading: const Icon(Icons.palette_outlined),
                     onExpansionChanged: (expanded) {
                       if (!expanded) return;
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        final ctx = _appearanceExpansionKey.currentContext;
-                        if (ctx != null && ctx.mounted) {
-                          Scrollable.ensureVisible(
-                            ctx,
-                            alignment: 1.0,
-                            duration: const Duration(milliseconds: 280),
-                            curve: Curves.easeOutCubic,
-                          );
-                        }
-                      });
+                      _scrollMenuAfterAppearanceExpand();
                     },
                     children: [
-                      menuTile(
-                        icon: Icons.dark_mode_outlined,
-                        title: 'Theme',
-                        subtitle: themeLabel,
-                        onTap: () => handleSelection('theme'),
-                      ),
-                      menuTile(
-                        icon: Icons.font_download_outlined,
-                        title: 'Font',
-                        subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}%',
-                        onTap: () => handleSelection('customize_visuals'),
-                      ),
-                      menuTile(
-                        icon: Icons.language_outlined,
-                        title: 'Language',
-                        subtitle: AppLocalizations.languageLabels[settings.localeCode] ?? 'English',
-                        onTap: () => handleSelection('language'),
+                      KeyedSubtree(
+                        key: _appearanceExpandedContentKey,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            menuTile(
+                              icon: Icons.dark_mode_outlined,
+                              title: 'Theme',
+                              subtitle: themeLabel,
+                              onTap: () => handleSelection('theme'),
+                            ),
+                            menuTile(
+                              icon: Icons.font_download_outlined,
+                              title: 'Font',
+                              subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}%',
+                              onTap: () => handleSelection('customize_visuals'),
+                            ),
+                            menuTile(
+                              icon: Icons.language_outlined,
+                              title: 'Language',
+                              subtitle: AppLocalizations.languageLabels[settings.localeCode] ?? 'English',
+                              onTap: () => handleSelection('language'),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
