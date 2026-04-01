@@ -52,16 +52,16 @@ class MiniProgressBar extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
+              color: theme.colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: fillColor.withOpacity(0.8)),
+              border: Border.all(color: theme.colorScheme.outline.withOpacity(0.5)),
             ),
             child: Text(
               '$percentage%',
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
-                color: fillColor,
+                color: theme.colorScheme.onSurface,
               ),
             ),
           ),

@@ -71,22 +71,30 @@ class VisualSettings {
         ? storedFont
         : defaults.fontKey;
 
-    final validThemeMode = ThemeMode.values.firstWhere(
+    var validThemeMode = ThemeMode.values.firstWhere(
       (mode) => mode.name == storedThemeMode,
       orElse: () => ThemeMode.light,
     );
+    // System theme removed from UI; migrate saved preference.
+    if (validThemeMode == ThemeMode.system) {
+      validThemeMode = ThemeMode.light;
+    }
     final validComparisonMode = ComparisonMode.values.firstWhere(
       (mode) => mode.name == storedComparisonMode,
       orElse: () => ComparisonMode.budgetVsExpense,
     );
 
-    return VisualSettings(
+    final settings = VisualSettings(
       fontKey: validFont,
       textScale: storedScale.clamp(0.85, 1.35),
       themeMode: validThemeMode,
       localeCode: storedLocaleCode,
       comparisonMode: validComparisonMode,
     );
+    if (storedThemeMode == ThemeMode.system.name) {
+      await settings.save();
+    }
+    return settings;
   }
 
   Future<void> save() async {
@@ -132,26 +140,61 @@ class VisualSettingsController extends ValueNotifier<VisualSettings> {
 class FinTrackTheme {
   static ThemeData build(VisualSettings settings, {Brightness brightness = Brightness.light}) {
     final isDark = brightness == Brightness.dark;
+    final colorScheme = isDark
+        ? ColorScheme.dark(
+            primary: const Color(0xFF818CF8),
+            onPrimary: const Color(0xFF0B0F14),
+            surface: const Color(0xFF151A21),
+            onSurface: const Color(0xFFE8EAED),
+            onSurfaceVariant: const Color(0xFFC4C9D4),
+            surfaceContainerHighest: const Color(0xFF252D38),
+            outline: const Color(0xFF3D4754),
+            outlineVariant: const Color(0xFF2E3640),
+          )
+        : ColorScheme.light(
+            primary: const Color(0xFF4F46E5),
+            onPrimary: Colors.white,
+            surface: Colors.white,
+            onSurface: const Color(0xFF1F2933),
+            onSurfaceVariant: const Color(0xFF52606D),
+            surfaceContainerHighest: const Color(0xFFE8ECF2),
+            outline: const Color(0xFFCBD2DC),
+            outlineVariant: const Color(0xFFE3E7EE),
+          );
+
     final base = ThemeData(
       brightness: brightness,
+      useMaterial3: true,
+      colorScheme: colorScheme,
       primarySwatch: Colors.blue,
-      scaffoldBackgroundColor: isDark ? const Color(0xFF101418) : const Color(0xFFF3F5F9),
+      scaffoldBackgroundColor: isDark ? const Color(0xFF0E1218) : const Color(0xFFF3F5F9),
+      dividerColor: isDark ? const Color(0xFF2A323D) : const Color(0xFFE3E7EE),
     );
 
     final scaledTextTheme = base.textTheme.apply(
       fontFamily: settings.fontFamily,
-      bodyColor: isDark ? const Color(0xFFE6E8EB) : const Color(0xFF1F2933),
-      displayColor: isDark ? const Color(0xFFE6E8EB) : const Color(0xFF1F2933),
+      bodyColor: colorScheme.onSurface,
+      displayColor: colorScheme.onSurface,
     );
 
     return base.copyWith(
       textTheme: scaledTextTheme,
       primaryTextTheme: scaledTextTheme,
       visualDensity: VisualDensity.compact,
-      listTileTheme: const ListTileThemeData(
+      listTileTheme: ListTileThemeData(
         dense: true,
         visualDensity: VisualDensity.compact,
         minVerticalPadding: 2,
+        iconColor: colorScheme.onSurfaceVariant,
+        textColor: colorScheme.onSurface,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
       ),
       popupMenuTheme: const PopupMenuThemeData(),
       appBarTheme: AppBarTheme(

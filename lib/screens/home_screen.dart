@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/data_store.dart';
 import '../services/app_localizations.dart';
@@ -38,6 +39,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int _refreshVersion = 0;
   String _appVersion = 'v1.0.0';
   String _username = '';
+  final ScrollController _menuScrollController = ScrollController();
+  final GlobalKey _appearanceExpansionKey = GlobalKey();
 
   @override
   void initState() {
@@ -48,6 +51,12 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureFirstRunInitializationPrompt();
     });
+  }
+
+  @override
+  void dispose() {
+    _menuScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadPackageInfo() async {
@@ -66,52 +75,92 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _openEditProfileDialog() async {
+  Future<void> _openUsernameEditDialog() async {
     final controller = TextEditingController(text: _username);
     await showDialog<void>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, _) => AlertDialog(
-          title: const Text('Edit profile'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: const InputDecoration(hintText: 'Username'),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  if (!ctx.mounted) return;
-                  Navigator.of(ctx).pop();
-                  await _logout();
-                },
-                icon: const Icon(Icons.logout_outlined),
-                label: const Text('Logout'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () async {
-                final prefs = await SharedPreferences.getInstance();
-                final updated = controller.text.trim();
-                await prefs.setString('username', updated);
-                if (!mounted) return;
-                setState(() => _username = updated);
-                if (!ctx.mounted) return;
-                Navigator.of(ctx).pop();
-              },
-              child: const Text('Save'),
-            ),
-          ],
+      builder: (ctx) => AlertDialog(
+        title: const Text('Username'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Username'),
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              final updated = controller.text.trim();
+              await prefs.setString('username', updated);
+              if (!mounted) return;
+              setState(() => _username = updated);
+              if (!ctx.mounted) return;
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Save'),
+          ),
+        ],
       ),
     );
+    controller.dispose();
+  }
+
+  Future<void> _openFeedbackDialog() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final phone = user?.phoneNumber ?? '';
+    final bodyController = TextEditingController();
+    final sent = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Feedback'),
+        content: TextField(
+          controller: bodyController,
+          autofocus: true,
+          minLines: 4,
+          maxLines: 8,
+          decoration: const InputDecoration(
+            hintText: 'Describe your feedback…',
+            alignLabelWithHint: true,
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (sent != true || !mounted) {
+      bodyController.dispose();
+      return;
+    }
+    final body = bodyController.text.trim();
+    bodyController.dispose();
+    if (body.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Feedback is empty.')));
+      return;
+    }
+    final subject = Uri.encodeComponent('Feedback-Android-$phone');
+    final bodyEnc = Uri.encodeComponent(body);
+    final uri = Uri.parse('mailto:vivekgoyal.vg29@gmail.com?subject=$subject&body=$bodyEnc');
+    final ok = await launchUrl(uri);
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open email app.')));
+    }
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    final uri = Uri.parse('https://github.com/vivekgoyalvg29-sys/privacy-policy/blob/main/index.html');
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open link.')));
+    }
   }
 
   List<_NavItem> get _navItems {
@@ -304,26 +353,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openThemeSettings() async {
     final controller = _visualSettingsController(context);
-    ThemeMode mode = controller.value.themeMode;
+    var mode = controller.value.themeMode == ThemeMode.system ? ThemeMode.light : controller.value.themeMode;
     final applied = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           title: const Text('Theme'),
-          content: SizedBox(
-            width: 280,
-            child: SegmentedToggle<ThemeMode>(
-              axis: SegmentedToggleAxis.vertical,
-              options: ThemeMode.values
-                  .map(
-                    (value) => SegmentedToggleOption(
-                      value: value,
-                      label: value.name[0].toUpperCase() + value.name.substring(1),
-                    ),
-                  )
-                  .toList(),
-              selectedValue: mode,
-              onChanged: (changed) => setState(() => mode = changed),
+          content: Align(
+            alignment: Alignment.centerLeft,
+            child: IntrinsicWidth(
+              child: SegmentedToggle<ThemeMode>(
+                axis: SegmentedToggleAxis.vertical,
+                shrinkWidth: true,
+                options: const [
+                  SegmentedToggleOption(value: ThemeMode.light, label: 'Light'),
+                  SegmentedToggleOption(value: ThemeMode.dark, label: 'Dark'),
+                ],
+                selectedValue: mode,
+                onChanged: (changed) => setState(() => mode = changed),
+              ),
             ),
           ),
           actions: [
@@ -346,21 +394,24 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           title: const Text('Language'),
-          content: SizedBox(
-            width: 320,
-            child: SingleChildScrollView(
-              child: SegmentedToggle<String>(
-                axis: SegmentedToggleAxis.vertical,
-                options: AppLocalizations.languageLabels.entries
-                    .map(
-                      (entry) => SegmentedToggleOption(
-                        value: entry.key,
-                        label: entry.value,
-                      ),
-                    )
-                    .toList(),
-                selectedValue: selected,
-                onChanged: (value) => setState(() => selected = value),
+          content: SingleChildScrollView(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: IntrinsicWidth(
+                child: SegmentedToggle<String>(
+                  axis: SegmentedToggleAxis.vertical,
+                  shrinkWidth: true,
+                  options: AppLocalizations.languageLabels.entries
+                      .map(
+                        (entry) => SegmentedToggleOption(
+                          value: entry.key,
+                          label: entry.value,
+                        ),
+                      )
+                      .toList(),
+                  selectedValue: selected,
+                  onChanged: (value) => setState(() => selected = value),
+                ),
               ),
             ),
           ),
@@ -373,51 +424,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (applied == true) {
       await controller.updateSettings(controller.value.copyWith(localeCode: selected));
-    }
-  }
-
-  Future<void> _openComparisonModeSettings() async {
-    final controller = _visualSettingsController(context);
-    ComparisonMode mode = controller.value.comparisonMode;
-    final applied = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Comparison mode'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RadioListTile<ComparisonMode>(
-                value: ComparisonMode.budgetVsExpense,
-                groupValue: mode,
-                title: const Text('Budget vs Expense'),
-                onChanged: (changed) {
-                  if (changed == null) return;
-                  setState(() => mode = changed);
-                },
-              ),
-              RadioListTile<ComparisonMode>(
-                value: ComparisonMode.incomeVsExpense,
-                groupValue: mode,
-                title: const Text('Income vs Expense'),
-                onChanged: (changed) {
-                  if (changed == null) return;
-                  setState(() => mode = changed);
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Apply')),
-          ],
-        ),
-      ),
-    );
-    if (applied == true) {
-      await controller.updateSettings(controller.value.copyWith(comparisonMode: mode));
-      if (!mounted) return;
-      setState(() => _refreshVersion++);
     }
   }
 
@@ -669,8 +675,8 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'initialize_defaults':
         await _showInitializeDefaultsDialog(fromMenu: true);
         return;
-      case 'edit_profile':
-        await _openEditProfileDialog();
+      case 'edit_username':
+        await _openUsernameEditDialog();
         return;
     }
   }
@@ -685,33 +691,40 @@ class _HomeScreenState extends State<HomeScreen> {
           await _handleAppBarAction(action);
         }
 
-        Widget tile({
-          required IconData icon,
-          required String title,
-          String? subtitle,
-          required VoidCallback onTap,
-        }) {
-          return ListTile(
-            visualDensity: VisualDensity.compact,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-            leading: Icon(icon),
-            title: Text(title),
-            subtitle: subtitle == null ? null : Text(subtitle),
-            onTap: onTap,
-          );
-        }
-
         final user = FirebaseAuth.instance.currentUser;
         final phoneNumber = user?.phoneNumber ?? '';
         final displayName = _username.isNotEmpty
             ? '$_username ($phoneNumber)'
             : phoneNumber;
+        final themeLabel = settings.themeMode == ThemeMode.dark ? 'Dark' : 'Light';
 
-        return ListView(
+        Widget menuTile({
+          required IconData icon,
+          required String title,
+          String? subtitle,
+          VoidCallback? onTap,
+          bool enabled = true,
+        }) {
+          return ListTile(
+            enabled: enabled,
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+            leading: Icon(icon, color: enabled ? null : Theme.of(context).disabledColor),
+            title: Text(title, style: enabled ? null : TextStyle(color: Theme.of(context).disabledColor)),
+            subtitle: subtitle == null
+                ? null
+                : Text(subtitle, style: enabled ? null : TextStyle(color: Theme.of(context).disabledColor)),
+            onTap: enabled ? onTap : null,
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Column(
@@ -735,11 +748,28 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         if (displayName.isNotEmpty) ...[
                           const SizedBox(height: 2),
-                          Text(
-                            displayName,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  displayName,
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ),
                                 ),
+                              ),
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                icon: const Icon(Icons.edit_outlined, size: 18),
+                                tooltip: 'Edit username',
+                                onPressed: () async {
+                                  Navigator.of(drawerContext).pop();
+                                  await _openUsernameEditDialog();
+                                },
+                              ),
+                            ],
                           ),
                         ],
                       ],
@@ -750,68 +780,130 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const Divider(height: 1, thickness: 1),
-            const _MenuSectionHeader('Account'),
-            tile(
-              icon: Icons.person_outline,
-              title: 'Edit profile',
-              subtitle: _username.isEmpty ? null : _username,
-              onTap: () => handleSelection('edit_profile'),
-            ),
-            const Divider(height: 1, thickness: 1),
-            const _MenuSectionHeader('Data management'),
-            tile(icon: Icons.upload_file_outlined, title: 'Export (Excel)', onTap: () => handleSelection('export')),
-            tile(icon: Icons.download_outlined, title: 'Import (Excel)', onTap: () => handleSelection('import')),
-            tile(icon: Icons.playlist_add_check_circle_outlined, title: 'Initialize defaults', onTap: () => handleSelection('initialize_defaults')),
-            tile(icon: Icons.delete_forever_outlined, title: 'Delete everything', onTap: () => handleSelection('delete_everything')),
-            tile(icon: Icons.receipt_long_outlined, title: 'Delete transactions', onTap: () => handleSelection('delete_transactions')),
-            tile(icon: Icons.restart_alt_outlined, title: 'Reset app', onTap: () => handleSelection('reset_app')),
-            const Divider(height: 1, thickness: 1),
-            const _MenuSectionHeader('Mode'),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
+            Expanded(
+              child: ListView(
+                controller: _menuScrollController,
+                padding: EdgeInsets.zero,
                 children: [
-                  ChoiceChip(
-                    label: const Text('Budget vs Expense'),
-                    selected: settings.comparisonMode == ComparisonMode.budgetVsExpense,
-                    visualDensity: VisualDensity.compact,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 2),
-                    onSelected: (_) async {
-                      await _setComparisonMode(ComparisonMode.budgetVsExpense);
-                      if (!drawerContext.mounted) return;
+                  const _MenuSectionHeader('Account'),
+                  menuTile(
+                    icon: Icons.logout_outlined,
+                    title: 'Logout',
+                    onTap: () => handleSelection('logout'),
+                  ),
+                  const Divider(height: 1, thickness: 1),
+                  const _MenuSectionHeader('Data management', compact: true),
+                  menuTile(icon: Icons.upload_file_outlined, title: 'Export (Excel)', onTap: () => handleSelection('export')),
+                  menuTile(icon: Icons.download_outlined, title: 'Import (Excel)', onTap: () => handleSelection('import')),
+                  menuTile(icon: Icons.playlist_add_check_circle_outlined, title: 'Initialize defaults', onTap: () => handleSelection('initialize_defaults')),
+                  menuTile(icon: Icons.delete_forever_outlined, title: 'Delete everything', onTap: () => handleSelection('delete_everything')),
+                  menuTile(icon: Icons.receipt_long_outlined, title: 'Delete transactions', onTap: () => handleSelection('delete_transactions')),
+                  menuTile(icon: Icons.restart_alt_outlined, title: 'Reset app', onTap: () => handleSelection('reset_app')),
+                  const Divider(height: 1, thickness: 1),
+                  const _MenuSectionHeader('Mode'),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Budget vs Expense'),
+                          selected: settings.comparisonMode == ComparisonMode.budgetVsExpense,
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+                          onSelected: (_) async {
+                            await _setComparisonMode(ComparisonMode.budgetVsExpense);
+                            if (!drawerContext.mounted) return;
+                            Navigator.of(drawerContext).pop();
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text('Income vs Expense'),
+                          selected: settings.comparisonMode == ComparisonMode.incomeVsExpense,
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+                          onSelected: (_) async {
+                            await _setComparisonMode(ComparisonMode.incomeVsExpense);
+                            if (!drawerContext.mounted) return;
+                            Navigator.of(drawerContext).pop();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, thickness: 1),
+                  const _MenuSectionHeader('Visuals', compact: true),
+                  ExpansionTile(
+                    key: _appearanceExpansionKey,
+                    title: const Text('Appearance'),
+                    leading: const Icon(Icons.palette_outlined),
+                    onExpansionChanged: (expanded) {
+                      if (!expanded) return;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        final ctx = _appearanceExpansionKey.currentContext;
+                        if (ctx != null && ctx.mounted) {
+                          Scrollable.ensureVisible(
+                            ctx,
+                            alignment: 1.0,
+                            duration: const Duration(milliseconds: 280),
+                            curve: Curves.easeOutCubic,
+                          );
+                        }
+                      });
+                    },
+                    children: [
+                      menuTile(
+                        icon: Icons.dark_mode_outlined,
+                        title: 'Theme',
+                        subtitle: themeLabel,
+                        onTap: () => handleSelection('theme'),
+                      ),
+                      menuTile(
+                        icon: Icons.font_download_outlined,
+                        title: 'Font',
+                        subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}%',
+                        onTap: () => handleSelection('customize_visuals'),
+                      ),
+                      menuTile(
+                        icon: Icons.language_outlined,
+                        title: 'Language',
+                        subtitle: AppLocalizations.languageLabels[settings.localeCode] ?? 'English',
+                        onTap: () => handleSelection('language'),
+                      ),
+                    ],
+                  ),
+                  menuTile(
+                    icon: Icons.sms_outlined,
+                    title: 'Open SMSs',
+                    subtitle: DataStore.isSmsTabVisible ? 'Already enabled' : 'Add SMS tab',
+                    enabled: false,
+                    onTap: () {},
+                  ),
+                  const Divider(height: 1, thickness: 1),
+                  const _MenuSectionHeader('Application'),
+                  menuTile(
+                    icon: Icons.feedback_outlined,
+                    title: 'Feedback',
+                    subtitle: 'vivekgoyal.vg29@gmail.com',
+                    onTap: () async {
                       Navigator.of(drawerContext).pop();
+                      await _openFeedbackDialog();
                     },
                   ),
-                  ChoiceChip(
-                    label: const Text('Income vs Expense'),
-                    selected: settings.comparisonMode == ComparisonMode.incomeVsExpense,
-                    visualDensity: VisualDensity.compact,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 2),
-                    onSelected: (_) async {
-                      await _setComparisonMode(ComparisonMode.incomeVsExpense);
-                      if (!drawerContext.mounted) return;
+                  menuTile(
+                    icon: Icons.privacy_tip_outlined,
+                    title: 'Privacy policy',
+                    onTap: () async {
                       Navigator.of(drawerContext).pop();
+                      await _openPrivacyPolicy();
                     },
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, thickness: 1),
-            const _MenuSectionHeader('Visuals & SMSs'),
-            ExpansionTile(
-              title: const Text('Appearance'),
-              leading: const Icon(Icons.palette_outlined),
-              children: [
-                tile(icon: Icons.dark_mode_outlined, title: 'Theme', subtitle: settings.themeMode.name, onTap: () => handleSelection('theme')),
-                tile(icon: Icons.font_download_outlined, title: 'Font', subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}%', onTap: () => handleSelection('customize_visuals')),
-                tile(icon: Icons.language_outlined, title: 'Language', subtitle: AppLocalizations.languageLabels[settings.localeCode] ?? 'English', onTap: () => handleSelection('language')),
-              ],
-            ),
-            tile(icon: Icons.sms_outlined, title: 'Open SMSs', subtitle: DataStore.isSmsTabVisible ? 'Already enabled' : 'Add SMS tab', onTap: () => handleSelection('open_sms')),
           ],
         );
       },
@@ -876,13 +968,14 @@ class _NavItem {
 
 class _MenuSectionHeader extends StatelessWidget {
   final String title;
+  final bool compact;
 
-  const _MenuSectionHeader(this.title);
+  const _MenuSectionHeader(this.title, {this.compact = false});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 2),
+      padding: EdgeInsets.fromLTRB(14, compact ? 4 : 8, 14, compact ? 0 : 2),
       child: Text(
         title,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(

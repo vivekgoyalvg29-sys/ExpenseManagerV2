@@ -62,6 +62,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
   int? selectedChartBucket;
   IncomeExpensePieSlice? selectedPieSlice;
   bool? _lastWasIncomeMode;
+  /// Month shown in [MonthSummary] before a non–current-month bar filter was applied (budget mode).
+  DateTime? _monthBeforeChartBucket;
 
   List<Map<String, dynamic>> analysisData = [];
   List<Map<String, dynamic>> transactions = [];
@@ -590,6 +592,47 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return const Color(0xFFEF4444);
   }
 
+  /// Keeps overlaid bar labels readable on both the colored fill and the grey track.
+  TextStyle _progressBarOverlayStyle(BuildContext context, double ratio, double widthFactor) {
+    final theme = Theme.of(context);
+    final onFill = widthFactor > 0.14;
+    return TextStyle(
+      fontSize: 10,
+      fontWeight: FontWeight.w700,
+      color: onFill ? Colors.white : theme.colorScheme.onSurface,
+      shadows: onFill
+          ? const [
+              Shadow(color: Colors.black54, blurRadius: 3),
+              Shadow(color: Colors.black26, blurRadius: 1),
+            ]
+          : [
+              Shadow(color: theme.colorScheme.surface, blurRadius: 2),
+            ],
+    );
+  }
+
+  List<_BreakdownRow> _topFiveExpenseBreakdown() {
+    final map = <String, double>{};
+    for (final t in _filteredTransactionsOfType('expense')) {
+      final k = _expenseKeyForTransaction(t);
+      if (k.isEmpty) continue;
+      map[k] = (map[k] ?? 0) + (t['amount'] as num).toDouble();
+    }
+    final sorted = map.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(5).map((e) => _BreakdownRow(e.key, e.value)).toList();
+  }
+
+  List<_BreakdownRow> _topFiveIncomeBreakdown() {
+    final map = <String, double>{};
+    for (final t in _filteredTransactionsOfType('income')) {
+      final k = _incomeKeyForTransaction(t);
+      if (k.isEmpty) continue;
+      map[k] = (map[k] ?? 0) + (t['amount'] as num).toDouble();
+    }
+    final sorted = map.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(5).map((e) => _BreakdownRow(e.key, e.value)).toList();
+  }
+
   LinearGradient _progressGradient(double ratio) {
     final base = _progressColor(ratio);
     return LinearGradient(
@@ -773,10 +816,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   Future<void> _editTransaction(Map<String, dynamic> transaction) async {
-    final result = await Navigator.push(
+    final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
-        builder: (_) => AddTransactionPage(existingTransaction: transaction),
+        builder: (_) => AddTransactionPage(
+          existingTransaction: transaction,
+          modalStyle: false,
+        ),
       ),
     );
 
@@ -830,7 +876,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           Text(
                             '${groupedTransactions.length} transactions • ${transactionSortOrder == TransactionSortOrder.newestFirst ? 'Newest first' : 'Oldest first'}',
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Colors.grey[700],
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                                 ),
                           ),
                         ],
@@ -868,9 +914,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                     child: Container(
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
-                                        color: Colors.white,
+                                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
                                         borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(color: const Color(0xFFE3E7EE)),
+                                        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
                                       ),
                                       child: Row(
                                         children: [
@@ -895,7 +941,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                 const SizedBox(height: 2),
                                                 Text(
                                                   dateFormat.format(date),
-                                                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                  ),
                                                 ),
                                                 if (comment.isNotEmpty) ...[
                                                   const SizedBox(height: 2),
@@ -903,7 +952,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                     comment,
                                                     maxLines: 1,
                                                     overflow: TextOverflow.ellipsis,
-                                                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.85),
+                                                    ),
                                                   ),
                                                 ],
                                               ],
@@ -920,7 +972,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                               const SizedBox(height: 4),
                                               Text(
                                                 'Tap to edit',
-                                                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                ),
                                               ),
                                             ],
                                           ),
@@ -960,6 +1015,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 setState(() {
                   currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
                   selectedChartBucket = null;
+                  _monthBeforeChartBucket = null;
                 });
                 loadAnalysis();
               },
@@ -967,6 +1023,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 setState(() {
                   currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
                   selectedChartBucket = null;
+                  _monthBeforeChartBucket = null;
                 });
                 loadAnalysis();
               },
@@ -991,27 +1048,110 @@ class _AnalysisPageState extends State<AnalysisPage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
               child: _isIncomeVsExpense
-                  ? IncomeExpensePieChart(
-                      incomeTotal: income,
-                      expenseTotal: expense,
-                      selectedSlice: selectedPieSlice,
-                      chartHeight: 210,
-                      incomeColor: const Color(0xFF16A34A),
-                      expenseColor: const Color(0xFFDC2626),
-                      onSliceTap: (slice) async {
-                        setState(() {
-                          selectedPieSlice = selectedPieSlice == slice ? null : slice;
-                        });
-                        await loadAnalysis();
+                  ? Builder(
+                      builder: (context) {
+                        final top5 = selectedPieSlice == IncomeExpensePieSlice.expense
+                            ? _topFiveExpenseBreakdown()
+                            : selectedPieSlice == IncomeExpensePieSlice.income
+                                ? _topFiveIncomeBreakdown()
+                                : <_BreakdownRow>[];
+                        return SizedBox(
+                          height: 220,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                flex: selectedPieSlice != null && top5.isNotEmpty ? 5 : 1,
+                                child: IncomeExpensePieChart(
+                                  incomeTotal: income,
+                                  expenseTotal: expense,
+                                  selectedSlice: selectedPieSlice,
+                                  chartHeight: selectedPieSlice != null ? 200 : 210,
+                                  incomeColor: const Color(0xFF16A34A),
+                                  expenseColor: const Color(0xFFDC2626),
+                                  onSliceTap: (slice) async {
+                                    setState(() {
+                                      selectedPieSlice = selectedPieSlice == slice ? null : slice;
+                                    });
+                                    await loadAnalysis();
+                                  },
+                                  onClear: selectedPieSlice != null
+                                      ? () async {
+                                          setState(() {
+                                            selectedPieSlice = null;
+                                          });
+                                          await loadAnalysis();
+                                        }
+                                      : null,
+                                ),
+                              ),
+                              if (selectedPieSlice != null && top5.isNotEmpty) ...[
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 5,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        selectedPieSlice == IncomeExpensePieSlice.expense ? 'Top expense' : 'Top income',
+                                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Expanded(
+                                        child: ListView.separated(
+                                          padding: EdgeInsets.zero,
+                                          itemCount: top5.length,
+                                          separatorBuilder: (_, __) => const SizedBox(height: 6),
+                                          itemBuilder: (context, index) {
+                                            final row = top5[index];
+                                            final rowType =
+                                                selectedPieSlice == IncomeExpensePieSlice.expense ? 'expense' : 'income';
+                                            final entry = _entryForLabel(row.label, rowType: rowType);
+                                            return Row(
+                                              children: [
+                                                AppPageIcon(
+                                                  icon: iconFromCodePoint(
+                                                    entry?['icon'],
+                                                    fallback: analysisType == AnalysisType.category
+                                                        ? Icons.category
+                                                        : Icons.account_balance_wallet,
+                                                  ),
+                                                  imagePath: entry?['icon_path']?.toString(),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    row.label,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.w600,
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Text(
+                                                  formatIndianCurrency(row.amount),
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
                       },
-                      onClear: selectedPieSlice != null
-                          ? () async {
-                              setState(() {
-                                selectedPieSlice = null;
-                              });
-                              await loadAnalysis();
-                            }
-                          : null,
                     )
                   : AggregationBarChart(
                       data: _analysisChartData(),
@@ -1020,9 +1160,27 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       onBarTap: (item) async {
                         final tappedBucket = item.bucket;
                         final nextBucket = selectedChartBucket == tappedBucket ? null : tappedBucket;
-                        setState(() {
-                          selectedChartBucket = nextBucket;
-                        });
+                        if (analysisMode == AnalysisMode.selectedMonth) {
+                          setState(() {
+                            selectedChartBucket = nextBucket;
+                          });
+                        } else {
+                          if (nextBucket != null) {
+                            _monthBeforeChartBucket ??= DateTime(currentMonth.year, currentMonth.month);
+                            setState(() {
+                              currentMonth = DateTime(currentMonth.year, nextBucket, 1);
+                              selectedChartBucket = nextBucket;
+                            });
+                          } else {
+                            setState(() {
+                              selectedChartBucket = null;
+                              if (_monthBeforeChartBucket != null) {
+                                currentMonth = _monthBeforeChartBucket!;
+                                _monthBeforeChartBucket = null;
+                              }
+                            });
+                          }
+                        }
                         await loadAnalysis();
                       },
                       trailing: selectedChartBucket != null
@@ -1030,6 +1188,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                               onPressed: () async {
                                 setState(() {
                                   selectedChartBucket = null;
+                                  if (_monthBeforeChartBucket != null) {
+                                    currentMonth = _monthBeforeChartBucket!;
+                                    _monthBeforeChartBucket = null;
+                                  }
                                 });
                                 await loadAnalysis();
                               },
@@ -1058,7 +1220,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           final spent = (data['spent'] as num).toDouble();
                           final budget = (data['budget'] as num).toDouble();
                           final incomeAmount = (data['income'] as num?)?.toDouble() ?? 0.0;
-                          final netAmount = (data['net'] as num?)?.toDouble() ?? 0.0;
                           final totalIncomeAggregation = (data['totalIncomeAggregation'] as num?)?.toDouble() ?? 0.0;
                           final totalExpenseAggregation = (data['totalExpenseAggregation'] as num?)?.toDouble() ?? 0.0;
 
@@ -1141,7 +1302,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.grey[700],
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                                       ),
                                     ),
                                   ] else if (!_isIncomeVsExpense && analysisType == AnalysisType.category) ...[
@@ -1154,7 +1315,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                               Container(
                                                 height: 16,
                                                 decoration: BoxDecoration(
-                                                  color: Colors.grey[200],
+                                                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                                                   borderRadius: BorderRadius.circular(999),
                                                 ),
                                               ),
@@ -1174,16 +1335,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                   '${formatIndianCurrency(spent)} / ${formatIndianCurrency(budget)}',
                                                   maxLines: 1,
                                                   overflow: TextOverflow.ellipsis,
-                                                  style: const TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: Colors.white,
-                                                    shadows: [
-                                                      Shadow(
-                                                        color: Colors.black45,
-                                                        blurRadius: 2,
-                                                      ),
-                                                    ],
+                                                  style: _progressBarOverlayStyle(
+                                                    context,
+                                                    ratio,
+                                                    progress.clamp(0.0, 1.0),
                                                   ),
                                                 ),
                                               ),
@@ -1213,7 +1368,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.grey[700],
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                                       ),
                                     ),
                                   ] else ...[
@@ -1226,7 +1381,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                               Container(
                                                 height: 16,
                                                 decoration: BoxDecoration(
-                                                  color: Colors.grey[200],
+                                                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                                                   borderRadius: BorderRadius.circular(999),
                                                 ),
                                               ),
@@ -1248,16 +1403,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                       : '${formatIndianCurrency(spent)} / ${formatIndianCurrency(totalExpenseAggregation)}',
                                                   maxLines: 1,
                                                   overflow: TextOverflow.ellipsis,
-                                                  style: const TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: Colors.white,
-                                                    shadows: [
-                                                      Shadow(
-                                                        color: Colors.black45,
-                                                        blurRadius: 2,
-                                                      ),
-                                                    ],
+                                                  style: _progressBarOverlayStyle(
+                                                    context,
+                                                    ratio,
+                                                    progress.clamp(0.0, 1.0),
                                                   ),
                                                 ),
                                               ),
@@ -1310,9 +1459,16 @@ class _MenuSectionHeader extends StatelessWidget {
         title,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
               fontWeight: FontWeight.w700,
-              color: const Color(0xFF52606D),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
       ),
     );
   }
+}
+
+class _BreakdownRow {
+  final String label;
+  final double amount;
+
+  _BreakdownRow(this.label, this.amount);
 }

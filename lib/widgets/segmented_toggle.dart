@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 enum SegmentedToggleAxis {
@@ -20,6 +22,8 @@ class SegmentedToggle<T> extends StatelessWidget {
   final T selectedValue;
   final ValueChanged<T> onChanged;
   final SegmentedToggleAxis axis;
+  /// When true, vertical toggles size to content width instead of stretching full width.
+  final bool shrinkWidth;
 
   const SegmentedToggle({
     super.key,
@@ -27,7 +31,25 @@ class SegmentedToggle<T> extends StatelessWidget {
     required this.selectedValue,
     required this.onChanged,
     this.axis = SegmentedToggleAxis.horizontal,
+    this.shrinkWidth = false,
   });
+
+  static double _labelMaxWidth(BuildContext context, List<SegmentedToggleOption<dynamic>> options) {
+    final style = Theme.of(context).textTheme.labelLarge?.copyWith(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ) ??
+        const TextStyle(fontSize: 12, fontWeight: FontWeight.w700);
+    double w = 0;
+    for (final o in options) {
+      final tp = TextPainter(
+        text: TextSpan(text: o.label, style: style),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      w = math.max(w, tp.width);
+    }
+    return w + 36;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +58,7 @@ class SegmentedToggle<T> extends StatelessWidget {
 
     final theme = Theme.of(context);
     final selectedColor = theme.colorScheme.primary;
-    final bgColor = theme.colorScheme.surfaceVariant.withOpacity(0.55);
+    final bgColor = theme.colorScheme.surfaceContainerHighest.withOpacity(0.65);
 
     const double inset = 3;
     const double horizontalHeight = 36;
@@ -45,7 +67,12 @@ class SegmentedToggle<T> extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final count = options.length;
-        final outerWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : 320.0;
+        final intrinsicW = shrinkWidth && axis == SegmentedToggleAxis.vertical
+            ? _labelMaxWidth(context, options)
+            : null;
+        final outerWidth = intrinsicW != null
+            ? math.min(constraints.maxWidth.isFinite ? constraints.maxWidth : intrinsicW, intrinsicW)
+            : (constraints.maxWidth.isFinite ? constraints.maxWidth : 320.0);
         final outerHeight = axis == SegmentedToggleAxis.horizontal ? horizontalHeight : verticalCellHeight * count;
 
         final knobHeight = axis == SegmentedToggleAxis.horizontal ? (outerHeight - inset * 2) : (verticalCellHeight - inset * 2);
