@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models.dart';
+import 'database_service.dart';
 import 'firestore_service.dart';
 
 class ProfileService {
@@ -148,8 +149,19 @@ class ProfileService {
             .toList());
   }
 
-  /// Switches the active profile, clears Firestore caches, and persists choice.
+  /// Switches the active profile, clears all caches, and persists choice.
+  ///
+  /// Wiping SQLite here is intentional: the SQLite database is profile-agnostic
+  /// and would otherwise serve the previous profile's data as a fallback while
+  /// Firestore loads the new profile's data.
   Future<void> switchProfile(String profileId) async {
+    // Clear the SQLite cache first so it can never bleed the old profile's data
+    // into the new profile context. Firestore's own offline persistence handles
+    // true offline scenarios correctly without SQLite.
+    try {
+      await DatabaseService.deleteAllData();
+    } catch (_) {}
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_activeProfileKey, profileId);
     FirestoreService().clearCaches();
@@ -231,35 +243,71 @@ class ProfileService {
 
     final trimmed = code.trim().toUpperCase();
 
-    // Search by new shareCode field first, then legacy inviteCode
-    QuerySnapshot<Map<String, dynamic>> snap = await _firestore
-        .collection('profiles')
-        .where('shareCode', isEqualTo: trimmed)
-        .limit(1)
-        .get();
+    // Always query the Firestore server so we're not limited to what the local
+    // offline cache already has (the joining device has never seen the profile).
+    const serverOptions = GetOptions(source: Source.server);
 
-    if (snap.docs.isEmpty) {
+    QuerySnapshot<Map<String, dynamic>> snap;
+    try {
       snap = await _firestore
           .collection('profiles')
-          .where('inviteCode', isEqualTo: trimmed)
+          .where('shareCode', isEqualTo: trimmed)
+          .limit(1)
+          .get(serverOptions);
+    } catch (_) {
+      // Server unreachable — fall back to local cache as a best-effort attempt
+      snap = await _firestore
+          .collection('profiles')
+          .where('shareCode', isEqualTo: trimmed)
           .limit(1)
           .get();
     }
 
     if (snap.docs.isEmpty) {
-      throw Exception('No profile found with this code');
+      // Try legacy inviteCode field
+      try {
+        final legacySnap = await _firestore
+            .collection('profiles')
+            .where('inviteCode', isEqualTo: trimmed)
+            .limit(1)
+            .get(serverOptions);
+        if (legacySnap.docs.isNotEmpty) {
+          snap = legacySnap;
+        }
+      } catch (_) {
+        final legacySnap = await _firestore
+            .collection('profiles')
+            .where('inviteCode', isEqualTo: trimmed)
+            .limit(1)
+            .get();
+        if (legacySnap.docs.isNotEmpty) {
+          snap = legacySnap;
+        }
+      }
+    }
+
+    if (snap.docs.isEmpty) {
+      throw Exception(
+        'No profile found with code "$trimmed". '
+        'Make sure the code is correct and that the profile owner '
+        'has sharing enabled.',
+      );
     }
 
     final profileDoc = snap.docs.first;
     final data = profileDoc.data();
     final profileId = profileDoc.id;
 
-    // Validate the code is currently active
+    // Validate the code is currently active (only enforced for shareCode-based
+    // profiles; legacy inviteCode profiles do not have this flag).
     final isShareCodeBased = data.containsKey('shareCode');
     if (isShareCodeBased) {
       final isActive = data['shareCodeActive'] as bool? ?? false;
       if (!isActive) {
-        throw Exception('This share code is no longer active');
+        throw Exception(
+          'This share code is not active. '
+          'Ask the profile owner to enable sharing in Manage Profiles.',
+        );
       }
     }
 

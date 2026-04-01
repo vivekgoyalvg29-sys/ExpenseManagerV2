@@ -362,9 +362,18 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
         icon: const Icon(Icons.add),
         label: const Text('Add Profile'),
       ),
-      body: _busy
-          ? const Center(child: CircularProgressIndicator())
-          : StreamBuilder<List<ProfileModel>>(
+      body: Column(
+        children: [
+          // Non-intrusive progress indicator — keeps the profile list visible
+          // while a background operation (toggle shareable, delete, etc.) runs.
+          if (_busy)
+            const LinearProgressIndicator()
+          else
+            const SizedBox(height: 4),
+          Expanded(
+            child: AbsorbPointer(
+              absorbing: _busy,
+              child: StreamBuilder<List<ProfileModel>>(
               stream: _profileService.getMyProfiles(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting &&
@@ -436,6 +445,10 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
                 );
               },
             ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
