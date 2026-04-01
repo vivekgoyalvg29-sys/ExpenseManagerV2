@@ -86,7 +86,7 @@ class FirestoreService {
 
   Future<List<Map<String, dynamic>>> getTransactions() async {
     final col = await _col('transactions');
-    if (col == null) return [];
+    if (col == null) throw Exception('No active profile');
     final snap = await col.orderBy('date', descending: true).get();
     final results = <Map<String, dynamic>>[];
     for (final doc in snap.docs) {
@@ -179,7 +179,7 @@ class FirestoreService {
 
   Future<List<String>> getExistingComments() async {
     final col = await _col('transactions');
-    if (col == null) return [];
+    if (col == null) throw Exception('No active profile');
     final snap = await col.orderBy('createdAt', descending: true).get();
     final seen = <String>{};
     final comments = <String>[];
@@ -198,7 +198,7 @@ class FirestoreService {
 
   Future<List<Map<String, dynamic>>> getAccounts() async {
     final col = await _col('accounts');
-    if (col == null) return [];
+    if (col == null) throw Exception('No active profile');
     final snap = await col.get();
     final results = <Map<String, dynamic>>[];
     for (final doc in snap.docs) {
@@ -302,7 +302,7 @@ class FirestoreService {
 
   Future<String?> getFavoriteAccountName(String type) async {
     final col = await _col('accounts');
-    if (col == null) return null;
+    if (col == null) throw Exception('No active profile');
     final snap = await col
         .where('type', isEqualTo: type)
         .where('is_favorite', isEqualTo: 1)
@@ -316,7 +316,7 @@ class FirestoreService {
 
   Future<List<Map<String, dynamic>>> getCategories() async {
     final col = await _col('categories');
-    if (col == null) return [];
+    if (col == null) throw Exception('No active profile');
     final snap = await col.get();
     final results = <Map<String, dynamic>>[];
     for (final doc in snap.docs) {
@@ -420,7 +420,7 @@ class FirestoreService {
 
   Future<String?> getFavoriteCategoryName(String type) async {
     final col = await _col('categories');
-    if (col == null) return null;
+    if (col == null) throw Exception('No active profile');
     final snap = await col
         .where('type', isEqualTo: type)
         .where('is_favorite', isEqualTo: 1)
@@ -434,7 +434,7 @@ class FirestoreService {
 
   Future<List<Map<String, dynamic>>> getBudgets() async {
     final col = await _col('budgets');
-    if (col == null) return [];
+    if (col == null) throw Exception('No active profile');
     final snap = await col.orderBy('year', descending: true).get();
     final results = <Map<String, dynamic>>[];
     for (final doc in snap.docs) {
@@ -512,7 +512,7 @@ class FirestoreService {
 
   Future<bool> accountExists(String name, String type) async {
     final col = await _col('accounts');
-    if (col == null) return false;
+    if (col == null) throw Exception('No active profile');
     final snap = await col.where('type', isEqualTo: type).get();
     return snap.docs.any((doc) =>
         doc.data()['name']?.toString().trim().toLowerCase() ==
@@ -521,7 +521,7 @@ class FirestoreService {
 
   Future<bool> categoryExists(String name, String type) async {
     final col = await _col('categories');
-    if (col == null) return false;
+    if (col == null) throw Exception('No active profile');
     final snap = await col.where('type', isEqualTo: type).get();
     return snap.docs.any((doc) =>
         doc.data()['name']?.toString().trim().toLowerCase() ==
