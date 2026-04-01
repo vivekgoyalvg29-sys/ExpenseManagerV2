@@ -9,9 +9,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/add_transaction_page.dart';
 import 'screens/auth/phone_auth_screen.dart';
 import 'screens/home_screen.dart';
+import 'services/data_service.dart';
 import 'services/data_store.dart';
 import 'services/app_localizations.dart';
 import 'services/database_service.dart';
+import 'services/migration_service.dart';
+import 'services/profile_service.dart';
 import 'services/visual_settings.dart';
 import 'services/widget_sync_service.dart';
 
@@ -141,31 +144,120 @@ class _FinTrackAppState extends State<FinTrackApp> {
             ),
           );
         },
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              backgroundColor: Colors.black,
-              body: Center(
-                child: CircularProgressIndicator(color: const Color(0xFF4F46E5)),
-              ),
-            );
-          }
-          if (snapshot.hasData) {
-            return const HomeScreen();
-          }
-          return const PhoneAuthScreen();
+        home: StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                backgroundColor: Colors.black,
+                body: Center(
+                  child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
+                ),
+              );
+            }
+            if (snapshot.hasData) {
+              return const _PostLoginInitScreen();
+            }
+            return const PhoneAuthScreen();
+          },
+        ),
+        routes: {
+          '/': (_) => const HomeScreen(),
+          '/transactions': (_) => const HomeScreen(initialIndex: 0),
+          '/add-transaction': (_) => const WidgetQuickAddTransactionPage(),
         },
-      ),
-      routes: {
-        '/': (_) => const HomeScreen(),
-        '/transactions': (_) => const HomeScreen(initialIndex: 0),
-        '/add-transaction': (_) => const WidgetQuickAddTransactionPage(),
-      },
-      debugShowCheckedModeBanner: false,
+        debugShowCheckedModeBanner: false,
       ),
     );
+  }
+}
+
+/// Handles migration and profile initialization before showing HomeScreen.
+class _PostLoginInitScreen extends StatefulWidget {
+  const _PostLoginInitScreen();
+
+  @override
+  State<_PostLoginInitScreen> createState() => _PostLoginInitScreenState();
+}
+
+class _PostLoginInitScreenState extends State<_PostLoginInitScreen> {
+  bool _ready = false;
+  bool _migrating = false;
+  String _statusMessage = 'Initializing…';
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      final migrationService = MigrationService();
+      final profileService = ProfileService();
+
+      if (!await migrationService.hasMigrated()) {
+        if (mounted) {
+          setState(() {
+            _migrating = true;
+            _statusMessage = 'Syncing your data to cloud…';
+          });
+        }
+        try {
+          await migrationService.migrateLocalDataToFirestore();
+        } catch (_) {
+          // Migration failed — app still works via SQLite fallback
+        }
+      }
+
+      // Ensure there is an active profile
+      if (mounted) {
+        setState(() => _statusMessage = 'Loading profile…');
+      }
+      final activeId = await profileService.getActiveProfileId();
+      if (activeId == null) {
+        try {
+          await profileService.createProfile('My Profile');
+        } catch (_) {}
+      }
+    } catch (_) {
+      // Ignore init errors — fall through to HomeScreen
+    }
+
+    if (mounted) {
+      setState(() {
+        _ready = true;
+        _migrating = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: Color(0xFF4F46E5)),
+              if (_migrating) ...[
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Text(
+                    _statusMessage,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+    return const HomeScreen();
   }
 }
 
@@ -174,14 +266,26 @@ class WidgetQuickAddTransactionPage extends StatelessWidget {
 
   Future<void> _saveTransaction(
       Map<String, dynamic> result, BuildContext context) async {
-    await DatabaseService.insertTransaction(
-      result['title'],
-      result['amount'],
-      result['date'],
-      result['type'],
-      (result['account'] ?? '').toString(),
-      (result['comment'] ?? '').toString(),
-    );
+    try {
+      await DataService.insertTransaction(
+        result['title'],
+        result['amount'],
+        result['date'],
+        result['type'],
+        (result['account'] ?? '').toString(),
+        (result['comment'] ?? '').toString(),
+      );
+    } catch (_) {
+      // Fallback to SQLite if Firestore fails
+      await DatabaseService.insertTransaction(
+        result['title'],
+        result['amount'],
+        result['date'],
+        result['type'],
+        (result['account'] ?? '').toString(),
+        (result['comment'] ?? '').toString(),
+      );
+    }
 
     try {
       await WidgetSyncService.syncFromStoredConfiguration();

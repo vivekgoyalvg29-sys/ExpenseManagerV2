@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/data_store.dart';
-import '../services/database_service.dart';
+import '../services/data_service.dart';
 import '../services/visual_settings.dart';
 import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
@@ -126,10 +126,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   Future<void> loadAnalysis() async {
-    final tx = await DatabaseService.getTransactions();
-    final budgetData = await DatabaseService.getBudgets();
-    final categories = await DatabaseService.getCategories();
-    final accounts = await DatabaseService.getAccounts();
+    final tx = await DataService.getTransactions();
+    final budgetData = await DataService.getBudgets();
+    final categories = await DataService.getCategories();
+    final accounts = await DataService.getAccounts();
 
     transactions = tx;
     budgets = budgetData;
@@ -838,7 +838,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     if (result == null) return;
 
-    await DatabaseService.updateTransaction(
+    await DataService.updateTransaction(
       transaction['id'] as int,
       result['title'] as String,
       result['amount'] as double,

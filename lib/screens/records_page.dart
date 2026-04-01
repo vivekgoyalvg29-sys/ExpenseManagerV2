@@ -8,8 +8,8 @@ import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/data_service.dart';
 import '../services/data_store.dart';
-import '../services/database_service.dart';
 import '../services/visual_settings.dart';
 import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
@@ -43,18 +43,27 @@ class _RecordsPageState extends State<RecordsPage> {
   Set<int> selectedIndexes = {};
   bool selectionMode = false;
   bool _isProcessingQr = false;
+  String? _userRole;
 
   @override
   void initState() {
     super.initState();
     loadTransactions();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    try {
+      final role = await DataService.getCurrentUserRole();
+      if (mounted) setState(() => _userRole = role);
+    } catch (_) {}
   }
 
   Future<void> loadTransactions() async {
-    final txData = await DatabaseService.getTransactions();
-    final budgetData = await DatabaseService.getBudgets();
-    final categoryData = await DatabaseService.getCategories();
-    final accountData = await DatabaseService.getAccounts();
+    final txData = await DataService.getTransactions();
+    final budgetData = await DataService.getBudgets();
+    final categoryData = await DataService.getCategories();
+    final accountData = await DataService.getAccounts();
 
     setState(() {
       transactions = txData;
@@ -90,7 +99,7 @@ class _RecordsPageState extends State<RecordsPage> {
     final idsToDelete = selectedIndexes.map((i) => filteredTransactions[i]["id"]).toList();
 
     for (var id in idsToDelete) {
-      await DatabaseService.deleteTransaction(id);
+      await DataService.deleteTransaction(id);
     }
 
     clearSelection();
@@ -134,7 +143,7 @@ class _RecordsPageState extends State<RecordsPage> {
     final launchedPayload = await _launchPaymentAppFlow(qrPayload, paymentAmount);
     if (!mounted || launchedPayload == null) return;
 
-    await DatabaseService.insertTransaction(
+    await DataService.insertTransaction(
       draft.category,
       draft.amount,   // save what was shown to the user
       draft.date,
@@ -670,7 +679,9 @@ class _RecordsPageState extends State<RecordsPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: selectionMode
+      floatingActionButton: _userRole == 'viewer'
+          ? null
+          : selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -717,7 +728,7 @@ class _RecordsPageState extends State<RecordsPage> {
                     );
 
                     if (result != null) {
-                      await DatabaseService.insertTransaction(
+                      await DataService.insertTransaction(
                         result["title"],
                         result["amount"],
                         result["date"],
@@ -869,7 +880,7 @@ class _RecordsPageState extends State<RecordsPage> {
                                   );
 
                                   if (result != null) {
-                                    await DatabaseService.updateTransaction(
+                                    await DataService.updateTransaction(
                                       tx['id'] as int,
                                       result['title'] as String,
                                       result['amount'] as double,

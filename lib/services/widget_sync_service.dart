@@ -2,7 +2,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
 
 import '../utils/indian_number_formatter.dart';
-import 'database_service.dart';
+import 'data_service.dart';
 
 class WidgetSyncService {
   static const String androidWidgetProvider = 'ExpenseHomeWidgetProvider';
@@ -57,8 +57,8 @@ class WidgetSyncService {
     required int month,
     required int year,
   }) async {
-    final tx = await DatabaseService.getTransactions();
-    final budgets = await DatabaseService.getBudgets();
+    final tx = await DataService.getTransactions();
+    final budgets = await DataService.getBudgets();
 
     final expense = tx.where((t) {
       if (t['type'] != 'expense') return false;

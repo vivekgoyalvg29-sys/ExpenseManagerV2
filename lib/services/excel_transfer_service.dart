@@ -5,9 +5,8 @@ import 'dart:typed_data';
 import 'package:excel/excel.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:sqflite/sqflite.dart';
 
-import 'database_service.dart';
+import 'data_service.dart';
 
 class ExportFileData {
   final String fileName;
@@ -65,11 +64,10 @@ class ExcelTransferService {
     final excel = Excel.createExcel();
     final recordsSheet = _prepareRecordsSheet(excel);
 
-    final db = await DatabaseService.database;
-    final transactions = await db.query('transactions', orderBy: 'date DESC');
-    final budgets = await db.query('budgets', orderBy: 'year DESC, month DESC, id DESC');
-    final accounts = await db.query('accounts', orderBy: 'name COLLATE NOCASE ASC, id ASC');
-    final categories = await db.query('categories', orderBy: 'name COLLATE NOCASE ASC, id ASC');
+    final transactions = await DataService.getTransactions();
+    final budgets = await DataService.getBudgets();
+    final accounts = await DataService.getAccounts();
+    final categories = await DataService.getCategories();
 
     final categoryTypeByName = <String, String>{
       for (final category in categories)
@@ -176,10 +174,7 @@ class ExcelTransferService {
     }
 
     final bytes = excel.encode() ?? [];
-    return ExportFileData(
-      fileName: 'AllData.xlsx',
-      bytes: bytes,
-    );
+    return ExportFileData(fileName: 'AllData.xlsx', bytes: bytes);
   }
 
   static Sheet _prepareRecordsSheet(Excel excel) {
@@ -207,35 +202,49 @@ class ExcelTransferService {
 
   static Future<ImportResult> importAllDataFromBytes(Uint8List bytes) async {
     final excel = Excel.decodeBytes(bytes);
-    final db = await DatabaseService.database;
     final stats = <ImportStat>[];
     final customIconPathMap = await _importCustomIcons(excel);
-
-    final importers = <String, Future<int> Function(Database, Sheet)>{
-      _recordsSheet: _importRecords,
-      _budgetsSheet: _importBudgets,
-      _accountsSheet: (db, sheet) => _importAccounts(db, sheet, customIconPathMap),
-      _categoriesSheet: (db, sheet) => _importCategories(db, sheet, customIconPathMap),
-      _customIconsSheet: (_, __) async => customIconPathMap.length,
-    };
 
     for (final sheetName in _importSheetOrder) {
       final sheet = _resolveSheet(excel, sheetName);
       final dataRows = sheet == null || sheet.rows.isEmpty ? 0 : sheet.rows.length - 1;
-      final importedRows = sheet == null ? 0 : await importers[sheetName]!(db, sheet);
+      int importedRows = 0;
+
+      if (sheet != null) {
+        switch (sheetName) {
+          case _recordsSheet:
+            importedRows = await _importRecords(sheet, customIconPathMap);
+            break;
+          case _budgetsSheet:
+            importedRows = await _importBudgets(sheet);
+            break;
+          case _accountsSheet:
+            importedRows = await _importAccounts(sheet, customIconPathMap);
+            break;
+          case _categoriesSheet:
+            importedRows = await _importCategories(sheet, customIconPathMap);
+            break;
+          case _customIconsSheet:
+            importedRows = customIconPathMap.length;
+            break;
+        }
+      }
+
       stats.add(ImportStat(name: sheetName, totalRows: dataRows, importedRows: importedRows));
     }
 
     return ImportResult(_sortStatsForDisplay(stats));
   }
 
-  static Future<int> _importRecords(Database db, Sheet sheet) async {
+  static Future<int> _importRecords(
+    Sheet sheet,
+    Map<String, String> customIconPathMap,
+  ) async {
     int importedRows = 0;
     for (int i = 1; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
       if (_isRowEmpty(row)) continue;
 
-      final id = _asInt(_cellValue(row, 0));
       final category = _asString(_cellValue(row, 1));
       final amount = _asDouble(_cellValue(row, 2));
       final dateText = _asString(_cellValue(row, 3));
@@ -246,126 +255,135 @@ class ExcelTransferService {
       if (category.isEmpty || amount == null || dateText.isEmpty) continue;
 
       final parsedDate = DateTime.tryParse(dateText);
-      final normalizedDate = (parsedDate ?? DateTime.now()).toIso8601String();
+      final normalizedDate = parsedDate ?? DateTime.now();
 
-      await _ensureCategoryExists(db, category, type);
+      await _ensureDataServiceCategoryExists(category, type);
       if (account.isNotEmpty) {
-        await _ensureAccountExists(db, account, type);
+        await _ensureDataServiceAccountExists(account, type);
       }
 
-      final values = {
-        'title': category,
-        'amount': amount,
-        'date': normalizedDate,
-        'type': type,
-        'account': account,
-        'comment': comment,
-      };
-
-      if (id != null && id > 0) {
-        final updated = await db.update('transactions', values, where: 'id = ?', whereArgs: [id]);
-        if (updated == 0) {
-          await db.insert('transactions', {'id': id, ...values});
-        }
-      } else {
-        await db.insert('transactions', values);
-      }
-      importedRows++;
+      try {
+        await DataService.insertTransaction(
+          category,
+          amount,
+          normalizedDate,
+          type,
+          account,
+          comment,
+        );
+        importedRows++;
+      } catch (_) {}
     }
     return importedRows;
   }
 
-  static Future<int> _importBudgets(Database db, Sheet sheet) async {
+  static Future<int> _importBudgets(Sheet sheet) async {
     int importedRows = 0;
     for (int i = 1; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
       if (_isRowEmpty(row)) continue;
-      final id = _asInt(_cellValue(row, 0));
       final category = _asString(_cellValue(row, 1));
       final amount = _asDouble(_cellValue(row, 2));
       final month = _asInt(_cellValue(row, 3));
       final year = _asInt(_cellValue(row, 4));
       final type = _normalizeType(_asString(_cellValue(row, 5)), fallback: 'expense');
       if (category.isEmpty || amount == null || month == null || year == null) continue;
-      await _ensureCategoryExists(db, category, type);
-      final values = {'category': category, 'amount': amount, 'month': month, 'year': year};
-      if (id != null && id > 0) {
-        final updated = await db.update('budgets', values, where: 'id = ?', whereArgs: [id]);
-        if (updated == 0) {
-          await db.insert('budgets', {'id': id, ...values});
-        }
-      } else {
-        await db.insert('budgets', values);
+
+      await _ensureDataServiceCategoryExists(category, type);
+      try {
+        await DataService.insertBudget(category, amount, month, year);
+        importedRows++;
+      } catch (_) {}
+    }
+    return importedRows;
+  }
+
+  static Future<int> _importAccounts(
+    Sheet sheet,
+    Map<String, String> customIconPathMap,
+  ) async {
+    int importedRows = 0;
+    for (int i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (_isRowEmpty(row)) continue;
+      final name = _asString(_cellValue(row, 1));
+      final type = _normalizeType(_asString(_cellValue(row, 2)));
+      final icon = _asInt(_cellValue(row, 3)) ?? 0;
+      final iconPath = _resolveImportedIconPath(_asString(_cellValue(row, 4)), customIconPathMap);
+      if (name.isEmpty) continue;
+
+      final exists = await DataService.accountExists(name, type);
+      if (!exists) {
+        try {
+          await DataService.insertAccount(
+            name,
+            type,
+            icon,
+            iconPath: iconPath.isEmpty ? null : iconPath,
+          );
+        } catch (_) {}
       }
       importedRows++;
     }
     return importedRows;
   }
 
-  static Future<int> _importAccounts(Database db, Sheet sheet, Map<String, String> customIconPathMap) async {
+  static Future<int> _importCategories(
+    Sheet sheet,
+    Map<String, String> customIconPathMap,
+  ) async {
     int importedRows = 0;
     for (int i = 1; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
       if (_isRowEmpty(row)) continue;
-      final id = _asInt(_cellValue(row, 0));
       final name = _asString(_cellValue(row, 1));
       final type = _normalizeType(_asString(_cellValue(row, 2)));
       final icon = _asInt(_cellValue(row, 3)) ?? 0;
       final iconPath = _resolveImportedIconPath(_asString(_cellValue(row, 4)), customIconPathMap);
       if (name.isEmpty) continue;
-      await _upsertLookupRow(db: db, table: 'accounts', id: id, name: name, type: type, icon: icon, iconPath: iconPath);
+
+      final exists = await DataService.categoryExists(name, type);
+      if (!exists) {
+        try {
+          await DataService.insertCategory(
+            name,
+            type,
+            icon,
+            iconPath: iconPath.isEmpty ? null : iconPath,
+          );
+        } catch (_) {}
+      }
       importedRows++;
     }
     return importedRows;
   }
 
-  static Future<int> _importCategories(Database db, Sheet sheet, Map<String, String> customIconPathMap) async {
-    int importedRows = 0;
-    for (int i = 1; i < sheet.rows.length; i++) {
-      final row = sheet.rows[i];
-      if (_isRowEmpty(row)) continue;
-      final id = _asInt(_cellValue(row, 0));
-      final name = _asString(_cellValue(row, 1));
-      final type = _normalizeType(_asString(_cellValue(row, 2)));
-      final icon = _asInt(_cellValue(row, 3)) ?? 0;
-      final iconPath = _resolveImportedIconPath(_asString(_cellValue(row, 4)), customIconPathMap);
-      if (name.isEmpty) continue;
-      await _upsertLookupRow(db: db, table: 'categories', id: id, name: name, type: type, icon: icon, iconPath: iconPath);
-      importedRows++;
-    }
-    return importedRows;
-  }
-
-  static Future<void> _ensureCategoryExists(Database db, String name, String type) async => _ensureLookupExists(db, 'categories', name, type, 0, '');
-  static Future<void> _ensureAccountExists(Database db, String name, String type) async => _ensureLookupExists(db, 'accounts', name, type, 0, '');
-
-  static Future<void> _ensureLookupExists(Database db, String table, String name, String type, int icon, String iconPath) async {
+  static Future<void> _ensureDataServiceCategoryExists(
+    String name,
+    String type,
+  ) async {
     final normalizedName = name.trim();
     if (normalizedName.isEmpty) return;
-    final existing = await db.query(table, where: 'LOWER(name) = ? AND type = ?', whereArgs: [normalizedName.toLowerCase(), type], limit: 1);
-    if (existing.isEmpty) {
-      await db.insert(table, {'name': normalizedName, 'type': type, 'icon': icon, 'icon_path': iconPath});
-    }
+    try {
+      final exists = await DataService.categoryExists(normalizedName, type);
+      if (!exists) {
+        await DataService.insertCategory(normalizedName, type, 0);
+      }
+    } catch (_) {}
   }
 
-  static Future<void> _upsertLookupRow({required Database db, required String table, required int? id, required String name, required String type, required int icon, required String iconPath}) async {
+  static Future<void> _ensureDataServiceAccountExists(
+    String name,
+    String type,
+  ) async {
     final normalizedName = name.trim();
     if (normalizedName.isEmpty) return;
-    final values = {'name': normalizedName, 'type': type, 'icon': icon, 'icon_path': iconPath.isEmpty ? null : iconPath};
-    if (id != null && id > 0) {
-      final updated = await db.update(table, values, where: 'id = ?', whereArgs: [id]);
-      if (updated > 0) return;
-    }
-    final existingByNameType = await db.query(table, where: 'LOWER(name) = ? AND type = ?', whereArgs: [normalizedName.toLowerCase(), type], limit: 1);
-    if (existingByNameType.isNotEmpty) {
-      await db.update(table, values, where: 'id = ?', whereArgs: [existingByNameType.first['id']]);
-      return;
-    }
-    if (id != null && id > 0) {
-      await db.insert(table, {'id': id, ...values});
-      return;
-    }
-    await db.insert(table, values);
+    try {
+      final exists = await DataService.accountExists(normalizedName, type);
+      if (!exists) {
+        await DataService.insertAccount(normalizedName, type, 0);
+      }
+    } catch (_) {}
   }
 
   static Sheet? _resolveSheet(Excel excel, String canonicalName) {
@@ -381,21 +399,26 @@ class ExcelTransferService {
     return [for (final sheetName in _exportSheetOrder) if (byName.containsKey(sheetName)) byName[sheetName]!];
   }
 
-  static Data? _cellValue(List<Data?> row, int index) => index >= row.length ? null : row[index];
-  static bool _isRowEmpty(List<Data?> row) => row.every((cell) => _asString(cell).isEmpty);
-  static String _asString(Data? cell) => cell == null || cell.value == null ? '' : cell.value.toString().trim();
+  static Data? _cellValue(List<Data?> row, int index) =>
+      index >= row.length ? null : row[index];
+  static bool _isRowEmpty(List<Data?> row) =>
+      row.every((cell) => _asString(cell).isEmpty);
+  static String _asString(Data? cell) =>
+      cell == null || cell.value == null ? '' : cell.value.toString().trim();
   static int? _asInt(Data? cell) {
     final raw = _asString(cell);
     if (raw.isEmpty) return null;
     if (cell?.value is num) return (cell!.value as num).toInt();
     return int.tryParse(raw) ?? double.tryParse(raw)?.toInt();
   }
+
   static double? _asDouble(Data? cell) {
     final raw = _asString(cell);
     if (raw.isEmpty) return null;
     if (cell?.value is num) return (cell!.value as num).toDouble();
     return double.tryParse(raw);
   }
+
   static String _normalizeType(String value, {String fallback = 'expense'}) {
     final normalized = value.trim().toLowerCase();
     if (normalized == 'income' || normalized == 'expense') return normalized;
@@ -410,7 +433,10 @@ class ExcelTransferService {
     return getApplicationDocumentsDirectory();
   }
 
-  static String _resolveImportedIconPath(String source, Map<String, String> customIconPathMap) {
+  static String _resolveImportedIconPath(
+    String source,
+    Map<String, String> customIconPathMap,
+  ) {
     if (source.isEmpty) return '';
     final byExactPath = customIconPathMap[source];
     if (byExactPath != null) return byExactPath;
@@ -420,7 +446,9 @@ class ExcelTransferService {
     return byFileName ?? source;
   }
 
-  static Future<List<_CustomIconPayload>> _collectCustomIconsPayloads(List<Map<String, dynamic>> rows) async {
+  static Future<List<_CustomIconPayload>> _collectCustomIconsPayloads(
+    List<Map<String, dynamic>> rows,
+  ) async {
     final payloads = <_CustomIconPayload>[];
     final seenPaths = <String>{};
 
@@ -472,7 +500,9 @@ class ExcelTransferService {
       }
       if (iconBytes.isEmpty) continue;
 
-      final extension = p.extension(fileNameFromSheet).isEmpty ? '.png' : p.extension(fileNameFromSheet);
+      final extension = p.extension(fileNameFromSheet).isEmpty
+          ? '.png'
+          : p.extension(fileNameFromSheet);
       final baseName = p.basenameWithoutExtension(fileNameFromSheet).trim();
       final safeBaseName = baseName.isEmpty ? 'imported_icon' : baseName;
       final storedPath = p.join(

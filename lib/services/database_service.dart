@@ -359,6 +359,103 @@ class DatabaseService {
     return result.isNotEmpty;
   }
 
+  // ==========================================
+  // Raw insert helpers (used by DataService cache)
+  // These insert with an explicit id using REPLACE on conflict.
+  // ==========================================
+
+  static Future<void> insertTransactionRaw(
+    int id,
+    String title,
+    double amount,
+    DateTime date,
+    String type,
+    String account,
+    String comment,
+  ) async {
+    final db = await database;
+    await db.insert(
+      'transactions',
+      {
+        'id': id,
+        'title': title,
+        'amount': amount,
+        'date': date.toIso8601String(),
+        'type': type,
+        'account': account,
+        'comment': comment,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  static Future<void> insertAccountRaw(
+    int id,
+    String name,
+    String type,
+    int icon, {
+    String? iconPath,
+  }) async {
+    final db = await database;
+    await db.insert(
+      'accounts',
+      {
+        'id': id,
+        'name': name,
+        'type': type,
+        'icon': icon,
+        'icon_path': iconPath,
+        'is_favorite': 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  static Future<void> insertCategoryRaw(
+    int id,
+    String name,
+    String type,
+    int icon, {
+    String? iconPath,
+  }) async {
+    final db = await database;
+    await db.insert(
+      'categories',
+      {
+        'id': id,
+        'name': name,
+        'type': type,
+        'icon': icon,
+        'icon_path': iconPath,
+        'is_favorite': 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  static Future<void> insertBudgetRaw(
+    int id,
+    String category,
+    double amount,
+    int month,
+    int year,
+  ) async {
+    final db = await database;
+    await db.insert(
+      'budgets',
+      {
+        'id': id,
+        'category': category,
+        'amount': amount,
+        'month': month,
+        'year': year,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  // ==========================================
+
   static Future<int> initializeDefaultCategoriesAndAccounts() async {
     const incomeCategories = <String>[
       'Salary',

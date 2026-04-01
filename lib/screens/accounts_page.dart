@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/data_store.dart';
-import '../services/database_service.dart';
+import '../services/data_service.dart';
 import '../services/icon_storage_service.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/page_content_layout.dart';
@@ -17,15 +17,24 @@ class AccountsPage extends StatefulWidget {
 class _AccountsPageState extends State<AccountsPage> {
   Set<int> selectedIndexes = {};
   bool selectionMode = false;
+  String? _userRole;
 
   @override
   void initState() {
     super.initState();
     loadAccounts();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    try {
+      final role = await DataService.getCurrentUserRole();
+      if (mounted) setState(() => _userRole = role);
+    } catch (_) {}
   }
 
   Future<void> loadAccounts() async {
-    final data = await DatabaseService.getAccounts();
+    final data = await DataService.getAccounts();
     setState(() {
       DataStore.accounts = data.map<Map<String, dynamic>>((a) => {
         'id': a['id'],
@@ -131,12 +140,12 @@ class _AccountsPageState extends State<AccountsPage> {
               onPressed: () async {
                 if (controller.text.isEmpty) return;
                 if (account == null) {
-                  await DatabaseService.insertAccount(
+                  await DataService.insertAccount(
                     controller.text, selectedType, selectedIcon,
                     iconPath: customIconPath,
                   );
                 } else {
-                  await DatabaseService.updateAccount(
+                  await DataService.updateAccount(
                     account['id'], controller.text, selectedType, selectedIcon,
                     iconPath: customIconPath,
                   );
@@ -163,7 +172,7 @@ class _AccountsPageState extends State<AccountsPage> {
   Future<void> deleteSelected() async {
     for (final index in selectedIndexes) {
       final id = DataStore.accounts[index]['id'] as int;
-      await DatabaseService.deleteAccount(id);
+      await DataService.deleteAccount(id);
     }
     clearSelection();
     loadAccounts();
@@ -176,7 +185,9 @@ class _AccountsPageState extends State<AccountsPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: selectionMode
+      floatingActionButton: _userRole == 'viewer'
+          ? null
+          : selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -243,7 +254,7 @@ class _AccountsPageState extends State<AccountsPage> {
               },
               onToggleFavorite: (acc) async {
                 final current = acc['is_favorite'] == true;
-                await DatabaseService.setAccountFavorite(
+                await DataService.setAccountFavorite(
                   id: acc['id'] as int,
                   type: (acc['type'] ?? 'expense').toString(),
                   isFavorite: !current,
@@ -274,7 +285,7 @@ class _AccountsPageState extends State<AccountsPage> {
               },
               onToggleFavorite: (acc) async {
                 final current = acc['is_favorite'] == true;
-                await DatabaseService.setAccountFavorite(
+                await DataService.setAccountFavorite(
                   id: acc['id'] as int,
                   type: (acc['type'] ?? 'expense').toString(),
                   isFavorite: !current,
