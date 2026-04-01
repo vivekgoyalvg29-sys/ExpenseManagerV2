@@ -182,8 +182,6 @@ class _PostLoginInitScreen extends StatefulWidget {
 
 class _PostLoginInitScreenState extends State<_PostLoginInitScreen> {
   bool _ready = false;
-  bool _migrating = false;
-  String _statusMessage = 'Initializing…';
 
   @override
   void initState() {
@@ -196,64 +194,37 @@ class _PostLoginInitScreenState extends State<_PostLoginInitScreen> {
       final migrationService = MigrationService();
       final profileService = ProfileService();
 
+      // Skip data upload — mark migration done immediately.
+      // There is no production data to migrate; a fresh profile will be
+      // created below. Remove this block when releasing to production users
+      // who have existing local data.
       if (!await migrationService.hasMigrated()) {
-        if (mounted) {
-          setState(() {
-            _migrating = true;
-            _statusMessage = 'Syncing your data to cloud…';
-          });
-        }
-        try {
-          await migrationService.migrateLocalDataToFirestore();
-        } catch (_) {
-          // Migration failed — app still works via SQLite fallback
-        }
+        await migrationService.markDone();
       }
 
-      // Ensure there is an active profile
-      if (mounted) {
-        setState(() => _statusMessage = 'Loading profile…');
-      }
+      // Ensure there is an active profile (15 s timeout so the app never hangs)
       final activeId = await profileService.getActiveProfileId();
       if (activeId == null) {
         try {
-          await profileService.createProfile('My Profile');
-        } catch (_) {}
+          await profileService.createProfile('My Profile')
+              .timeout(const Duration(seconds: 15));
+        } catch (_) {
+          // Profile creation failed — app still works via SQLite fallback
+        }
       }
     } catch (_) {
       // Ignore init errors — fall through to HomeScreen
     }
 
-    if (mounted) {
-      setState(() {
-        _ready = true;
-        _migrating = false;
-      });
-    }
+    if (mounted) setState(() => _ready = true);
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_ready) {
-      return Scaffold(
+      return const Scaffold(
         body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(color: Color(0xFF4F46E5)),
-              if (_migrating) ...[
-                const SizedBox(height: 20),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  child: Text(
-                    _statusMessage,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
-              ],
-            ],
-          ),
+          child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
         ),
       );
     }
