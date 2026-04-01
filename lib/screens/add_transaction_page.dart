@@ -341,9 +341,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               width: double.infinity,
               constraints: const BoxConstraints(maxHeight: 180),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
+                color: theme.colorScheme.surfaceVariant,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: theme.colorScheme.outlineVariant),
+                border: Border.all(color: theme.colorScheme.outline.withOpacity(0.4)),
               ),
               child: ListView.builder(
                 shrinkWrap: true,

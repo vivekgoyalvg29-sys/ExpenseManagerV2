@@ -58,7 +58,7 @@ class SegmentedToggle<T> extends StatelessWidget {
 
     final theme = Theme.of(context);
     final selectedColor = theme.colorScheme.primary;
-    final bgColor = theme.colorScheme.surfaceContainerHighest.withOpacity(0.65);
+    final bgColor = theme.colorScheme.surfaceVariant.withOpacity(0.65);
 
     const double inset = 3;
     const double horizontalHeight = 36;
