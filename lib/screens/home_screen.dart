@@ -8,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models.dart';
 import '../services/data_store.dart';
 import '../services/app_localizations.dart';
 import '../services/data_service.dart';
@@ -94,6 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadRoleAndProfile();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureFirstRunInitializationPrompt();
+      _checkRevokedProfiles();
     });
   }
 
@@ -106,6 +108,32 @@ class _HomeScreenState extends State<HomeScreen> {
         _userRole = role;
         _activeProfileId = profileId;
       });
+    } catch (_) {}
+  }
+
+  Future<void> _checkRevokedProfiles() async {
+    try {
+      final revoked = await _profileService.checkAndClearRevokedProfiles();
+      if (revoked.isEmpty || !mounted) return;
+      final names = revoked.join(', ');
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Profile access removed'),
+          content: Text(
+            'You no longer have access to the following profile(s): $names',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      await _loadRoleAndProfile();
+      setState(() => _refreshVersion++);
     } catch (_) {}
   }
 
@@ -695,6 +723,146 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _showNewProfileDialog() async {
+    final nameController = TextEditingController();
+    bool isShareable = false;
+    String defaultRole = 'editor';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlg) => AlertDialog(
+          title: const Text('New Profile'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: nameController,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(hintText: 'Profile name'),
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Sharable'),
+                subtitle: const Text('Allow others to join with a code'),
+                value: isShareable,
+                onChanged: (v) => setDlg(() => isShareable = v),
+              ),
+              if (isShareable) ...[
+                const SizedBox(height: 4),
+                Text('New members join as:',
+                    style: Theme.of(context).textTheme.bodySmall),
+                Row(
+                  children: [
+                    for (final pair in [
+                      ('editor', 'Editor'),
+                      ('viewer', 'View only'),
+                    ])
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: Text(pair.$2,
+                              style: const TextStyle(fontSize: 12)),
+                          value: pair.$1,
+                          groupValue: defaultRole,
+                          onChanged: (v) => setDlg(() => defaultRole = v!),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Create'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final name = nameController.text.trim();
+    nameController.dispose();
+    if (confirmed != true || name.isEmpty || !mounted) return;
+
+    try {
+      final profileId = await _profileService.createProfile(
+        name,
+        isShareable: isShareable,
+        defaultMemberRole: defaultRole,
+      );
+      if (!mounted) return;
+      setState(() {
+        _activeProfileId = profileId;
+        _userRole = 'owner';
+        _refreshVersion++;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  Future<void> _showJoinProfileDialog() async {
+    final codeController = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Join Profile'),
+        content: TextField(
+          controller: codeController,
+          autofocus: true,
+          maxLength: 6,
+          textCapitalization: TextCapitalization.characters,
+          decoration:
+              const InputDecoration(hintText: 'Enter 6-character code'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(ctx, codeController.text.trim()),
+            child: const Text('Join'),
+          ),
+        ],
+      ),
+    );
+    codeController.dispose();
+    if (code == null || code.isEmpty || !mounted) return;
+    try {
+      final profile = await _profileService.joinProfileByCode(code);
+      if (!mounted) return;
+      final role =
+          profile.members[FirebaseAuth.instance.currentUser?.phoneNumber ?? ''] ??
+              'viewer';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Joined "${profile.name}" as ${role == 'editor' ? 'editor' : 'viewer'}.'),
+        ),
+      );
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
   Future<void> _handleAppBarAction(String action) async {
     switch (action) {
       case 'export':
@@ -849,30 +1017,32 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Divider(height: 1, thickness: 1),
                   // ---- Profiles section ----
                   const _MenuSectionHeader('Profiles', compact: true),
-                  StreamBuilder<List<Map<String, dynamic>>>(
+                  StreamBuilder<List<ProfileModel>>(
                     stream: _profileService.getMyProfiles(),
                     builder: (ctx, snap) {
                       final profiles = snap.data ?? [];
+                      final currentPhone =
+                          FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: profiles.map((profile) {
-                          final profileId = profile['id']?.toString() ?? '';
-                          final profileName = profile['name']?.toString() ?? 'Profile';
-                          final members = (profile['members'] as Map<String, dynamic>?) ?? {};
-                          final currentPhone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
-                          final role = (members[currentPhone] as String?) ?? 'viewer';
-                          final isActive = profileId == _activeProfileId;
+                          final isActive = profile.id == _activeProfileId;
+                          final role =
+                              profile.members[currentPhone] ?? 'viewer';
                           return ListTile(
                             visualDensity: VisualDensity.compact,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 14),
                             leading: Icon(
-                              Icons.folder_outlined,
+                              profile.isDefault
+                                  ? Icons.folder_special_outlined
+                                  : Icons.folder_outlined,
                               color: isActive
                                   ? const Color(0xFF4F46E5)
                                   : null,
                             ),
                             title: Text(
-                              profileName,
+                              profile.name,
                               style: isActive
                                   ? const TextStyle(
                                       fontWeight: FontWeight.w700,
@@ -881,22 +1051,31 @@ class _HomeScreenState extends State<HomeScreen> {
                                   : null,
                             ),
                             subtitle: Text(
-                              role,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              profile.isDefault
+                                  ? 'Default • $role'
+                                  : '${profile.isShareable ? 'Sharable' : 'Private'} • $role',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
                                   ),
                             ),
                             trailing: isActive
-                                ? const Icon(Icons.check, color: Color(0xFF4F46E5), size: 18)
+                                ? const Icon(Icons.check,
+                                    color: Color(0xFF4F46E5), size: 18)
                                 : null,
                             onTap: isActive
                                 ? null
                                 : () async {
                                     Navigator.of(drawerContext).pop();
-                                    await _profileService.switchProfile(profileId);
+                                    await _profileService
+                                        .switchProfile(profile.id);
                                     if (!mounted) return;
                                     setState(() {
-                                      _activeProfileId = profileId;
+                                      _activeProfileId = profile.id;
                                       _userRole = role;
                                       _refreshVersion++;
                                     });
@@ -911,43 +1090,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     title: 'New profile',
                     onTap: () async {
                       Navigator.of(drawerContext).pop();
-                      final nameController = TextEditingController();
-                      final name = await showDialog<String>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('New Profile'),
-                          content: TextField(
-                            controller: nameController,
-                            autofocus: true,
-                            decoration: const InputDecoration(hintText: 'Profile name'),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              child: const Text('Cancel'),
-                            ),
-                            FilledButton(
-                              onPressed: () => Navigator.pop(ctx, nameController.text.trim()),
-                              child: const Text('Create'),
-                            ),
-                          ],
-                        ),
-                      );
-                      nameController.dispose();
-                      if (name == null || name.isEmpty || !mounted) return;
-                      try {
-                        final profileId = await _profileService.createProfile(name);
-                        setState(() {
-                          _activeProfileId = profileId;
-                          _userRole = 'owner';
-                          _refreshVersion++;
-                        });
-                      } catch (e) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error: $e')),
-                        );
-                      }
+                      await _showNewProfileDialog();
                     },
                   ),
                   menuTile(
@@ -955,59 +1098,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     title: 'Join with invite code',
                     onTap: () async {
                       Navigator.of(drawerContext).pop();
-                      final codeController = TextEditingController();
-                      final code = await showDialog<String>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Join Profile'),
-                          content: TextField(
-                            controller: codeController,
-                            autofocus: true,
-                            maxLength: 6,
-                            textCapitalization: TextCapitalization.characters,
-                            decoration: const InputDecoration(
-                              hintText: 'Enter 6-character code',
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              child: const Text('Cancel'),
-                            ),
-                            FilledButton(
-                              onPressed: () => Navigator.pop(ctx, codeController.text.trim()),
-                              child: const Text('Join'),
-                            ),
-                          ],
-                        ),
-                      );
-                      codeController.dispose();
-                      if (code == null || code.isEmpty || !mounted) return;
-                      try {
-                        final profileName =
-                            await _profileService.joinProfileByCode(code);
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Joined "$profileName" as viewer.')),
-                        );
-                        setState(() {});
-                      } catch (e) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error: $e')),
-                        );
-                      }
+                      await _showJoinProfileDialog();
                     },
                   ),
                   menuTile(
                     icon: Icons.manage_accounts_outlined,
-                    title: 'Manage profile',
+                    title: 'Manage profiles',
                     onTap: () async {
                       Navigator.of(drawerContext).pop();
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const ProfileScreen(),
+                          builder: (_) => const ManageProfilesScreen(),
                         ),
                       );
                       await _loadRoleAndProfile();

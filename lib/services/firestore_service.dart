@@ -30,9 +30,21 @@ class FirestoreService {
   final Map<int, String> _categoryDocIds = {};
   final Map<int, String> _budgetDocIds = {};
 
+  /// When set, overrides SharedPreferences for the active profile ID.
+  /// Used during multi-profile import to route rows to different profiles.
+  String? _importProfileOverride;
+
   String get _currentPhone => _auth.currentUser?.phoneNumber ?? '';
 
+  /// Sets a temporary profile ID override for import operations.
+  /// Pass null to clear the override.
+  void setImportOverride(String? profileId) {
+    _importProfileOverride = profileId;
+    clearCaches();
+  }
+
   Future<String?> _getActiveProfileId() async {
+    if (_importProfileOverride != null) return _importProfileOverride;
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_activeProfileKey);
   }

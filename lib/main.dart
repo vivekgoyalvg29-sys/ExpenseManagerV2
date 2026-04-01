@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:home_widget/home_widget.dart';
@@ -24,6 +25,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp();
+
+  // Enable Firestore offline persistence for reliable sync and notifications
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
 
   try {
     if (Platform.isIOS) {
@@ -202,15 +209,14 @@ class _PostLoginInitScreenState extends State<_PostLoginInitScreen> {
         await migrationService.markDone();
       }
 
-      // Ensure there is an active profile (15 s timeout so the app never hangs)
-      final activeId = await profileService.getActiveProfileId();
-      if (activeId == null) {
-        try {
-          await profileService.createProfile('My Profile')
-              .timeout(const Duration(seconds: 15));
-        } catch (_) {
-          // Profile creation failed — app still works via SQLite fallback
-        }
+      // Initialize user profile state (creates default profile for new users,
+      // performs migration for existing ones). 15 s timeout so the app never hangs.
+      try {
+        await profileService
+            .initializeUserOnFirstLogin()
+            .timeout(const Duration(seconds: 15));
+      } catch (_) {
+        // Init failed — app still works via SQLite fallback
       }
     } catch (_) {
       // Ignore init errors — fall through to HomeScreen
