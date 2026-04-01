@@ -12,7 +12,16 @@
           "package_name": "vivek.fintrack.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "923717830259-2nmt374rl1l873465qpf9gf0i8k9q20f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "vivek.fintrack.app",
+            "certificate_hash": "720df59caea347bcce9d7769d294a9e75f622c88"
+          }
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCaG_oit-zC8QkI22HoDWxgjE9GXK_8RfA"
