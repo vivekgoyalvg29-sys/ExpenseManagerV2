@@ -13,6 +13,13 @@ class MigrationService {
     return prefs.getBool(_migratedKey) ?? false;
   }
 
+  /// Marks migration as complete without uploading any data.
+  /// Use when there is no local data worth migrating (e.g. fresh install).
+  Future<void> markDone() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_migratedKey, true);
+  }
+
   /// Migrates all local SQLite data to Firestore.
   /// Creates a default "My Profile" and uploads all data to it.
   /// On failure, does NOT mark as migrated so it retries on next launch.
