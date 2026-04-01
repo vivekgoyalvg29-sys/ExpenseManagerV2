@@ -914,9 +914,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                     child: Container(
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
-                                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                        color: Theme.of(context).colorScheme.surfaceVariant,
                                         borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                                        border: Border.all(
+                                          color: Theme.of(context).colorScheme.outline.withOpacity(0.35),
+                                        ),
                                       ),
                                       child: Row(
                                         children: [
@@ -1315,7 +1317,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                               Container(
                                                 height: 16,
                                                 decoration: BoxDecoration(
-                                                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                                  color: Theme.of(context).colorScheme.surfaceVariant,
                                                   borderRadius: BorderRadius.circular(999),
                                                 ),
                                               ),
@@ -1381,7 +1383,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                               Container(
                                                 height: 16,
                                                 decoration: BoxDecoration(
-                                                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                                  color: Theme.of(context).colorScheme.surfaceVariant,
                                                   borderRadius: BorderRadius.circular(999),
                                                 ),
                                               ),

@@ -52,7 +52,7 @@ class MiniProgressBar extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest,
+              color: theme.colorScheme.surfaceVariant,
               borderRadius: BorderRadius.circular(999),
               border: Border.all(color: theme.colorScheme.outline.withOpacity(0.5)),
             ),
