@@ -186,7 +186,7 @@ class FinTrackTheme {
         iconColor: colorScheme.onSurfaceVariant,
         textColor: colorScheme.onSurface,
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: colorScheme.surface,
       ),
       bottomSheetTheme: BottomSheetThemeData(

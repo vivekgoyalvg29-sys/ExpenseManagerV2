@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../services/app_localizations.dart';
 import '../services/data_store.dart';
-import '../services/database_service.dart';
+import '../services/data_service.dart';
 
 class AddTransactionPage extends StatefulWidget {
   final Map<String, dynamic>? existingTransaction;
@@ -57,11 +57,11 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   }
 
   Future<void> _loadData() async {
-    final accounts = await DatabaseService.getAccounts();
-    final categories = await DatabaseService.getCategories();
-    final favoriteAccount = await DatabaseService.getFavoriteAccountName(transactionType);
-    final favoriteCategory = await DatabaseService.getFavoriteCategoryName(transactionType);
-    final existingComments = await DatabaseService.getExistingComments();
+    final accounts = await DataService.getAccounts();
+    final categories = await DataService.getCategories();
+    final favoriteAccount = await DataService.getFavoriteAccountName(transactionType);
+    final favoriteCategory = await DataService.getFavoriteCategoryName(transactionType);
+    final existingComments = await DataService.getExistingComments();
 
     if (!mounted) return;
 
@@ -245,9 +245,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               final trimmed = nameController.text.trim();
               if (trimmed.isEmpty) return;
               if (isAccount) {
-                await DatabaseService.insertAccount(trimmed, transactionType, Icons.account_balance_wallet.codePoint);
+                await DataService.insertAccount(trimmed, transactionType, Icons.account_balance_wallet.codePoint);
               } else {
-                await DatabaseService.insertCategory(trimmed, transactionType, Icons.category.codePoint);
+                await DataService.insertCategory(trimmed, transactionType, Icons.category.codePoint);
               }
               if (!context.mounted) return;
               Navigator.pop(context, trimmed);

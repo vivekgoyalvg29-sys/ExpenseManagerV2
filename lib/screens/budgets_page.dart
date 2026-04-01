@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/data_store.dart';
-import '../services/database_service.dart';
+import '../services/data_service.dart';
 import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
@@ -32,11 +32,20 @@ class _BudgetsPageState extends State<BudgetsPage> {
   BudgetAggregation budgetAggregation = BudgetAggregation.selectedMonth;
   BudgetSortOrder sortOrder = BudgetSortOrder.amount;
   bool showPercentage = true;
+  String? _userRole;
 
   @override
   void initState() {
     super.initState();
     _restorePreferences();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    try {
+      final role = await DataService.getCurrentUserRole();
+      if (mounted) setState(() => _userRole = role);
+    } catch (_) {}
   }
 
   Future<void> _restorePreferences() async {
@@ -68,8 +77,8 @@ class _BudgetsPageState extends State<BudgetsPage> {
   }
 
   Future<void> loadBudgets() async {
-    final data = await DatabaseService.getBudgets();
-    final categories = await DatabaseService.getCategories();
+    final data = await DataService.getBudgets();
+    final categories = await DataService.getCategories();
     setState(() {
       budgets = data;
       DataStore.categories = categories;
@@ -114,9 +123,9 @@ class _BudgetsPageState extends State<BudgetsPage> {
               if (selectedCategory == null || amountController.text.isEmpty) return;
               final amount = double.parse(amountController.text);
               if (budget == null) {
-                await DatabaseService.insertBudget(selectedCategory!, amount, currentMonth.month, currentMonth.year);
+                await DataService.insertBudget(selectedCategory!, amount, currentMonth.month, currentMonth.year);
               } else {
-                await DatabaseService.updateBudget(budget['id'], selectedCategory!, amount, currentMonth.month, currentMonth.year);
+                await DataService.updateBudget(budget['id'], selectedCategory!, amount, currentMonth.month, currentMonth.year);
               }
               if (!context.mounted) return;
               Navigator.pop(context);
@@ -139,7 +148,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
   Future<void> deleteSelected() async {
     for (final index in selectedIndexes) {
       final id = filteredBudgets[index]['id'];
-      await DatabaseService.deleteBudget(id);
+      await DataService.deleteBudget(id);
     }
     clearSelection();
     loadBudgets();
@@ -339,7 +348,9 @@ class _BudgetsPageState extends State<BudgetsPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: selectionMode
+      floatingActionButton: _userRole == 'viewer'
+          ? null
+          : selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,

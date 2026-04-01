@@ -10,7 +10,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/data_store.dart';
 import '../services/app_localizations.dart';
-import '../services/database_service.dart';
+import '../services/data_service.dart';
+import '../services/profile_service.dart';
+import '../screens/profile_screen.dart';
 import '../services/excel_transfer_service.dart';
 import '../services/visual_settings.dart';
 import '../services/widget_sync_service.dart';
@@ -39,8 +41,11 @@ class _HomeScreenState extends State<HomeScreen> {
   int _refreshVersion = 0;
   String _appVersion = 'v1.0.0';
   String _username = '';
+  String? _userRole;
+  String? _activeProfileId;
   final ScrollController _menuScrollController = ScrollController();
   final GlobalKey _appearanceExpandedContentKey = GlobalKey();
+  final ProfileService _profileService = ProfileService();
 
   void _scrollMenuAfterAppearanceExpand() {
     void run() {
@@ -86,9 +91,22 @@ class _HomeScreenState extends State<HomeScreen> {
     currentIndex = widget.initialIndex;
     _loadPackageInfo();
     _loadUsername();
+    _loadRoleAndProfile();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureFirstRunInitializationPrompt();
     });
+  }
+
+  Future<void> _loadRoleAndProfile() async {
+    try {
+      final role = await DataService.getCurrentUserRole();
+      final profileId = await _profileService.getActiveProfileId();
+      if (!mounted) return;
+      setState(() {
+        _userRole = role;
+        _activeProfileId = profileId;
+      });
+    } catch (_) {}
   }
 
   @override
@@ -465,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openSearchPopup() async {
-    final tx = await DatabaseService.getTransactions();
+    final tx = await DataService.getTransactions();
     if (!mounted) return;
     final controller = TextEditingController();
     List<Map<String, dynamic>> matches = [];
@@ -580,7 +598,7 @@ class _HomeScreenState extends State<HomeScreen> {
       title: 'Delete everything?',
       description: 'This will permanently remove all records, budgets, accounts, and categories. Visual settings will stay unchanged.',
       action: () async {
-        await DatabaseService.deleteAllData();
+        await DataService.deleteAllData();
         await DataStore.resetLocalState();
         await WidgetSyncService.syncFromStoredConfiguration();
       },
@@ -593,7 +611,7 @@ class _HomeScreenState extends State<HomeScreen> {
       title: 'Delete all transactions?',
       description: 'This will remove all transaction records only. Budgets, accounts, categories, and visual settings will remain available.',
       action: () async {
-        await DatabaseService.deleteAllTransactions();
+        await DataService.deleteAllTransactions();
         DataStore.replaceSmsTransactions([]);
         await WidgetSyncService.syncFromStoredConfiguration();
       },
@@ -606,7 +624,7 @@ class _HomeScreenState extends State<HomeScreen> {
       title: 'Reset app?',
       description: 'This will clear all saved data, hide the SMS tab again, remove imported SMS items, and restore visual settings to their default values.',
       action: () async {
-        await DatabaseService.deleteAllData();
+        await DataService.deleteAllData();
         await DataStore.resetLocalState();
         await _visualSettingsController(context).reset();
         await WidgetSyncService.syncFromStoredConfiguration();
@@ -663,7 +681,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (shouldInitialize != true) return;
 
-    final created = await DatabaseService.initializeDefaultCategoriesAndAccounts();
+    final created = await DataService.initializeDefaultCategoriesAndAccounts();
     if (!mounted) return;
     setState(() => _refreshVersion++);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -829,6 +847,174 @@ class _HomeScreenState extends State<HomeScreen> {
                     onTap: () => handleSelection('logout'),
                   ),
                   const Divider(height: 1, thickness: 1),
+                  // ---- Profiles section ----
+                  const _MenuSectionHeader('Profiles', compact: true),
+                  StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: _profileService.getMyProfiles(),
+                    builder: (ctx, snap) {
+                      final profiles = snap.data ?? [];
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: profiles.map((profile) {
+                          final profileId = profile['id']?.toString() ?? '';
+                          final profileName = profile['name']?.toString() ?? 'Profile';
+                          final members = (profile['members'] as Map<String, dynamic>?) ?? {};
+                          final currentPhone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
+                          final role = (members[currentPhone] as String?) ?? 'viewer';
+                          final isActive = profileId == _activeProfileId;
+                          return ListTile(
+                            visualDensity: VisualDensity.compact,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                            leading: Icon(
+                              Icons.folder_outlined,
+                              color: isActive
+                                  ? const Color(0xFF4F46E5)
+                                  : null,
+                            ),
+                            title: Text(
+                              profileName,
+                              style: isActive
+                                  ? const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF4F46E5),
+                                    )
+                                  : null,
+                            ),
+                            subtitle: Text(
+                              role,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                            trailing: isActive
+                                ? const Icon(Icons.check, color: Color(0xFF4F46E5), size: 18)
+                                : null,
+                            onTap: isActive
+                                ? null
+                                : () async {
+                                    Navigator.of(drawerContext).pop();
+                                    await _profileService.switchProfile(profileId);
+                                    if (!mounted) return;
+                                    setState(() {
+                                      _activeProfileId = profileId;
+                                      _userRole = role;
+                                      _refreshVersion++;
+                                    });
+                                  },
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+                  menuTile(
+                    icon: Icons.add_circle_outline,
+                    title: 'New profile',
+                    onTap: () async {
+                      Navigator.of(drawerContext).pop();
+                      final nameController = TextEditingController();
+                      final name = await showDialog<String>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('New Profile'),
+                          content: TextField(
+                            controller: nameController,
+                            autofocus: true,
+                            decoration: const InputDecoration(hintText: 'Profile name'),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(ctx, nameController.text.trim()),
+                              child: const Text('Create'),
+                            ),
+                          ],
+                        ),
+                      );
+                      nameController.dispose();
+                      if (name == null || name.isEmpty || !mounted) return;
+                      try {
+                        final profileId = await _profileService.createProfile(name);
+                        setState(() {
+                          _activeProfileId = profileId;
+                          _userRole = 'owner';
+                          _refreshVersion++;
+                        });
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e')),
+                        );
+                      }
+                    },
+                  ),
+                  menuTile(
+                    icon: Icons.qr_code_outlined,
+                    title: 'Join with invite code',
+                    onTap: () async {
+                      Navigator.of(drawerContext).pop();
+                      final codeController = TextEditingController();
+                      final code = await showDialog<String>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Join Profile'),
+                          content: TextField(
+                            controller: codeController,
+                            autofocus: true,
+                            maxLength: 6,
+                            textCapitalization: TextCapitalization.characters,
+                            decoration: const InputDecoration(
+                              hintText: 'Enter 6-character code',
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(ctx, codeController.text.trim()),
+                              child: const Text('Join'),
+                            ),
+                          ],
+                        ),
+                      );
+                      codeController.dispose();
+                      if (code == null || code.isEmpty || !mounted) return;
+                      try {
+                        final profileName =
+                            await _profileService.joinProfileByCode(code);
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Joined "$profileName" as viewer.')),
+                        );
+                        setState(() {});
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e')),
+                        );
+                      }
+                    },
+                  ),
+                  menuTile(
+                    icon: Icons.manage_accounts_outlined,
+                    title: 'Manage profile',
+                    onTap: () async {
+                      Navigator.of(drawerContext).pop();
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileScreen(),
+                        ),
+                      );
+                      await _loadRoleAndProfile();
+                    },
+                  ),
+                  const Divider(height: 1, thickness: 1),
+                  // ---- End Profiles section ----
                   const _MenuSectionHeader('Data management', compact: true),
                   menuTile(icon: Icons.upload_file_outlined, title: 'Export (Excel)', onTap: () => handleSelection('export')),
                   menuTile(icon: Icons.download_outlined, title: 'Import (Excel)', onTap: () => handleSelection('import')),
@@ -954,13 +1140,36 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () => _openAppMenu(controller.value), tooltip: 'Open menu'),
-        title: Text(
-          'WhereIsMyMoney',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'WhereIsMyMoney',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            if (_userRole == 'viewer') ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'View only',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
+            ],
+          ],
         ),
         actions: [
           IconButton(

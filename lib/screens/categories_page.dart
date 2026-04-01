@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/data_store.dart';
-import '../services/database_service.dart';
+import '../services/data_service.dart';
 import '../services/icon_storage_service.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/page_content_layout.dart';
@@ -17,15 +17,24 @@ class CategoriesPage extends StatefulWidget {
 class _CategoriesPageState extends State<CategoriesPage> {
   Set<int> selectedIndexes = {};
   bool selectionMode = false;
+  String? _userRole;
 
   @override
   void initState() {
     super.initState();
     loadCategories();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    try {
+      final role = await DataService.getCurrentUserRole();
+      if (mounted) setState(() => _userRole = role);
+    } catch (_) {}
   }
 
   Future<void> loadCategories() async {
-    final data = await DatabaseService.getCategories();
+    final data = await DataService.getCategories();
     setState(() {
       DataStore.categories = data.map<Map<String, dynamic>>((c) => {
         'id': c['id'],
@@ -131,12 +140,12 @@ class _CategoriesPageState extends State<CategoriesPage> {
               onPressed: () async {
                 if (controller.text.isEmpty) return;
                 if (category == null) {
-                  await DatabaseService.insertCategory(
+                  await DataService.insertCategory(
                     controller.text, selectedType, selectedIcon,
                     iconPath: customIconPath,
                   );
                 } else {
-                  await DatabaseService.updateCategory(
+                  await DataService.updateCategory(
                     category['id'], controller.text, selectedType, selectedIcon,
                     iconPath: customIconPath,
                   );
@@ -163,7 +172,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
   Future<void> deleteSelected() async {
     for (final index in selectedIndexes) {
       final id = DataStore.categories[index]['id'] as int;
-      await DatabaseService.deleteCategory(id);
+      await DataService.deleteCategory(id);
     }
     clearSelection();
     loadCategories();
@@ -176,7 +185,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: selectionMode
+      floatingActionButton: _userRole == 'viewer'
+          ? null
+          : selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -243,7 +254,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
               },
               onToggleFavorite: (cat) async {
                 final current = cat['is_favorite'] == true;
-                await DatabaseService.setCategoryFavorite(
+                await DataService.setCategoryFavorite(
                   id: cat['id'] as int,
                   type: (cat['type'] ?? 'expense').toString(),
                   isFavorite: !current,
@@ -274,7 +285,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
               },
               onToggleFavorite: (cat) async {
                 final current = cat['is_favorite'] == true;
-                await DatabaseService.setCategoryFavorite(
+                await DataService.setCategoryFavorite(
                   id: cat['id'] as int,
                   type: (cat['type'] ?? 'expense').toString(),
                   isFavorite: !current,
