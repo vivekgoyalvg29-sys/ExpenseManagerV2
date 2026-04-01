@@ -114,7 +114,7 @@ class _FinTrackAppState extends State<FinTrackApp> {
         title: 'WhereIsMyMoney',
         theme: FinTrackTheme.build(settings, brightness: Brightness.light),
         darkTheme: FinTrackTheme.build(settings, brightness: Brightness.dark),
-        themeMode: settings.themeMode,
+        themeMode: settings.themeMode == ThemeMode.system ? ThemeMode.light : settings.themeMode,
         locale: Locale(settings.localeCode),
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: const [
