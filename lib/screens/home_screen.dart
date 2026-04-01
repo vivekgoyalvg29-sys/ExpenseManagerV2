@@ -100,6 +100,30 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadRoleAndProfile() async {
+    // If the active profile isn't set yet (background init still running),
+    // retry a few times with short delays so the UI catches up automatically
+    // once initialization completes — without the user needing to restart.
+    for (int attempt = 0; attempt < 5; attempt++) {
+      try {
+        final profileId = await _profileService.getActiveProfileId();
+        if (profileId != null && profileId.isNotEmpty) {
+          final role = await DataService.getCurrentUserRole();
+          if (!mounted) return;
+          setState(() {
+            _userRole = role;
+            _activeProfileId = profileId;
+          });
+          return;
+        }
+      } catch (_) {}
+
+      if (attempt < 4) {
+        await Future.delayed(const Duration(seconds: 3));
+        if (!mounted) return;
+      }
+    }
+
+    // Final attempt — use whatever is available even if profile is still null
     try {
       final role = await DataService.getCurrentUserRole();
       final profileId = await _profileService.getActiveProfileId();
@@ -621,10 +645,66 @@ class _HomeScreenState extends State<HomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(successMessage)));
   }
 
+  // ─── Helpers for profile-aware data management ──────────────────────────────
+
+  /// Returns the active profile and the caller's role in it.
+  Future<(ProfileModel?, String?)> _fetchActiveProfileContext() async {
+    try {
+      final profile = await _profileService.getActiveProfile();
+      if (profile == null) return (null, null);
+      final phone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
+      final role = profile.members[phone];
+      return (profile, role);
+    } catch (_) {
+      return (null, null);
+    }
+  }
+
+  /// Returns all profiles the user is part of, pre-categorised for the reset flow.
+  Future<_ResetContext> _fetchResetContext() async {
+    final phone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
+    if (phone.isEmpty) return _ResetContext.empty();
+    try {
+      final profiles = await _profileService
+          .getMyProfiles()
+          .first
+          .timeout(const Duration(seconds: 8));
+      return _ResetContext.from(profiles, phone);
+    } catch (_) {
+      return _ResetContext.empty();
+    }
+  }
+
+  // ─── Data management actions ────────────────────────────────────────────────
+
   Future<void> _deleteEverything() async {
+    final (activeProfile, role) = await _fetchActiveProfileContext();
+    if (!mounted) return;
+
+    final profileName = activeProfile?.name ?? 'your profile';
+    final buffer = StringBuffer(
+      'This will permanently remove all records, budgets, accounts, and categories'
+      ' in "$profileName". Visual settings will stay unchanged.',
+    );
+
+    if (activeProfile != null && activeProfile.isShareable) {
+      final memberCount = activeProfile.members.length - 1;
+      if (role == 'owner' && memberCount > 0) {
+        buffer.write(
+          '\n\nThis is a shared profile with $memberCount other member(s). '
+          'All of them will see empty data after this.',
+        );
+      } else if (role != 'owner') {
+        buffer.write(
+          '\n\nThis is a shared profile. '
+          'All members will lose their data.',
+        );
+      }
+    }
+
     await _confirmAndRun(
       title: 'Delete everything?',
-      description: 'This will permanently remove all records, budgets, accounts, and categories. Visual settings will stay unchanged.',
+      description: buffer.toString(),
       action: () async {
         await DataService.deleteAllData();
         await DataStore.resetLocalState();
@@ -635,9 +715,33 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _deleteTransactionsOnly() async {
+    final (activeProfile, role) = await _fetchActiveProfileContext();
+    if (!mounted) return;
+
+    final profileName = activeProfile?.name ?? 'your profile';
+    final buffer = StringBuffer(
+      'This will remove all transaction records from "$profileName". '
+      'Budgets, accounts, categories, and visual settings will remain.',
+    );
+
+    if (activeProfile != null && activeProfile.isShareable) {
+      final memberCount = activeProfile.members.length - 1;
+      if (role == 'owner' && memberCount > 0) {
+        buffer.write(
+          '\n\nThis is a shared profile with $memberCount other member(s). '
+          'Their transaction history will also be cleared.',
+        );
+      } else if (role != 'owner') {
+        buffer.write(
+          '\n\nThis is a shared profile. '
+          'All members will lose their transaction history.',
+        );
+      }
+    }
+
     await _confirmAndRun(
       title: 'Delete all transactions?',
-      description: 'This will remove all transaction records only. Budgets, accounts, categories, and visual settings will remain available.',
+      description: buffer.toString(),
       action: () async {
         await DataService.deleteAllTransactions();
         DataStore.replaceSmsTransactions([]);
@@ -648,16 +752,131 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _resetApp() async {
-    await _confirmAndRun(
-      title: 'Reset app?',
-      description: 'This will clear all saved data, hide the SMS tab again, remove imported SMS items, and restore visual settings to their default values.',
-      action: () async {
-        await DataService.deleteAllData();
-        await DataStore.resetLocalState();
-        await _visualSettingsController(context).reset();
-        await WidgetSyncService.syncFromStoredConfiguration();
-      },
-      successMessage: 'The app was reset to its original settings.',
+    // Fetch all profile context before showing the dialog.
+    final ctx = await _fetchResetContext();
+    if (!mounted) return;
+
+    // Build a bullet-point list of consequences.
+    final bullets = <String>[
+      '• Clear all saved data, SMS items, and visual settings',
+      '• Reset your default profile to empty',
+    ];
+
+    if (ctx.ownedShareable.isNotEmpty) {
+      final names = ctx.ownedShareable.map((p) => '"${p.name}"').join(', ');
+      bullets.add(
+        '• DELETE your shared profile(s) $names — '
+        'all members will lose access immediately',
+      );
+    }
+    if (ctx.ownedPrivate.isNotEmpty) {
+      final names = ctx.ownedPrivate.map((p) => '"${p.name}"').join(', ');
+      bullets.add('• Delete your private profile(s) $names and all their data');
+    }
+    if (ctx.joined.isNotEmpty) {
+      final names = ctx.joined.map((p) => '"${p.name}"').join(', ');
+      bullets.add(
+        '• Leave the shared profile(s) $names — '
+        'you will lose access to their data',
+      );
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Reset app?'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('This will:'),
+              const SizedBox(height: 8),
+              ...bullets.map(
+                (b) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(b),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'This action cannot be undone.',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(dialogCtx).colorScheme.error,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogCtx).colorScheme.error,
+              foregroundColor: Theme.of(dialogCtx).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    // Show a non-dismissible progress dialog while operations run.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('Resetting…'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // 1. Leave all profiles where the user is NOT the owner.
+      for (final p in ctx.joined) {
+        try {
+          await _profileService.leaveProfile(p.id);
+        } catch (_) {}
+      }
+
+      // 2. Delete all owned non-default profiles — this runs the full delete
+      //    workflow (member notifications, subcollection cleanup) for each.
+      for (final p in [...ctx.ownedShareable, ...ctx.ownedPrivate]) {
+        try {
+          await _profileService.deleteProfile(p.id);
+        } catch (_) {}
+      }
+
+      // 3. Wipe data in the default / active profile and reset local state.
+      await DataService.deleteAllData();
+      await DataStore.resetLocalState();
+      if (mounted) await _visualSettingsController(context).reset();
+      await WidgetSyncService.syncFromStoredConfiguration();
+    } finally {
+      // Always close the progress dialog.
+      if (mounted) Navigator.of(context).pop();
+    }
+
+    if (!mounted) return;
+    setState(() {
+      currentIndex = 0;
+      _refreshVersion++;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('The app has been reset.')),
     );
   }
 
@@ -904,7 +1123,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _openAppMenu(VisualSettings settings) {
+  Future<void> _openAppMenu(VisualSettings settings) async {
+    // Ensure the active profile ID is resolved before the menu opens so the
+    // correct profile is ticked from the very first render.
+    if (_activeProfileId == null) {
+      await _loadRoleAndProfile();
+    }
+
+    if (!mounted) return;
+
     showSideOverlaySheet<void>(
       context: context,
       direction: SideOverlayDirection.left,
@@ -1071,8 +1298,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ? null
                                 : () async {
                                     Navigator.of(drawerContext).pop();
-                                    await _profileService
-                                        .switchProfile(profile.id);
+                                    try {
+                                      await _profileService
+                                          .switchProfile(profile.id);
+                                    } catch (_) {}
                                     if (!mounted) return;
                                     setState(() {
                                       _activeProfileId = profile.id;
@@ -1309,6 +1538,39 @@ class _NavItem {
   final Widget Function(Key key, int refreshVersion) builder;
 
   const _NavItem({required this.label, required this.icon, required this.builder});
+}
+
+/// Categorised snapshot of the user's profiles used by the reset flow.
+class _ResetContext {
+  final List<ProfileModel> ownedShareable; // non-default, owned, shareable
+  final List<ProfileModel> ownedPrivate;   // non-default, owned, not shareable
+  final List<ProfileModel> joined;         // any profile where role != 'owner'
+
+  const _ResetContext({
+    required this.ownedShareable,
+    required this.ownedPrivate,
+    required this.joined,
+  });
+
+  factory _ResetContext.empty() => const _ResetContext(
+    ownedShareable: [],
+    ownedPrivate: [],
+    joined: [],
+  );
+
+  factory _ResetContext.from(List<ProfileModel> profiles, String phone) {
+    return _ResetContext(
+      ownedShareable: profiles
+          .where((p) => !p.isDefault && p.members[phone] == 'owner' && p.isShareable)
+          .toList(),
+      ownedPrivate: profiles
+          .where((p) => !p.isDefault && p.members[phone] == 'owner' && !p.isShareable)
+          .toList(),
+      joined: profiles
+          .where((p) => p.members[phone] != 'owner')
+          .toList(),
+    );
+  }
 }
 
 class _MenuSectionHeader extends StatelessWidget {

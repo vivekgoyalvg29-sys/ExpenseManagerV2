@@ -87,55 +87,101 @@ class _BudgetsPageState extends State<BudgetsPage> {
   }
 
   void showAddBudgetDialog({Map<String, dynamic>? budget}) {
+    // Capture the page context so we can show a SnackBar from inside the dialog.
+    final pageContext = context;
     String? selectedCategory = budget?['category'];
     final amountController = TextEditingController(text: budget?['amount']?.toString());
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(budget == null ? 'Create Budget' : 'Edit Budget'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              value: selectedCategory,
-              items: DataStore.categories
-                  .where((cat) => cat['type'] == 'expense')
-                  .map((cat) => DropdownMenuItem<String>(
-                        value: cat['name'],
-                        child: Text(cat['name']!),
-                      ))
-                  .toList(),
-              onChanged: (value) => selectedCategory = value,
-              decoration: const InputDecoration(labelText: 'Category'),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          bool saving = false;
+          return StatefulBuilder(
+            builder: (dialogContext, setInnerState) => AlertDialog(
+              title: Text(budget == null ? 'Create Budget' : 'Edit Budget'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: selectedCategory,
+                    items: DataStore.categories
+                        .where((cat) => cat['type'] == 'expense')
+                        .map((cat) => DropdownMenuItem<String>(
+                              value: cat['name'],
+                              child: Text(cat['name']!),
+                            ))
+                        .toList(),
+                    onChanged: (value) => setDialogState(() => selectedCategory = value),
+                    decoration: const InputDecoration(labelText: 'Category'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Amount'),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          if (selectedCategory == null || amountController.text.trim().isEmpty) return;
+                          final amount = double.tryParse(amountController.text.trim());
+                          if (amount == null) {
+                            if (pageContext.mounted) {
+                              ScaffoldMessenger.of(pageContext).showSnackBar(
+                                const SnackBar(content: Text('Please enter a valid number for the amount.')),
+                              );
+                            }
+                            return;
+                          }
+                          setInnerState(() => saving = true);
+                          try {
+                            if (budget == null) {
+                              await DataService.insertBudget(
+                                selectedCategory!, amount,
+                                currentMonth.month, currentMonth.year,
+                              );
+                            } else {
+                              await DataService.updateBudget(
+                                budget['id'], selectedCategory!, amount,
+                                currentMonth.month, currentMonth.year,
+                              );
+                            }
+                            if (!dialogContext.mounted) return;
+                            Navigator.pop(dialogContext);
+                            loadBudgets();
+                          } catch (e) {
+                            setInnerState(() => saving = false);
+                            if (pageContext.mounted) {
+                              ScaffoldMessenger.of(pageContext).showSnackBar(
+                                SnackBar(content: Text('Could not save budget: $e')),
+                              );
+                            }
+                          }
+                        },
+                  child: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Save'),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Amount'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              if (selectedCategory == null || amountController.text.isEmpty) return;
-              final amount = double.parse(amountController.text);
-              if (budget == null) {
-                await DataService.insertBudget(selectedCategory!, amount, currentMonth.month, currentMonth.year);
-              } else {
-                await DataService.updateBudget(budget['id'], selectedCategory!, amount, currentMonth.month, currentMonth.year);
-              }
-              if (!context.mounted) return;
-              Navigator.pop(context);
-              loadBudgets();
-            },
-            child: const Text('Save'),
-          ),
-        ],
+          );
+        },
       ),
     );
+    amountController.addListener(() {});
   }
 
   void clearSelection() {

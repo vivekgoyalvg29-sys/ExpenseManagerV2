@@ -14,6 +14,7 @@ import 'services/data_service.dart';
 import 'services/data_store.dart';
 import 'services/app_localizations.dart';
 import 'services/database_service.dart';
+import 'services/firestore_service.dart';
 import 'services/migration_service.dart';
 import 'services/profile_service.dart';
 import 'services/visual_settings.dart';
@@ -179,7 +180,9 @@ class _FinTrackAppState extends State<FinTrackApp> {
   }
 }
 
-/// Handles migration and profile initialization before showing HomeScreen.
+/// Shows HomeScreen immediately after login and performs profile/migration
+/// initialization in the background.  A thin progress banner is shown at the
+/// top of the screen while the background task runs, then disappears.
 class _PostLoginInitScreen extends StatefulWidget {
   const _PostLoginInitScreen();
 
@@ -188,7 +191,8 @@ class _PostLoginInitScreen extends StatefulWidget {
 }
 
 class _PostLoginInitScreenState extends State<_PostLoginInitScreen> {
-  bool _ready = false;
+  // Show the home screen straight away — no blocking spinner.
+  bool _initializing = true;
 
   @override
   void initState() {
@@ -201,40 +205,56 @@ class _PostLoginInitScreenState extends State<_PostLoginInitScreen> {
       final migrationService = MigrationService();
       final profileService = ProfileService();
 
-      // Skip data upload — mark migration done immediately.
-      // There is no production data to migrate; a fresh profile will be
-      // created below. Remove this block when releasing to production users
-      // who have existing local data.
+      // On first run after Firebase integration: wipe all SQLite data so the
+      // old local-only records can never bleed into any Firebase-backed profile.
       if (!await migrationService.hasMigrated()) {
+        try {
+          await DatabaseService.deleteAllData();
+        } catch (_) {}
         await migrationService.markDone();
       }
 
       // Initialize user profile state (creates default profile for new users,
-      // performs migration for existing ones). 15 s timeout so the app never hangs.
+      // or ensures an active profile is set for returning users).
+      // 10 s timeout — if it fails the user lands on HomeScreen with empty data.
       try {
         await profileService
             .initializeUserOnFirstLogin()
-            .timeout(const Duration(seconds: 15));
-      } catch (_) {
-        // Init failed — app still works via SQLite fallback
-      }
-    } catch (_) {
-      // Ignore init errors — fall through to HomeScreen
-    }
+            .timeout(const Duration(seconds: 10));
+      } catch (_) {}
 
-    if (mounted) setState(() => _ready = true);
+      // Safety-net: if no active profile was set (e.g. Firestore timeout),
+      // clear any leftover SQLite data so the fallback shows empty, not stale.
+      try {
+        final activeId = await profileService.getActiveProfileId();
+        if (activeId == null || activeId.isEmpty) {
+          await DatabaseService.deleteAllData();
+          FirestoreService().clearCaches();
+        }
+      } catch (_) {}
+    } catch (_) {}
+
+    if (mounted) setState(() => _initializing = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_ready) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
-        ),
-      );
-    }
-    return const HomeScreen();
+    return Stack(
+      children: [
+        const HomeScreen(),
+        // Non-blocking banner shown while background init runs.
+        if (_initializing)
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(
+              color: Color(0xFF4F46E5),
+              backgroundColor: Colors.transparent,
+            ),
+          ),
+      ],
+    );
   }
 }
 

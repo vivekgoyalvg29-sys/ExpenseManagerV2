@@ -116,7 +116,11 @@ class DataService {
 
   static Future<void> deleteAllTransactions() async {
     await _instance._fs.deleteAllTransactions();
-    _cacheAsync(() => DatabaseService.deleteAllTransactions());
+    // Await synchronously so the cache is definitely cleared before the caller
+    // refreshes the UI (prevents stale SQLite data from re-appearing).
+    try {
+      await DatabaseService.deleteAllTransactions();
+    } catch (_) {}
   }
 
   static Future<List<String>> getExistingComments() {
@@ -282,7 +286,9 @@ class DataService {
 
   static Future<void> deleteAllData() async {
     await _instance._fs.deleteAllData();
-    _cacheAsync(() => DatabaseService.deleteAllData());
+    try {
+      await DatabaseService.deleteAllData();
+    } catch (_) {}
   }
 
   static Future<bool> accountExists(String name, String type) {

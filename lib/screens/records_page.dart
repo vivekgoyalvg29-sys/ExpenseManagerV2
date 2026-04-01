@@ -728,16 +728,23 @@ class _RecordsPageState extends State<RecordsPage> {
                     );
 
                     if (result != null) {
-                      await DataService.insertTransaction(
-                        result["title"],
-                        result["amount"],
-                        result["date"],
-                        result["type"],
-                        (result["account"] ?? '').toString(),
-                        (result["comment"] ?? '').toString(),
-                      );
-
-                      loadTransactions();
+                      try {
+                        await DataService.insertTransaction(
+                          result["title"],
+                          result["amount"],
+                          result["date"],
+                          result["type"],
+                          (result["account"] ?? '').toString(),
+                          (result["comment"] ?? '').toString(),
+                        );
+                        loadTransactions();
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Could not save transaction: $e')),
+                          );
+                        }
+                      }
                     }
                   },
                 ),

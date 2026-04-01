@@ -48,6 +48,8 @@ class _CategoriesPageState extends State<CategoriesPage> {
   }
 
   void showAddCategoryDialog({Map<String, dynamic>? category}) {
+    // Capture the page context so we can show a SnackBar from inside the dialog.
+    final pageContext = context;
     final controller = TextEditingController(text: category?['name']);
     String selectedType = category?['type'] ?? 'expense';
     int selectedIcon = category?['icon'] ?? selectableIcons.first.codePoint;
@@ -55,111 +57,138 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(category == null ? 'Create Category' : 'Edit Category'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  value: selectedType,
-                  items: const [
-                    DropdownMenuItem(value: 'expense', child: Text('Expense')),
-                    DropdownMenuItem(value: 'income', child: Text('Income')),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          bool saving = false;
+          return StatefulBuilder(
+            builder: (dialogContext, setInnerState) => AlertDialog(
+              title: Text(category == null ? 'Create Category' : 'Edit Category'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: selectedType,
+                      items: const [
+                        DropdownMenuItem(value: 'expense', child: Text('Expense')),
+                        DropdownMenuItem(value: 'income', child: Text('Income')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) selectedType = value;
+                      },
+                      decoration: const InputDecoration(labelText: 'Transaction Type'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: controller,
+                      decoration: const InputDecoration(labelText: 'Category Name'),
+                    ),
+                    const SizedBox(height: 10),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Icon', style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: selectableIcons.map((icon) {
+                        final selected = customIconPath == null && selectedIcon == icon.codePoint;
+                        return InkWell(
+                          onTap: () => setDialogState(() {
+                            selectedIcon = icon.codePoint;
+                            customIconPath = null;
+                          }),
+                          child: CircleAvatar(
+                            backgroundColor: selected ? Colors.green : Colors.grey.shade300,
+                            child: Icon(
+                              icon,
+                              color: selected ? Colors.white : Theme.of(dialogContext).colorScheme.onSurface,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 14),
+                    InkWell(
+                      onTap: () async {
+                        final picked = await IconStorageService.pickAndStoreIconImage();
+                        if (picked == null) return;
+                        setDialogState(() => customIconPath = picked);
+                      },
+                      child: Row(
+                        children: [
+                          const Text(
+                            'Choose from gallery',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                          ),
+                          const Spacer(),
+                          if (customIconPath != null)
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () => setDialogState(() => customIconPath = null),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            )
+                          else
+                            const Icon(Icons.photo_library_outlined, size: 22),
+                        ],
+                      ),
+                    ),
                   ],
-                  onChanged: (value) {
-                    if (value != null) selectedType = value;
-                  },
-                  decoration: const InputDecoration(labelText: 'Transaction Type'),
                 ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: controller,
-                  decoration: const InputDecoration(labelText: 'Category Name'),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
                 ),
-                const SizedBox(height: 10),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Icon', style: TextStyle(fontWeight: FontWeight.w600)),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: selectableIcons.map((icon) {
-                    final selected = customIconPath == null && selectedIcon == icon.codePoint;
-                    return InkWell(
-                      onTap: () => setDialogState(() {
-                        selectedIcon = icon.codePoint;
-                        customIconPath = null;
-                      }),
-                      child: CircleAvatar(
-                        backgroundColor: selected ? Colors.green : Colors.grey.shade300,
-                        child: Icon(
-                          icon,
-                          color: selected ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 14),
-                // Simplified custom icon picker
-                InkWell(
-                  onTap: () async {
-                    final picked = await IconStorageService.pickAndStoreIconImage();
-                    if (picked == null) return;
-                    setDialogState(() => customIconPath = picked);
-                  },
-                  child: Row(
-                    children: [
-                      const Text(
-                        'Choose from gallery',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                      ),
-                      const Spacer(),
-                      if (customIconPath != null)
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: () => setDialogState(() => customIconPath = null),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
+                TextButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          if (controller.text.trim().isEmpty) return;
+                          setInnerState(() => saving = true);
+                          try {
+                            if (category == null) {
+                              await DataService.insertCategory(
+                                controller.text.trim(), selectedType, selectedIcon,
+                                iconPath: customIconPath,
+                              );
+                            } else {
+                              await DataService.updateCategory(
+                                category['id'], controller.text.trim(),
+                                selectedType, selectedIcon,
+                                iconPath: customIconPath,
+                              );
+                            }
+                            if (!dialogContext.mounted) return;
+                            Navigator.pop(dialogContext);
+                            loadCategories();
+                          } catch (e) {
+                            setInnerState(() => saving = false);
+                            if (pageContext.mounted) {
+                              ScaffoldMessenger.of(pageContext).showSnackBar(
+                                SnackBar(content: Text('Could not save category: $e')),
+                              );
+                            }
+                          }
+                        },
+                  child: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      else
-                        const Icon(Icons.photo_library_outlined, size: 22),
-                    ],
-                  ),
+                      : const Text('Save'),
                 ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            TextButton(
-              onPressed: () async {
-                if (controller.text.isEmpty) return;
-                if (category == null) {
-                  await DataService.insertCategory(
-                    controller.text, selectedType, selectedIcon,
-                    iconPath: customIconPath,
-                  );
-                } else {
-                  await DataService.updateCategory(
-                    category['id'], controller.text, selectedType, selectedIcon,
-                    iconPath: customIconPath,
-                  );
-                }
-                if (!context.mounted) return;
-                Navigator.pop(context);
-                loadCategories();
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
+    controller.addListener(() {});
   }
 
   void clearSelection() {

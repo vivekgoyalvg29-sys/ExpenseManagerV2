@@ -66,7 +66,14 @@ class FirestoreService {
 
   Future<String> _role() async {
     final profileId = await _getActiveProfileId();
-    if (profileId == null) return 'viewer';
+    if (profileId == null || profileId.isEmpty) {
+      // No profile set yet — signal with a specific exception so callers can
+      // show a meaningful message instead of a generic permission error.
+      throw Exception(
+        'No active profile found. '
+        'The app is still setting up your account — please wait a moment and try again.',
+      );
+    }
     final phone = _currentPhone;
     if (phone.isEmpty) return 'viewer';
     try {
