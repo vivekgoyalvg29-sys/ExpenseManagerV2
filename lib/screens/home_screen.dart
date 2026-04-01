@@ -193,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openPrivacyPolicy() async {
-    final uri = Uri.parse('https://github.com/vivekgoyalvg29-sys/privacy-policy/blob/main/index.html');
+    final uri = Uri.parse('https://vivekgoyalvg29-sys.github.io/privacy-policy/');
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!mounted) return;
     if (!ok) {
