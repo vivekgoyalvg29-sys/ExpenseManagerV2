@@ -56,6 +56,17 @@ class _BudgetsPageState extends State<BudgetsPage> {
     await prefs.setBool(_budgetShowPercentageKey, showPercentage);
   }
 
+  String? _budgetAggregationSubtitle() {
+    switch (budgetAggregation) {
+      case BudgetAggregation.selectedMonth:
+        return null;
+      case BudgetAggregation.cumulativeToSelectedMonth:
+        return 'Till month';
+      case BudgetAggregation.cumulativeYear:
+        return 'Year';
+    }
+  }
+
   Future<void> loadBudgets() async {
     final data = await DatabaseService.getBudgets();
     final categories = await DatabaseService.getCategories();
@@ -357,6 +368,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
           children: [
             MonthSectionCard(
               currentMonth: currentMonth,
+              aggregationSubtitle: _budgetAggregationSubtitle(),
               onPrev: () {
                 setState(() => currentMonth = DateTime(currentMonth.year, currentMonth.month - 1));
               },

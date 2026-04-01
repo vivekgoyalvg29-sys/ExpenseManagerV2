@@ -23,7 +23,8 @@ Future<T?> showSideOverlaySheet<T>({
           builder: (context, constraints) {
             final panelWidth =
                 (constraints.maxWidth * widthFactor).clamp(280.0, maxWidth).toDouble();
-            final panelHeight = (constraints.maxHeight * 0.86).clamp(320.0, constraints.maxHeight - 24).toDouble();
+            // Full height inside SafeArea; small inset keeps rounded panel visually inset from edges.
+            final panelHeight = (constraints.maxHeight - 10).clamp(320.0, constraints.maxHeight).toDouble();
 
             return Stack(
               children: [

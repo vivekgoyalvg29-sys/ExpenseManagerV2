@@ -815,14 +815,24 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return matching;
   }
 
+  String? _aggregationSubtitleForHeader() {
+    switch (analysisMode) {
+      case AnalysisMode.selectedMonth:
+        return null;
+      case AnalysisMode.cumulativeToSelectedMonth:
+        return 'Till month';
+      case AnalysisMode.cumulativeYear:
+        return 'Year';
+    }
+  }
+
   Future<void> _editTransaction(Map<String, dynamic> transaction) async {
-    final result = await Navigator.push<Map<String, dynamic>>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AddTransactionPage(
-          existingTransaction: transaction,
-          modalStyle: false,
-        ),
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => AddTransactionPage(
+        existingTransaction: transaction,
+        modalStyle: true,
       ),
     );
 
@@ -1013,6 +1023,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
           children: [
             MonthSummary(
               currentMonth: currentMonth,
+              aggregationSubtitle: _aggregationSubtitleForHeader(),
               onPrev: () {
                 setState(() {
                   currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
