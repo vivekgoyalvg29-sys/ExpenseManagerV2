@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../models.dart';
 import 'database_service.dart';
 import 'firestore_service.dart';
 import 'profile_service.dart';
@@ -22,7 +23,7 @@ class DataService {
 
   // ============ Streams ============
 
-  static Stream<List<Map<String, dynamic>>> get profilesStream =>
+  static Stream<List<ProfileModel>> get profilesStream =>
       _instance._profile.getMyProfiles();
 
   static Stream<bool> get isOnline {
