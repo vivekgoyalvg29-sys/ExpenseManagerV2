@@ -128,7 +128,7 @@ class _FinTrackAppState extends State<FinTrackApp> {
       valueListenable: widget.controller,
       builder: (context, settings, _) => MaterialApp(
         navigatorKey: appNavigatorKey,
-        title: 'WhereIsMyMoney',
+        title: 'Kharcha Book',
         theme: FinTrackTheme.build(settings, brightness: Brightness.light),
         darkTheme: FinTrackTheme.build(settings, brightness: Brightness.dark),
         themeMode: settings.themeMode == ThemeMode.system ? ThemeMode.light : settings.themeMode,

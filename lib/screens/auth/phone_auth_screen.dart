@@ -179,7 +179,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
             children: [
               const SizedBox(height: 60),
               const Text(
-                'WhereIsMyMoney',
+                'Kharcha Book',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 32,
