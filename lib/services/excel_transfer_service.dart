@@ -33,6 +33,7 @@ class ImportResult {
 }
 
 class ExcelTransferService {
+  static final _profileService = ProfileService();
   static const String _recordsSheet = 'Records';
   static const String _budgetsSheet = 'Budgets';
   static const String _accountsSheet = 'Accounts';
@@ -311,7 +312,8 @@ class ExcelTransferService {
             }
 
             for (final entry in grouped.entries) {
-              final profileId = resolvedProfiles[entry.key];
+              final profileId = resolvedProfiles[entry.key]
+                ?? await _profileService.getActiveProfileId(); // fallback;
               if (profileId == null) continue; // skip — no access
 
               firestoreService.setImportOverride(profileId);
