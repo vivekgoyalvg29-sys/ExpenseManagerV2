@@ -802,19 +802,25 @@ class _HomeScreenState extends State<HomeScreen> {
     if (confirmed != true || !mounted) return;
 
     // Show a non-dismissible progress dialog while operations run.
+    // Capture the dialog's own context so we can dismiss it reliably even if
+    // the parent widget tree rebuilds during the async operations below.
+    BuildContext? progressCtx;
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 20),
-            Text('Resetting…'),
-          ],
-        ),
-      ),
+      builder: (ctx) {
+        progressCtx = ctx;
+        return const AlertDialog(
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text('Resetting…'),
+            ],
+          ),
+        );
+      },
     );
 
     try {
@@ -839,8 +845,14 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) await _visualSettingsController(context).reset();
       await WidgetSyncService.syncFromStoredConfiguration();
     } finally {
-      // Always close the progress dialog.
-      if (mounted) Navigator.of(context).pop();
+      // Dismiss using the dialog's own context — more reliable than the parent
+      // context after state changes triggered by the reset operations above.
+      final dlg = progressCtx;
+      if (dlg != null && dlg.mounted) {
+        Navigator.of(dlg).pop();
+      } else if (mounted) {
+        Navigator.of(context).pop();
+      }
     }
 
     if (!mounted) return;
@@ -900,8 +912,39 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (shouldInitialize != true) return;
+    if (!mounted) return;
 
-    final created = await DataService.initializeDefaultCategoriesAndAccounts();
+    BuildContext? progressCtx;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        progressCtx = ctx;
+        return const AlertDialog(
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text('Creating defaults…'),
+            ],
+          ),
+        );
+      },
+    );
+
+    int created = 0;
+    try {
+      created = await DataService.initializeDefaultCategoriesAndAccounts();
+    } finally {
+      final dlg = progressCtx;
+      if (dlg != null && dlg.mounted) {
+        Navigator.of(dlg).pop();
+      } else if (mounted) {
+        Navigator.of(context).pop();
+      }
+    }
+
     if (!mounted) return;
     setState(() => _refreshVersion++);
     ScaffoldMessenger.of(context).showSnackBar(
