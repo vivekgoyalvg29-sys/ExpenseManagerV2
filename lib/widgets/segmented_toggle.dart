@@ -35,11 +35,13 @@ class SegmentedToggle<T> extends StatelessWidget {
   });
 
   static double _labelMaxWidth(BuildContext context, List<SegmentedToggleOption<dynamic>> options) {
+    // Account for system/app text scale so the knob width matches rendered text.
+    final scale = MediaQuery.textScalerOf(context).scale(12) / 12;
     final style = Theme.of(context).textTheme.labelLarge?.copyWith(
-          fontSize: 12,
+          fontSize: 12 * scale,
           fontWeight: FontWeight.w700,
         ) ??
-        const TextStyle(fontSize: 12, fontWeight: FontWeight.w700);
+        TextStyle(fontSize: 12 * scale, fontWeight: FontWeight.w700);
     double w = 0;
     for (final o in options) {
       final tp = TextPainter(

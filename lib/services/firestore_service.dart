@@ -563,7 +563,8 @@ class FirestoreService {
       for (final doc in snap.docs) {
         batch.delete(doc.reference);
       }
-      await batch.commit();
+      // Fire-and-forget: local cache updates immediately; server syncs in background.
+      batch.commit();
     } while (snap.docs.length == 400);
   }
 }
