@@ -17,20 +17,10 @@ class CategoriesPage extends StatefulWidget {
 class _CategoriesPageState extends State<CategoriesPage> {
   Set<int> selectedIndexes = {};
   bool selectionMode = false;
-  String? _userRole;
-
   @override
   void initState() {
     super.initState();
     loadCategories();
-    _loadRole();
-  }
-
-  Future<void> _loadRole() async {
-    try {
-      final role = await DataService.getCurrentUserRole();
-      if (mounted) setState(() => _userRole = role);
-    } catch (_) {}
   }
 
   Future<void> loadCategories() async {
@@ -214,9 +204,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: _userRole == 'viewer'
-          ? null
-          : selectionMode
+      floatingActionButton: selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,

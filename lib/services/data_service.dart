@@ -5,8 +5,6 @@ import 'database_service.dart';
 import 'firestore_service.dart';
 import 'profile_service.dart';
 
-export 'firestore_service.dart' show PermissionException;
-
 /// DataService is the single access point for all data operations.
 ///
 /// Write path: Firestore first → SQLite cache in background (fire-and-forget).
@@ -30,16 +28,6 @@ class DataService {
     final ctrl = StreamController<bool>.broadcast();
     ctrl.add(true);
     return ctrl.stream;
-  }
-
-  // ============ Role ============
-
-  static Future<String?> getCurrentUserRole() async {
-    try {
-      return await _instance._profile.getCurrentUserRole().timeout(_timeout);
-    } catch (_) {
-      return null;
-    }
   }
 
   // ============ Helper ============

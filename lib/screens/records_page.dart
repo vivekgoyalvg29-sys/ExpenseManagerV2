@@ -43,20 +43,11 @@ class _RecordsPageState extends State<RecordsPage> {
   Set<int> selectedIndexes = {};
   bool selectionMode = false;
   bool _isProcessingQr = false;
-  String? _userRole;
 
   @override
   void initState() {
     super.initState();
     loadTransactions();
-    _loadRole();
-  }
-
-  Future<void> _loadRole() async {
-    try {
-      final role = await DataService.getCurrentUserRole();
-      if (mounted) setState(() => _userRole = role);
-    } catch (_) {}
   }
 
   Future<void> loadTransactions() async {
@@ -679,9 +670,7 @@ class _RecordsPageState extends State<RecordsPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: _userRole == 'viewer'
-          ? null
-          : selectionMode
+      floatingActionButton: selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,

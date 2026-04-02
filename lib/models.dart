@@ -11,12 +11,9 @@ class ProfileModel {
   /// True only when the profile is currently sharable and the code is active.
   final bool shareCodeActive;
 
-  /// Role assigned to new joiners: 'editor' or 'viewer'.
-  final String defaultMemberRole;
-
   final String createdBy;
 
-  /// Map of phone → role ('owner' | 'editor' | 'viewer').
+  /// Map of phone → role ('owner' | 'member').
   final Map<String, String> members;
 
   const ProfileModel({
@@ -26,7 +23,6 @@ class ProfileModel {
     required this.isShareable,
     required this.shareCode,
     required this.shareCodeActive,
-    required this.defaultMemberRole,
     required this.createdBy,
     required this.members,
   });
@@ -44,7 +40,6 @@ class ProfileModel {
           data['inviteCode']?.toString() ??
           '',
       shareCodeActive: data['shareCodeActive'] as bool? ?? false,
-      defaultMemberRole: data['defaultMemberRole']?.toString() ?? 'editor',
       createdBy: data['createdBy']?.toString() ?? '',
       members: members,
     );
@@ -56,7 +51,6 @@ class ProfileModel {
         'isShareable': isShareable,
         'shareCode': shareCode,
         'shareCodeActive': shareCodeActive,
-        'defaultMemberRole': defaultMemberRole,
         'createdBy': createdBy,
         'members': members,
       };
@@ -67,7 +61,6 @@ class ProfileModel {
     bool? isShareable,
     String? shareCode,
     bool? shareCodeActive,
-    String? defaultMemberRole,
     String? createdBy,
     Map<String, String>? members,
   }) =>
@@ -78,7 +71,6 @@ class ProfileModel {
         isShareable: isShareable ?? this.isShareable,
         shareCode: shareCode ?? this.shareCode,
         shareCodeActive: shareCodeActive ?? this.shareCodeActive,
-        defaultMemberRole: defaultMemberRole ?? this.defaultMemberRole,
         createdBy: createdBy ?? this.createdBy,
         members: members ?? this.members,
       );

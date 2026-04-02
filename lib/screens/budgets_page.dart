@@ -32,20 +32,10 @@ class _BudgetsPageState extends State<BudgetsPage> {
   BudgetAggregation budgetAggregation = BudgetAggregation.selectedMonth;
   BudgetSortOrder sortOrder = BudgetSortOrder.amount;
   bool showPercentage = true;
-  String? _userRole;
-
   @override
   void initState() {
     super.initState();
     _restorePreferences();
-    _loadRole();
-  }
-
-  Future<void> _loadRole() async {
-    try {
-      final role = await DataService.getCurrentUserRole();
-      if (mounted) setState(() => _userRole = role);
-    } catch (_) {}
   }
 
   Future<void> _restorePreferences() async {
@@ -394,9 +384,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: _userRole == 'viewer'
-          ? null
-          : selectionMode
+      floatingActionButton: selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,

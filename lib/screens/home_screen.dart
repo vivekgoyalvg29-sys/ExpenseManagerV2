@@ -42,7 +42,6 @@ class _HomeScreenState extends State<HomeScreen> {
   int _refreshVersion = 0;
   String _appVersion = 'v1.0.0';
   String _username = '';
-  String? _userRole;
   String? _activeProfileId;
   final ScrollController _menuScrollController = ScrollController();
   final GlobalKey _appearanceExpandedContentKey = GlobalKey();
@@ -100,38 +99,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadRoleAndProfile() async {
-    // If the active profile isn't set yet (background init still running),
-    // retry a few times with short delays so the UI catches up automatically
-    // once initialization completes — without the user needing to restart.
-    for (int attempt = 0; attempt < 5; attempt++) {
-      try {
-        final profileId = await _profileService.getActiveProfileId();
-        if (profileId != null && profileId.isNotEmpty) {
-          final role = await DataService.getCurrentUserRole();
-          if (!mounted) return;
-          setState(() {
-            _userRole = role;
-            _activeProfileId = profileId;
-          });
-          return;
-        }
-      } catch (_) {}
-
-      if (attempt < 4) {
-        await Future.delayed(const Duration(seconds: 3));
-        if (!mounted) return;
-      }
-    }
-
-    // Final attempt — use whatever is available even if profile is still null
+    // SharedPreferences read is instant — no retry loop needed.
     try {
-      final role = await DataService.getCurrentUserRole();
       final profileId = await _profileService.getActiveProfileId();
       if (!mounted) return;
-      setState(() {
-        _userRole = role;
-        _activeProfileId = profileId;
-      });
+      setState(() => _activeProfileId = profileId);
     } catch (_) {}
   }
 
@@ -945,7 +917,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _showNewProfileDialog() async {
     final nameController = TextEditingController();
     bool isShareable = false;
-    String defaultRole = 'editor';
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -970,30 +941,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 value: isShareable,
                 onChanged: (v) => setDlg(() => isShareable = v),
               ),
-              if (isShareable) ...[
-                const SizedBox(height: 4),
-                Text('New members join as:',
-                    style: Theme.of(context).textTheme.bodySmall),
-                Row(
-                  children: [
-                    for (final pair in [
-                      ('editor', 'Editor'),
-                      ('viewer', 'View only'),
-                    ])
-                      Expanded(
-                        child: RadioListTile<String>(
-                          title: Text(pair.$2,
-                              style: const TextStyle(fontSize: 12)),
-                          value: pair.$1,
-                          groupValue: defaultRole,
-                          onChanged: (v) => setDlg(() => defaultRole = v!),
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                        ),
-                      ),
-                  ],
-                ),
-              ],
             ],
           ),
           actions: [
@@ -1018,12 +965,10 @@ class _HomeScreenState extends State<HomeScreen> {
       final profileId = await _profileService.createProfile(
         name,
         isShareable: isShareable,
-        defaultMemberRole: defaultRole,
       );
       if (!mounted) return;
       setState(() {
         _activeProfileId = profileId;
-        _userRole = 'owner';
         _refreshVersion++;
       });
     } catch (e) {
@@ -1124,12 +1069,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openAppMenu(VisualSettings settings) async {
-    // Ensure the active profile ID is resolved before the menu opens so the
-    // correct profile is ticked from the very first render.
-    if (_activeProfileId == null) {
-      await _loadRoleAndProfile();
-    }
-
     if (!mounted) return;
 
     showSideOverlaySheet<void>(
@@ -1254,8 +1193,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: profiles.map((profile) {
                           final isActive = profile.id == _activeProfileId;
-                          final role =
-                              profile.members[currentPhone] ?? 'viewer';
                           return ListTile(
                             visualDensity: VisualDensity.compact,
                             contentPadding:
@@ -1279,8 +1216,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             subtitle: Text(
                               profile.isDefault
-                                  ? 'Default • $role'
-                                  : '${profile.isShareable ? 'Sharable' : 'Private'} • $role',
+                                  ? 'Default'
+                                  : (profile.isShareable ? 'Sharable' : 'Private'),
                               style: Theme.of(context)
                                   .textTheme
                                   .bodySmall
@@ -1305,7 +1242,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                     if (!mounted) return;
                                     setState(() {
                                       _activeProfileId = profile.id;
-                                      _userRole = role;
                                       _refreshVersion++;
                                     });
                                   },
@@ -1482,24 +1418,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontWeight: FontWeight.w700,
                   ),
             ),
-            if (_userRole == 'viewer') ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'View only',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
         actions: [
