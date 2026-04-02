@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -12,7 +13,10 @@ class FirestoreService {
 
   static const String _activeProfileKey = 'active_profile_id';
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'krchabookdb',
+  );
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // In-memory localId → docId caches (reset when profile changes)

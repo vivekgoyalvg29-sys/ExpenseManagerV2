@@ -1187,8 +1187,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     stream: _profileService.getMyProfiles(),
                     builder: (ctx, snap) {
                       final profiles = snap.data ?? [];
-                      final currentPhone =
-                          FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: profiles.map((profile) {

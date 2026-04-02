@@ -29,8 +29,12 @@ void main() async {
 
   await Firebase.initializeApp();
 
-  // Enable Firestore offline persistence for reliable sync and notifications
-  FirebaseFirestore.instance.settings = const Settings(
+  // Enable Firestore offline persistence for reliable sync and notifications.
+  // Must target the named database ('krchabookdb') — not the default instance.
+  FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'krchabookdb',
+  ).settings = const Settings(
     persistenceEnabled: true,
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );

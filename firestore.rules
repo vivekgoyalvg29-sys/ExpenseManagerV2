@@ -11,14 +11,13 @@ rules_version = '2';
 //       revokedProfiles : map[]    (temporary notification list)
 //
 //   profiles/{profileId}
-//       name               : string
-//       isDefault          : bool
-//       isShareable        : bool
-//       shareCode          : string   (6-char, always present)
-//       shareCodeActive    : bool
-//       defaultMemberRole  : 'editor' | 'viewer'
-//       createdBy          : phone string
-//       members            : { phone: 'owner'|'editor'|'viewer' }
+//       name            : string
+//       isDefault       : bool
+//       isShareable     : bool
+//       shareCode       : string   (6-char, always present)
+//       shareCodeActive : bool
+//       createdBy       : phone string
+//       members         : { phone: 'owner' | 'member' }
 //
 //   profiles/{profileId}/transactions/{docId}
 //   profiles/{profileId}/accounts/{docId}
@@ -52,11 +51,11 @@ service cloud.firestore {
       return myPhone() in profileDoc(profileId).members;
     }
 
-                // True when the caller has write access to the profile's data.
-                // All members (owner and member) can write — viewer role removed.
-                function canEdit(profileId) {
-                  return isMember(profileId);
-                }
+    // True when the caller has write access to the profile's data.
+    // All members (owner and member) can write.
+    function canEdit(profileId) {
+      return isMember(profileId);
+    }
 
     // ── users/{phone} ───────────────────────────────────────────────────────
 
@@ -118,11 +117,7 @@ service cloud.firestore {
       // ── Subcollections: transactions / accounts / categories / budgets ────
 
       match /{subcollection}/{docId} {
-        // Viewers, editors, and owners can all read subcollection data.
         allow read:  if isSignedIn() && isMember(profileId);
-
-        // Only editors and owners can write (insert / update / delete) records.
-        // Viewers are read-only.
         allow write: if isSignedIn() && canEdit(profileId);
       }
     }

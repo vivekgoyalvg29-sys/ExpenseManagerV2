@@ -7,8 +7,9 @@ import 'profile_service.dart';
 
 /// DataService is the single access point for all data operations.
 ///
-/// Write path: Firestore first → SQLite cache in background (fire-and-forget).
-/// Read path: Firestore with 5s timeout → SQLite fallback on failure.
+/// Write path  : Firestore first → SQLite cache in background (fire-and-forget).
+/// Read path   : Firestore directly. Firestore's offline persistence handles
+///               caching transparently — no timeout-based SQLite fallback needed.
 class DataService {
   static final DataService _instance = DataService._();
 
@@ -16,8 +17,6 @@ class DataService {
 
   final FirestoreService _fs = FirestoreService();
   final ProfileService _profile = ProfileService();
-
-  static const Duration _timeout = Duration(seconds: 5);
 
   // ============ Streams ============
 
@@ -30,20 +29,9 @@ class DataService {
     return ctrl.stream;
   }
 
-  // ============ Helper ============
+  // ============ Helpers ============
 
-  static Future<T> _withFallback<T>(
-    Future<T> Function() firestoreOp,
-    Future<T> Function() sqliteOp,
-  ) async {
-    try {
-      return await firestoreOp().timeout(_timeout);
-    } catch (_) {
-      return await sqliteOp();
-    }
-  }
-
-  /// Fire-and-forget cache update — errors are silently swallowed.
+  /// Fire-and-forget SQLite cache update — errors are silently swallowed.
   static void _cacheAsync(Future<void> Function() op) {
     () async {
       try {
@@ -60,12 +48,8 @@ class DataService {
 
   // ============ TRANSACTIONS ============
 
-  static Future<List<Map<String, dynamic>>> getTransactions() {
-    return _withFallback(
-      () => _instance._fs.getTransactions(),
-      () => DatabaseService.getTransactions(),
-    );
-  }
+  static Future<List<Map<String, dynamic>>> getTransactions() =>
+      _instance._fs.getTransactions();
 
   static Future<void> insertTransaction(
     String title,
@@ -76,8 +60,8 @@ class DataService {
     String comment,
   ) async {
     final id = _newLocalId();
-    await _instance._fs.insertTransaction(
-        id, title, amount, date, type, account, comment);
+    await _instance._fs
+        .insertTransaction(id, title, amount, date, type, account, comment);
     _cacheAsync(() => DatabaseService.insertTransactionRaw(
         id, title, amount, date, type, account, comment));
   }
@@ -93,8 +77,8 @@ class DataService {
   ) async {
     await _instance._fs
         .updateTransaction(id, title, amount, date, type, account, comment);
-    _cacheAsync(() =>
-        DatabaseService.updateTransaction(id, title, amount, date, type, account, comment));
+    _cacheAsync(() => DatabaseService.updateTransaction(
+        id, title, amount, date, type, account, comment));
   }
 
   static Future<void> deleteTransaction(int id) async {
@@ -104,28 +88,18 @@ class DataService {
 
   static Future<void> deleteAllTransactions() async {
     await _instance._fs.deleteAllTransactions();
-    // Await synchronously so the cache is definitely cleared before the caller
-    // refreshes the UI (prevents stale SQLite data from re-appearing).
     try {
       await DatabaseService.deleteAllTransactions();
     } catch (_) {}
   }
 
-  static Future<List<String>> getExistingComments() {
-    return _withFallback(
-      () => _instance._fs.getExistingComments(),
-      () => DatabaseService.getExistingComments(),
-    );
-  }
+  static Future<List<String>> getExistingComments() =>
+      _instance._fs.getExistingComments();
 
   // ============ ACCOUNTS ============
 
-  static Future<List<Map<String, dynamic>>> getAccounts() {
-    return _withFallback(
-      () => _instance._fs.getAccounts(),
-      () => DatabaseService.getAccounts(),
-    );
-  }
+  static Future<List<Map<String, dynamic>>> getAccounts() =>
+      _instance._fs.getAccounts();
 
   static Future<void> insertAccount(
     String name,
@@ -167,21 +141,13 @@ class DataService {
         DatabaseService.setAccountFavorite(id: id, type: type, isFavorite: isFavorite));
   }
 
-  static Future<String?> getFavoriteAccountName(String type) {
-    return _withFallback(
-      () => _instance._fs.getFavoriteAccountName(type),
-      () => DatabaseService.getFavoriteAccountName(type),
-    );
-  }
+  static Future<String?> getFavoriteAccountName(String type) =>
+      _instance._fs.getFavoriteAccountName(type);
 
   // ============ CATEGORIES ============
 
-  static Future<List<Map<String, dynamic>>> getCategories() {
-    return _withFallback(
-      () => _instance._fs.getCategories(),
-      () => DatabaseService.getCategories(),
-    );
-  }
+  static Future<List<Map<String, dynamic>>> getCategories() =>
+      _instance._fs.getCategories();
 
   static Future<void> insertCategory(
     String name,
@@ -225,21 +191,13 @@ class DataService {
         DatabaseService.setCategoryFavorite(id: id, type: type, isFavorite: isFavorite));
   }
 
-  static Future<String?> getFavoriteCategoryName(String type) {
-    return _withFallback(
-      () => _instance._fs.getFavoriteCategoryName(type),
-      () => DatabaseService.getFavoriteCategoryName(type),
-    );
-  }
+  static Future<String?> getFavoriteCategoryName(String type) =>
+      _instance._fs.getFavoriteCategoryName(type);
 
   // ============ BUDGETS ============
 
-  static Future<List<Map<String, dynamic>>> getBudgets() {
-    return _withFallback(
-      () => _instance._fs.getBudgets(),
-      () => DatabaseService.getBudgets(),
-    );
-  }
+  static Future<List<Map<String, dynamic>>> getBudgets() =>
+      _instance._fs.getBudgets();
 
   static Future<void> insertBudget(
     String category,
@@ -279,27 +237,12 @@ class DataService {
     } catch (_) {}
   }
 
-  static Future<bool> accountExists(String name, String type) {
-    return _withFallback(
-      () => _instance._fs.accountExists(name, type),
-      () => DatabaseService.accountExists(name, type),
-    );
-  }
+  static Future<bool> accountExists(String name, String type) =>
+      _instance._fs.accountExists(name, type);
 
-  static Future<bool> categoryExists(String name, String type) {
-    return _withFallback(
-      () => _instance._fs.categoryExists(name, type),
-      () => DatabaseService.categoryExists(name, type),
-    );
-  }
+  static Future<bool> categoryExists(String name, String type) =>
+      _instance._fs.categoryExists(name, type);
 
-  static Future<int> initializeDefaultCategoriesAndAccounts() async {
-    try {
-      return await _instance._fs
-          .initializeDefaultCategoriesAndAccounts()
-          .timeout(_timeout);
-    } catch (_) {
-      return await DatabaseService.initializeDefaultCategoriesAndAccounts();
-    }
-  }
+  static Future<int> initializeDefaultCategoriesAndAccounts() =>
+      _instance._fs.initializeDefaultCategoriesAndAccounts();
 }
