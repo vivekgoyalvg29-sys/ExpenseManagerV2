@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models.dart';
@@ -17,7 +18,10 @@ class ProfileService {
 
   static const String _activeProfileKey = 'active_profile_id';
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'krchabookdb',
+  );
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String get _currentPhone => _auth.currentUser?.phoneNumber ?? '';
