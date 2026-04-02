@@ -108,8 +108,33 @@ class DatabaseService {
     });
   }
 
-  static Future<List<Map<String, dynamic>>> getTransactions() async {
+  static Future<List<Map<String, dynamic>>> getTransactions({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     final db = await database;
+    if (startDate != null && endDate != null) {
+      return db.query(
+        'transactions',
+        where: 'date >= ? AND date <= ?',
+        whereArgs: [startDate.toIso8601String(), endDate.toIso8601String()],
+        orderBy: 'date DESC',
+      );
+    } else if (startDate != null) {
+      return db.query(
+        'transactions',
+        where: 'date >= ?',
+        whereArgs: [startDate.toIso8601String()],
+        orderBy: 'date DESC',
+      );
+    } else if (endDate != null) {
+      return db.query(
+        'transactions',
+        where: 'date <= ?',
+        whereArgs: [endDate.toIso8601String()],
+        orderBy: 'date DESC',
+      );
+    }
     return db.query('transactions', orderBy: 'date DESC');
   }
 

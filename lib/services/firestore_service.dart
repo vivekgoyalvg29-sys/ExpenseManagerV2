@@ -72,10 +72,22 @@ class FirestoreService {
 
   // ============ TRANSACTIONS ============
 
-  Future<List<Map<String, dynamic>>> getTransactions() async {
+  // Requires Firestore composite index on collection 'transactions', fields: date (Ascending).
+  // Create in Firebase Console → Firestore → Indexes.
+  Future<List<Map<String, dynamic>>> getTransactions({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     final col = await _col('transactions');
     if (col == null) throw Exception('No active profile');
-    final snap = await col.orderBy('date', descending: true).get();
+    var query = col.orderBy('date', descending: true);
+    if (startDate != null) {
+      query = query.where('date', isGreaterThanOrEqualTo: startDate.toIso8601String());
+    }
+    if (endDate != null) {
+      query = query.where('date', isLessThanOrEqualTo: endDate.toIso8601String());
+    }
+    final snap = await query.get();
     final results = <Map<String, dynamic>>[];
     for (final doc in snap.docs) {
       final data = doc.data();
