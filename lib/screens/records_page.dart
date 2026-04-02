@@ -51,7 +51,9 @@ class _RecordsPageState extends State<RecordsPage> {
   }
 
   Future<void> loadTransactions() async {
-    final txData = await DataService.getTransactions();
+    final startDate = DateTime(currentMonth.year, currentMonth.month, 1);
+    final endDate = DateTime(currentMonth.year, currentMonth.month + 1, 0);
+    final txData = await DataService.getTransactions(startDate: startDate, endDate: endDate);
     final budgetData = await DataService.getBudgets();
     final categoryData = await DataService.getCategories();
     final accountData = await DataService.getAccounts();
@@ -748,11 +750,13 @@ class _RecordsPageState extends State<RecordsPage> {
                 setState(() {
                   currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
                 });
+                loadTransactions();
               },
               onNext: () {
                 setState(() {
                   currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
                 });
+                loadTransactions();
               },
               budget: leftValue,
               expense: middleValue,

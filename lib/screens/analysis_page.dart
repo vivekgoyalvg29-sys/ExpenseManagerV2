@@ -126,7 +126,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   Future<void> loadAnalysis() async {
-    final tx = await DataService.getTransactions();
+    final DateTime startDate;
+    final DateTime endDate;
+    switch (analysisMode) {
+      case AnalysisMode.selectedMonth:
+        startDate = DateTime(currentMonth.year, currentMonth.month, 1);
+        endDate = DateTime(currentMonth.year, currentMonth.month + 1, 0);
+      case AnalysisMode.cumulativeToSelectedMonth:
+        startDate = DateTime(currentMonth.year, 1, 1);
+        endDate = DateTime(currentMonth.year, currentMonth.month + 1, 0);
+      case AnalysisMode.cumulativeYear:
+        startDate = DateTime(currentMonth.year, 1, 1);
+        endDate = DateTime(currentMonth.year, 12, 31);
+    }
+    final tx = await DataService.getTransactions(startDate: startDate, endDate: endDate);
     final budgetData = await DataService.getBudgets();
     final categories = await DataService.getCategories();
     final accounts = await DataService.getAccounts();

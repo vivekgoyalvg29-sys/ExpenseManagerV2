@@ -48,8 +48,11 @@ class DataService {
 
   // ============ TRANSACTIONS ============
 
-  static Future<List<Map<String, dynamic>>> getTransactions() =>
-      _instance._fs.getTransactions();
+  static Future<List<Map<String, dynamic>>> getTransactions({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) =>
+      _instance._fs.getTransactions(startDate: startDate, endDate: endDate);
 
   static Future<void> insertTransaction(
     String title,
