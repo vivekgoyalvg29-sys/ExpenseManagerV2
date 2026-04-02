@@ -287,38 +287,26 @@ class _HomeScreenState extends State<HomeScreen> {
   static Widget _smsBuilder(Key key, int refreshVersion) => SmsPage(key: ValueKey('sms-${DataStore.smsTransactionsVersion}-$refreshVersion'));
 
   Future<void> _exportData() async {
-    try {
-      // On desktop use the native save dialog; on mobile write directly to the
-      // filesystem. file_picker's saveFile(bytes:) on Android routes through SAF
-      // and does not reliably write binary bytes, producing corrupt/empty files.
-      final isDesktop = Platform.isLinux || Platform.isWindows || Platform.isMacOS;
-      if (isDesktop) {
-        final exportData = await ExcelTransferService.buildExportFileData();
-        final selectedPath = await FilePicker.platform.saveFile(
-          dialogTitle: 'Save exported file',
-          fileName: exportData.fileName,
-          bytes: Uint8List.fromList(exportData.bytes),
-          type: FileType.custom,
-          allowedExtensions: ['xlsx'],
-        );
-        if (!mounted) return;
-        if (selectedPath == null) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export cancelled.')));
-          return;
-        }
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported: $selectedPath')));
-      } else {
-        final path = await ExcelTransferService.exportAllData();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Exported to: $path'), duration: const Duration(seconds: 6)),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+  try {
+    final exportData = await ExcelTransferService.buildExportFileData();
+    final selectedPath = await FilePicker.platform.saveFile(
+      dialogTitle: 'Save exported file',
+      fileName: exportData.fileName,
+      bytes: Uint8List.fromList(exportData.bytes),
+      type: FileType.custom,
+      allowedExtensions: ['xlsx'],
+    );
+    if (!mounted) return;
+    if (selectedPath == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export cancelled.')));
+      return;
     }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported: $selectedPath')));
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
   }
+}
 
   Future<void> _importData() async {
     try {
