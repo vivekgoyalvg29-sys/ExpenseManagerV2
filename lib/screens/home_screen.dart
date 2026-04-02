@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -287,9 +288,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _exportData() async {
     try {
-      final exportData = await ExcelTransferService.buildExportFileData();
-      final supportsSaveDialog = !Platform.isLinux && !Platform.isWindows && !Platform.isMacOS;
-      if (supportsSaveDialog) {
+      // On desktop use the native save dialog; on mobile write directly to the
+      // filesystem. file_picker's saveFile(bytes:) on Android routes through SAF
+      // and does not reliably write binary bytes, producing corrupt/empty files.
+      final isDesktop = Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+      if (isDesktop) {
+        final exportData = await ExcelTransferService.buildExportFileData();
         final selectedPath = await FilePicker.platform.saveFile(
           dialogTitle: 'Save exported file',
           fileName: exportData.fileName,
@@ -302,12 +306,14 @@ class _HomeScreenState extends State<HomeScreen> {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export cancelled.')));
           return;
         }
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export completed: $selectedPath')));
-        return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported: $selectedPath')));
+      } else {
+        final path = await ExcelTransferService.exportAllData();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Exported to: $path'), duration: const Duration(seconds: 6)),
+        );
       }
-      final fallbackPath = await ExcelTransferService.exportAllData();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export completed: $fallbackPath')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
@@ -316,9 +322,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _importData() async {
     try {
-      final selected = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['xlsx'], withData: true);
+      // FileType.any avoids Android's MIME-type filter that greys out xlsx files
+      // saved via the filesystem. Extension is validated manually below.
+      final selected = await FilePicker.platform.pickFiles(type: FileType.any, withData: true);
       if (selected == null || selected.files.isEmpty) return;
       final picked = selected.files.first;
+      if (!picked.name.toLowerCase().endsWith('.xlsx')) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select an .xlsx file.')),
+        );
+        return;
+      }
       final bytes = picked.bytes ?? (picked.path == null ? null : await File(picked.path!).readAsBytes());
       if (bytes == null) {
         if (!mounted) return;
@@ -443,7 +458,6 @@ class _HomeScreenState extends State<HomeScreen> {
             width: 200,
             child: SegmentedToggle<ThemeMode>(
               axis: SegmentedToggleAxis.vertical,
-              shrinkWidth: true,
               options: const [
                 SegmentedToggleOption(value: ThemeMode.light, label: 'Light'),
                 SegmentedToggleOption(value: ThemeMode.dark, label: 'Dark'),
@@ -479,7 +493,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: maxW,
                 child: SegmentedToggle<String>(
                   axis: SegmentedToggleAxis.vertical,
-                  shrinkWidth: true,
                   options: AppLocalizations.languageLabels.entries
                       .map(
                         (entry) => SegmentedToggleOption(
@@ -1187,95 +1200,136 @@ class _HomeScreenState extends State<HomeScreen> {
                     stream: _profileService.getMyProfiles(),
                     builder: (ctx, snap) {
                       final profiles = snap.data ?? [];
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: profiles.map((profile) {
-                          final isActive = profile.id == _activeProfileId;
-                          return ListTile(
-                            visualDensity: VisualDensity.compact,
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 14),
-                            leading: Icon(
-                              profile.isDefault
-                                  ? Icons.folder_special_outlined
-                                  : Icons.folder_outlined,
-                              color: isActive
-                                  ? const Color(0xFF4F46E5)
-                                  : null,
-                            ),
-                            title: Text(
-                              profile.name,
-                              style: isActive
-                                  ? const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF4F46E5),
-                                    )
-                                  : null,
-                            ),
-                            subtitle: Text(
-                              profile.isDefault
-                                  ? 'Default'
-                                  : (profile.isShareable ? 'Sharable' : 'Private'),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                  ),
-                            ),
-                            trailing: isActive
-                                ? const Icon(Icons.check,
-                                    color: Color(0xFF4F46E5), size: 18)
-                                : null,
-                            onTap: isActive
-                                ? null
-                                : () async {
-                                    Navigator.of(drawerContext).pop();
-                                    try {
-                                      await _profileService
-                                          .switchProfile(profile.id);
-                                    } catch (_) {}
-                                    if (!mounted) return;
-                                    setState(() {
-                                      _activeProfileId = profile.id;
-                                      _refreshVersion++;
-                                    });
-                                  },
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
-                  menuTile(
-                    icon: Icons.add_circle_outline,
-                    title: 'New profile',
-                    onTap: () async {
-                      Navigator.of(drawerContext).pop();
-                      await _showNewProfileDialog();
-                    },
-                  ),
-                  menuTile(
-                    icon: Icons.qr_code_outlined,
-                    title: 'Join with invite code',
-                    onTap: () async {
-                      Navigator.of(drawerContext).pop();
-                      await _showJoinProfileDialog();
-                    },
-                  ),
-                  menuTile(
-                    icon: Icons.manage_accounts_outlined,
-                    title: 'Manage profiles',
-                    onTap: () async {
-                      Navigator.of(drawerContext).pop();
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ManageProfilesScreen(),
+                      final myPhone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
+
+                      // My Profiles: default + owned non-shareable
+                      final myProfiles = profiles
+                          .where((p) => p.isDefault || (!p.isShareable && p.members[myPhone] == 'owner'))
+                          .toList();
+                      // Shared Profiles: owned shareable + joined as member
+                      final sharedProfiles = profiles
+                          .where((p) => p.isShareable || p.members[myPhone] == 'member')
+                          .toList();
+
+                      Widget subHeader(String label) => Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 6, 14, 1),
+                        child: Text(
+                          label,
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            letterSpacing: 0.3,
+                          ),
                         ),
                       );
-                      await _loadRoleAndProfile();
+
+                      Widget profileTile(ProfileModel profile) {
+                        final isActive = profile.id == _activeProfileId;
+                        return ListTile(
+                          visualDensity: VisualDensity.compact,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                          leading: Icon(
+                            profile.isDefault ? Icons.folder_special_outlined : Icons.folder_outlined,
+                            size: 20,
+                            color: isActive ? const Color(0xFF4F46E5) : null,
+                          ),
+                          title: Text(
+                            profile.name,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
+                              color: isActive ? const Color(0xFF4F46E5) : null,
+                            ),
+                          ),
+                          trailing: isActive
+                              ? const Icon(Icons.check, color: Color(0xFF4F46E5), size: 16)
+                              : null,
+                          onTap: isActive
+                              ? null
+                              : () async {
+                                  Navigator.of(drawerContext).pop();
+                                  try {
+                                    await _profileService.switchProfile(profile.id);
+                                  } catch (_) {}
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _activeProfileId = profile.id;
+                                    _refreshVersion++;
+                                  });
+                                },
+                        );
+                      }
+
+                      Widget actionTile({required IconData icon, required String title, required VoidCallback onTap}) =>
+                          ListTile(
+                            visualDensity: VisualDensity.compact,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                            leading: Icon(icon, size: 20),
+                            title: Text(title, style: const TextStyle(fontSize: 13)),
+                            onTap: onTap,
+                          );
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (myProfiles.isNotEmpty) ...[
+                            subHeader('My Profiles'),
+                            ...myProfiles.map(profileTile),
+                          ],
+                          if (sharedProfiles.isNotEmpty) ...[
+                            subHeader('Shared Profiles'),
+                            ...sharedProfiles.map(profileTile),
+                          ],
+                          actionTile(
+                            icon: Icons.add_circle_outline,
+                            title: 'New profile',
+                            onTap: () async {
+                              Navigator.of(drawerContext).pop();
+                              await _showNewProfileDialog();
+                            },
+                          ),
+                          actionTile(
+                            icon: Icons.qr_code_outlined,
+                            title: 'Join with invite code',
+                            onTap: () async {
+                              Navigator.of(drawerContext).pop();
+                              await _showJoinProfileDialog();
+                            },
+                          ),
+                          actionTile(
+                            icon: Icons.manage_accounts_outlined,
+                            title: 'Manage profiles',
+                            onTap: () async {
+                              Navigator.of(drawerContext).pop();
+                              await showGeneralDialog<void>(
+                                context: context,
+                                barrierDismissible: true,
+                                barrierLabel: 'Close',
+                                barrierColor: const Color(0x66000000),
+                                transitionDuration: const Duration(milliseconds: 220),
+                                transitionBuilder: (ctx, anim, _, child) => FadeTransition(
+                                  opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+                                  child: child,
+                                ),
+                                pageBuilder: (ctx, _, __) => BackdropFilter(
+                                  filter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
+                                  child: Center(
+                                    child: Dialog(
+                                      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                                      clipBehavior: Clip.antiAlias,
+                                      child: SizedBox(
+                                        height: MediaQuery.sizeOf(context).height * 0.85,
+                                        child: const ManageProfilesScreen(),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                              await _loadRoleAndProfile();
+                            },
+                          ),
+                        ],
+                      );
                     },
                   ),
                   const Divider(height: 1, thickness: 1),
@@ -1498,7 +1552,7 @@ class _MenuSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(14, compact ? 4 : 8, 14, compact ? 0 : 2),
+      padding: EdgeInsets.fromLTRB(14, compact ? 2 : 6, 14, compact ? 0 : 2),
       child: Text(
         title,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(

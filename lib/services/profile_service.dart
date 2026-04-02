@@ -642,7 +642,10 @@ class ProfileService {
       for (final doc in snap.docs) {
         batch.delete(doc.reference);
       }
-      await batch.commit();
+      // Fire-and-forget: Firestore's offline persistence applies the deletes to
+      // the local cache immediately, so the next .get() sees them gone. The
+      // server sync happens in the background — no need to await confirmation.
+      batch.commit();
     } while (snap.docs.length == 400);
   }
 }
