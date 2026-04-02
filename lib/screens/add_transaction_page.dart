@@ -26,6 +26,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
 
   final commentController = TextEditingController();
   final amountController = TextEditingController();
+  final _commentFocusNode = FocusNode();
 
   String transactionType = 'expense';
   String? selectedAccount;
@@ -37,6 +38,14 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   @override
   void initState() {
     super.initState();
+    _commentFocusNode.addListener(() {
+      if (!_commentFocusNode.hasFocus && _showCommentSuggestions) {
+        setState(() {
+          _showCommentSuggestions = false;
+          _matchingComments = [];
+        });
+      }
+    });
     _loadData();
 
     if (widget.existingTransaction != null) {
@@ -53,6 +62,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   void dispose() {
     commentController.dispose();
     amountController.dispose();
+    _commentFocusNode.dispose();
     super.dispose();
   }
 
@@ -325,6 +335,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           const SizedBox(height: 10),
           TextField(
             controller: commentController,
+            focusNode: _commentFocusNode,
             textInputAction: TextInputAction.done,
             minLines: 1,
             maxLines: 3,

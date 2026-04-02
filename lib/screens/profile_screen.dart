@@ -97,7 +97,57 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
       );
       if (!confirmed || !mounted) return;
     }
-    _withBusy(() => _profileService.toggleShareable(profile.id, making));
+    await _withBusy(() => _profileService.toggleShareable(profile.id, making));
+    if (making && mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Profile is now sharable'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Share this code with others to let them join:'),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      profile.shareCode,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 6,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy_outlined),
+                    tooltip: 'Copy code',
+                    onPressed: () async {
+                      await Clipboard.setData(
+                        ClipboardData(text: profile.shareCode),
+                      );
+                      if (!ctx.mounted) return;
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Share code copied.')),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Copy later'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _withBusy(Future<void> Function() action) async {

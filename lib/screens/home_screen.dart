@@ -963,15 +963,45 @@ class _HomeScreenState extends State<HomeScreen> {
     if (confirmed != true || name.isEmpty || !mounted) return;
 
     try {
+      final previousProfileId = _activeProfileId;
       final profileId = await _profileService.createProfile(
         name,
         isShareable: isShareable,
       );
       if (!mounted) return;
-      setState(() {
-        _activeProfileId = profileId;
-        _refreshVersion++;
-      });
+      final shouldSwitch = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Switch Profile?'),
+          content: Text('Profile "$name" created. Switch to it now?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Switch'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (shouldSwitch == true) {
+        setState(() {
+          _activeProfileId = profileId;
+          _refreshVersion++;
+        });
+      } else {
+        if (previousProfileId != null) {
+          try {
+            await _profileService.switchProfile(previousProfileId);
+          } catch (_) {}
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Profile "$name" created.')),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -1108,7 +1138,11 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        return Column(
+        bool profilesExpanded = false;
+        bool dataExpanded = false;
+
+        return StatefulBuilder(
+          builder: (_, setMenuState) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
@@ -1183,8 +1217,32 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const Divider(height: 1, thickness: 1),
                   // ---- Profiles section ----
-                  const _MenuSectionHeader('Profiles', compact: true),
-                  StreamBuilder<List<ProfileModel>>(
+                  InkWell(
+                    onTap: () => setMenuState(() => profilesExpanded = !profilesExpanded),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 6, 8, 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Profiles',
+                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ),
+                          Icon(
+                            profilesExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            size: 18,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (profilesExpanded) StreamBuilder<List<ProfileModel>>(
                     stream: _profileService.getMyProfiles(),
                     builder: (ctx, snap) {
                       final profiles = snap.data ?? [];
@@ -1322,13 +1380,40 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const Divider(height: 1, thickness: 1),
                   // ---- End Profiles section ----
-                  const _MenuSectionHeader('Data management', compact: true),
-                  menuTile(icon: Icons.upload_file_outlined, title: 'Export (Excel)', onTap: () => handleSelection('export')),
-                  menuTile(icon: Icons.download_outlined, title: 'Import (Excel)', onTap: () => handleSelection('import')),
-                  menuTile(icon: Icons.playlist_add_check_circle_outlined, title: 'Initialize defaults', onTap: () => handleSelection('initialize_defaults')),
-                  menuTile(icon: Icons.delete_forever_outlined, title: 'Delete everything', onTap: () => handleSelection('delete_everything')),
-                  menuTile(icon: Icons.receipt_long_outlined, title: 'Delete transactions', onTap: () => handleSelection('delete_transactions')),
-                  menuTile(icon: Icons.restart_alt_outlined, title: 'Reset app', onTap: () => handleSelection('reset_app')),
+                  // ---- Data management section ----
+                  InkWell(
+                    onTap: () => setMenuState(() => dataExpanded = !dataExpanded),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 6, 8, 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Data management',
+                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ),
+                          Icon(
+                            dataExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            size: 18,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (dataExpanded) ...[
+                    menuTile(icon: Icons.upload_file_outlined, title: 'Export (Excel)', onTap: () => handleSelection('export')),
+                    menuTile(icon: Icons.download_outlined, title: 'Import (Excel)', onTap: () => handleSelection('import')),
+                    menuTile(icon: Icons.playlist_add_check_circle_outlined, title: 'Initialize defaults', onTap: () => handleSelection('initialize_defaults')),
+                    menuTile(icon: Icons.delete_forever_outlined, title: 'Delete everything', onTap: () => handleSelection('delete_everything')),
+                    menuTile(icon: Icons.receipt_long_outlined, title: 'Delete transactions', onTap: () => handleSelection('delete_transactions')),
+                    menuTile(icon: Icons.restart_alt_outlined, title: 'Reset app', onTap: () => handleSelection('reset_app')),
+                  ],
                   const Divider(height: 1, thickness: 1),
                   const _MenuSectionHeader('Mode'),
                   Padding(
@@ -1391,23 +1476,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}%',
                               onTap: () => handleSelection('customize_visuals'),
                             ),
-                            menuTile(
-                              icon: Icons.language_outlined,
-                              title: 'Language',
-                              subtitle: AppLocalizations.languageLabels[settings.localeCode] ?? 'English',
-                              onTap: () => handleSelection('language'),
-                            ),
                           ],
                         ),
                       ),
                     ],
-                  ),
-                  menuTile(
-                    icon: Icons.sms_outlined,
-                    title: 'Open SMSs',
-                    subtitle: DataStore.isSmsTabVisible ? 'Already enabled' : 'Add SMS tab',
-                    enabled: false,
-                    onTap: () {},
                   ),
                   const Divider(height: 1, thickness: 1),
                   const _MenuSectionHeader('Application'),
@@ -1432,6 +1504,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ],
+          ),
         );
       },
     );
