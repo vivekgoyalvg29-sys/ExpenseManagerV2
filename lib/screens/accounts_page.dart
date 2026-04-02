@@ -17,20 +17,10 @@ class AccountsPage extends StatefulWidget {
 class _AccountsPageState extends State<AccountsPage> {
   Set<int> selectedIndexes = {};
   bool selectionMode = false;
-  String? _userRole;
-
   @override
   void initState() {
     super.initState();
     loadAccounts();
-    _loadRole();
-  }
-
-  Future<void> _loadRole() async {
-    try {
-      final role = await DataService.getCurrentUserRole();
-      if (mounted) setState(() => _userRole = role);
-    } catch (_) {}
   }
 
   Future<void> loadAccounts() async {
@@ -214,9 +204,7 @@ class _AccountsPageState extends State<AccountsPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: _userRole == 'viewer'
-          ? null
-          : selectionMode
+      floatingActionButton: selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,

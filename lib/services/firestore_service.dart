@@ -1,16 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-class PermissionException implements Exception {
-  final String message;
-
-  PermissionException([this.message = 'You do not have permission to perform this action.']);
-
-  @override
-  String toString() => 'PermissionException: $message';
-}
 
 class FirestoreService {
   static final FirestoreService _instance = FirestoreService._();
@@ -64,32 +54,6 @@ class FirestoreService {
     return _firestore.collection('profiles').doc(profileId);
   }
 
-  Future<String> _role() async {
-    final profileId = await _getActiveProfileId();
-    if (profileId == null || profileId.isEmpty) {
-      // No profile set yet — signal with a specific exception so callers can
-      // show a meaningful message instead of a generic permission error.
-      throw Exception(
-        'No active profile found. '
-        'The app is still setting up your account — please wait a moment and try again.',
-      );
-    }
-    final phone = _currentPhone;
-    if (phone.isEmpty) return 'viewer';
-    try {
-      final doc = await _firestore.collection('profiles').doc(profileId).get();
-      if (!doc.exists) return 'viewer';
-      final members = doc.data()?['members'] as Map<String, dynamic>?;
-      return (members?[phone] as String?) ?? 'viewer';
-    } catch (_) {
-      return 'editor'; // Default to editor on error to not block writes
-    }
-  }
-
-  void _assertWrite(String role) {
-    if (role == 'viewer') throw PermissionException();
-  }
-
   int _localIdFromDoc(Map<String, dynamic> data, String docId) {
     return (data['localId'] as num?)?.toInt() ?? docId.hashCode.abs();
   }
@@ -134,8 +98,6 @@ class FirestoreService {
     String account,
     String comment,
   ) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('transactions');
     if (col == null) return;
     final ref = await col.add({
@@ -161,8 +123,6 @@ class FirestoreService {
     String account,
     String comment,
   ) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('transactions');
     if (col == null) return;
     final docId = await _resolveDocId(col, _txDocIds, id);
@@ -178,8 +138,6 @@ class FirestoreService {
   }
 
   Future<void> deleteTransaction(int id) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('transactions');
     if (col == null) return;
     final docId = await _resolveDocId(col, _txDocIds, id);
@@ -190,8 +148,6 @@ class FirestoreService {
   }
 
   Future<void> deleteAllTransactions() async {
-    final role = await _role();
-    _assertWrite(role);
     await _deleteAllInCollection('transactions');
     _txDocIds.clear();
   }
@@ -243,8 +199,6 @@ class FirestoreService {
     int icon, {
     String? iconPath,
   }) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('accounts');
     if (col == null) return;
     final ref = await col.add({
@@ -267,8 +221,6 @@ class FirestoreService {
     int icon, {
     String? iconPath,
   }) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('accounts');
     if (col == null) return;
     final docId = await _resolveDocId(col, _accountDocIds, id);
@@ -282,8 +234,6 @@ class FirestoreService {
   }
 
   Future<void> deleteAccount(int id) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('accounts');
     if (col == null) return;
     final docId = await _resolveDocId(col, _accountDocIds, id);
@@ -298,8 +248,6 @@ class FirestoreService {
     required String type,
     required bool isFavorite,
   }) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('accounts');
     if (col == null) return;
 
@@ -361,8 +309,6 @@ class FirestoreService {
     int icon, {
     String? iconPath,
   }) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('categories');
     if (col == null) return;
     final ref = await col.add({
@@ -385,8 +331,6 @@ class FirestoreService {
     int icon, {
     String? iconPath,
   }) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('categories');
     if (col == null) return;
     final docId = await _resolveDocId(col, _categoryDocIds, id);
@@ -400,8 +344,6 @@ class FirestoreService {
   }
 
   Future<void> deleteCategory(int id) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('categories');
     if (col == null) return;
     final docId = await _resolveDocId(col, _categoryDocIds, id);
@@ -416,8 +358,6 @@ class FirestoreService {
     required String type,
     required bool isFavorite,
   }) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('categories');
     if (col == null) return;
 
@@ -478,8 +418,6 @@ class FirestoreService {
     int month,
     int year,
   ) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('budgets');
     if (col == null) return;
     final ref = await col.add({
@@ -501,8 +439,6 @@ class FirestoreService {
     int month,
     int year,
   ) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('budgets');
     if (col == null) return;
     final docId = await _resolveDocId(col, _budgetDocIds, id);
@@ -516,8 +452,6 @@ class FirestoreService {
   }
 
   Future<void> deleteBudget(int id) async {
-    final role = await _role();
-    _assertWrite(role);
     final col = await _col('budgets');
     if (col == null) return;
     final docId = await _resolveDocId(col, _budgetDocIds, id);
@@ -550,8 +484,6 @@ class FirestoreService {
   // ============ BULK OPERATIONS ============
 
   Future<void> deleteAllData() async {
-    final role = await _role();
-    _assertWrite(role);
     await Future.wait([
       _deleteAllInCollection('transactions'),
       _deleteAllInCollection('budgets'),

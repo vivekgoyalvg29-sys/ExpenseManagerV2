@@ -52,11 +52,11 @@ service cloud.firestore {
       return myPhone() in profileDoc(profileId).members;
     }
 
-    // True when the caller has write access to the profile's data
-    // (role is 'owner' or 'editor', not 'viewer').
-    function canEdit(profileId) {
-      return profileDoc(profileId).members[myPhone()] in ['owner', 'editor'];
-    }
+                // True when the caller has write access to the profile's data.
+                // All members (owner and member) can write — viewer role removed.
+                function canEdit(profileId) {
+                  return isMember(profileId);
+                }
 
     // ── users/{phone} ───────────────────────────────────────────────────────
 
@@ -107,7 +107,7 @@ service cloud.firestore {
           && request.resource.data.members.keys().toSet()
                == resource.data.members.keys().toSet()
                     .union([myPhone()].toSet())
-          && request.resource.data.members[myPhone()] in ['editor', 'viewer']
+                      && request.resource.data.members[myPhone()] in ['member', 'editor', 'viewer']
         )
       );
 

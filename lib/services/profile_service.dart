@@ -22,78 +22,62 @@ class ProfileService {
 
   String get _currentPhone => _auth.currentUser?.phoneNumber ?? '';
 
+  // ─── Deterministic default profile ID ─────────────────────────────────────
+
+  /// Returns the deterministic Firestore document ID for a user's default profile.
+  /// Derived from the phone number so it is known immediately at login, with
+  /// zero network calls.
+  static String defaultProfileId(String phone) => 'default_$phone';
+
+  /// Derives a 6-char share code from the phone number without any network call.
+  /// Used only for the default profile. Custom profiles still use random codes.
+  static String _deriveShareCode(String phone) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    var hash = phone.hashCode.abs();
+    final code = StringBuffer();
+    for (int i = 0; i < 6; i++) {
+      code.write(chars[hash % 36]);
+      hash = (hash * 31 + i + 1) % 2147483647;
+    }
+    return code.toString();
+  }
+
   // ─── Initialization ────────────────────────────────────────────────────────
 
-  /// Called once after login. Creates the default profile for new users, or
-  /// performs migration (adds isDefault flag) for existing accounts.
-  Future<void> initializeUserOnFirstLogin() async {
+  /// Ensures the default profile document exists in Firestore.
+  ///
+  /// Uses `set(merge: true)` so it is fully idempotent — safe to call on every
+  /// login. With offline persistence enabled, the write is applied to the local
+  /// Firestore cache immediately (no network needed), so the profile appears in
+  /// the real-time stream essentially instantly.
+  Future<void> ensureDefaultProfileExists() async {
     final phone = _currentPhone;
     if (phone.isEmpty) return;
 
-    final userDoc = await _firestore.collection('users').doc(phone).get();
-    final profileIds = ((userDoc.data()?['profiles']) as List?)
-            ?.map((e) => e.toString())
-            .toList() ??
-        [];
+    final profileId = defaultProfileId(phone);
+    final shareCode = _deriveShareCode(phone);
 
-    if (profileIds.isEmpty) {
-      await _createDefaultProfile(phone);
-      return;
-    }
-
-    // Migration: ensure at least one profile is flagged as default
-    bool hasDefault = false;
-    for (final id in profileIds) {
-      try {
-        final doc = await _firestore.collection('profiles').doc(id).get();
-        if (doc.exists && (doc.data()?['isDefault'] as bool? ?? false)) {
-          hasDefault = true;
-          break;
-        }
-      } catch (_) {}
-    }
-    if (!hasDefault) {
-      try {
-        await _firestore
-            .collection('profiles')
-            .doc(profileIds.first)
-            .update({'isDefault': true});
-      } catch (_) {}
-    }
-
-    // Ensure active profile is set
-    final activeId = await getActiveProfileId();
-    if (activeId == null || activeId.isEmpty) {
-      await switchProfile(profileIds.first);
-    }
-  }
-
-  Future<void> _createDefaultProfile(String phone) async {
-    final shareCode = await _generateShareCode();
-    final profileRef = _firestore.collection('profiles').doc();
-    final profileId = profileRef.id;
-
-    await profileRef.set({
-      'name': 'Default',
-      'isDefault': true,
-      'isShareable': false,
-      'shareCode': shareCode,
-      'shareCodeActive': false,
-      'defaultMemberRole': 'editor',
-      'createdBy': phone,
-      'createdAt': FieldValue.serverTimestamp(),
-      'members': {phone: 'owner'},
-    });
-
-    await _firestore.collection('users').doc(phone).set(
+    await _firestore.collection('profiles').doc(profileId).set(
       {
-        'activeProfileId': profileId,
-        'profiles': [profileId],
+        'name': 'Default',
+        'isDefault': true,
+        'isShareable': false,
+        'shareCode': shareCode,
+        'shareCodeActive': false,
+        'createdBy': phone,
+        'createdAt': FieldValue.serverTimestamp(),
+        'members': {phone: 'owner'},
       },
       SetOptions(merge: true),
     );
 
-    await switchProfile(profileId);
+    await _firestore.collection('users').doc(phone).set(
+      {
+        'activeProfileId': profileId,
+        'profiles': FieldValue.arrayUnion([profileId]),
+      },
+      SetOptions(merge: true),
+    );
   }
 
   // ─── Profile CRUD ──────────────────────────────────────────────────────────
@@ -102,7 +86,6 @@ class ProfileService {
   Future<String> createProfile(
     String name, {
     bool isShareable = false,
-    String defaultMemberRole = 'editor',
   }) async {
     final phone = _currentPhone;
     if (phone.isEmpty) throw Exception('Not logged in');
@@ -117,7 +100,6 @@ class ProfileService {
       'isShareable': isShareable,
       'shareCode': shareCode,
       'shareCodeActive': isShareable,
-      'defaultMemberRole': defaultMemberRole,
       'createdBy': phone,
       'createdAt': FieldValue.serverTimestamp(),
       'members': {phone: 'owner'},
@@ -212,14 +194,14 @@ class ProfileService {
     }
   }
 
-  /// Returns the current user's role in the active profile.
+  /// Returns the current user's role in the active profile ('owner' or 'member').
   Future<String?> getCurrentUserRole() async {
     final profileId = await getActiveProfileId();
     if (profileId == null) return null;
     return getRoleInProfile(profileId);
   }
 
-  /// Returns the current user's role in a specific profile.
+  /// Returns the current user's role in a specific profile ('owner' or 'member').
   Future<String?> getRoleInProfile(String profileId) async {
     final phone = _currentPhone;
     if (phone.isEmpty) return null;
@@ -228,7 +210,9 @@ class ProfileService {
           await _firestore.collection('profiles').doc(profileId).get();
       if (!doc.exists) return null;
       final members = doc.data()?['members'] as Map<String, dynamic>?;
-      return members?[phone] as String?;
+      final raw = members?[phone] as String?;
+      if (raw == null) return null;
+      return raw == 'owner' ? 'owner' : 'member';
     } catch (_) {
       return null;
     }
@@ -236,7 +220,7 @@ class ProfileService {
 
   // ─── Sharing ───────────────────────────────────────────────────────────────
 
-  /// Joins a profile by its share code. Assigns the profile's defaultMemberRole.
+  /// Joins a profile by its share code. New members join with the 'member' role.
   Future<ProfileModel> joinProfileByCode(String code) async {
     final phone = _currentPhone;
     if (phone.isEmpty) throw Exception('Not logged in');
@@ -318,12 +302,10 @@ class ProfileService {
       return model;
     }
 
-    final role = model.defaultMemberRole;
-
-    // Atomic write to prevent race conditions
+    // Atomic write to prevent race conditions; all joiners are 'member'
     await _firestore.runTransaction((tx) async {
       final ref = _firestore.collection('profiles').doc(profileId);
-      tx.update(ref, {'members.$phone': role});
+      tx.update(ref, {'members.$phone': 'member'});
     });
 
     await _firestore.collection('users').doc(phone).set(
@@ -333,7 +315,7 @@ class ProfileService {
 
     return ProfileModel.fromMap(profileId, {
       ...data,
-      'members': {...model.members, phone: role},
+      'members': {...model.members, phone: 'member'},
     });
   }
 
@@ -341,7 +323,7 @@ class ProfileService {
   Future<void> updateProfileName(String profileId, String newName) async {
     final role = await getRoleInProfile(profileId);
     if (role != 'owner') {
-      throw PermissionException('Only the owner can rename this profile');
+      throw Exception('Only the owner can rename this profile');
     }
     await _firestore
         .collection('profiles')
@@ -360,7 +342,7 @@ class ProfileService {
     final data = doc.data()!;
     final members = data['members'] as Map<String, dynamic>? ?? {};
     if (members[phone] != 'owner') {
-      throw PermissionException('Only the owner can change profile settings');
+      throw Exception('Only the owner can change profile settings');
     }
 
     if (!isShareable) {
@@ -406,44 +388,13 @@ class ProfileService {
     }
   }
 
-  /// Updates the default member role for a sharable profile. Owner-only.
-  Future<void> updateDefaultMemberRole(
-    String profileId,
-    String role,
-  ) async {
-    final myRole = await getRoleInProfile(profileId);
-    if (myRole != 'owner') {
-      throw PermissionException('Only the owner can change profile settings');
-    }
-    await _firestore
-        .collection('profiles')
-        .doc(profileId)
-        .update({'defaultMemberRole': role});
-  }
-
-  /// Updates a member's role. Owner-only.
-  Future<void> updateMemberRole(
-    String profileId,
-    String memberPhone,
-    String role,
-  ) async {
-    final myRole = await getRoleInProfile(profileId);
-    if (myRole != 'owner') {
-      throw PermissionException('Only the owner can change member roles');
-    }
-    await _firestore
-        .collection('profiles')
-        .doc(profileId)
-        .update({'members.$memberPhone': role});
-  }
-
   // ─── Membership ────────────────────────────────────────────────────────────
 
   /// Removes a member from a profile and notifies them. Owner-only.
   Future<void> removeMember(String profileId, String memberPhone) async {
     final myRole = await getRoleInProfile(profileId);
     if (myRole != 'owner') {
-      throw PermissionException('Only the owner can remove members');
+      throw Exception('Only the owner can remove members');
     }
 
     final doc =
@@ -503,7 +454,7 @@ class ProfileService {
     final data = doc.data()!;
     final members = data['members'] as Map<String, dynamic>? ?? {};
     if (members[phone] != 'owner') {
-      throw PermissionException('Only the owner can delete this profile');
+      throw Exception('Only the owner can delete this profile');
     }
     if (data['isDefault'] as bool? ?? false) {
       throw Exception('The default profile cannot be deleted');
@@ -648,28 +599,8 @@ class ProfileService {
   Future<void> _switchToDefaultProfile() async {
     final phone = _currentPhone;
     if (phone.isEmpty) return;
-    try {
-      final snap = await _firestore
-          .collection('profiles')
-          .where('createdBy', isEqualTo: phone)
-          .where('isDefault', isEqualTo: true)
-          .limit(1)
-          .get();
-      if (snap.docs.isNotEmpty) {
-        await switchProfile(snap.docs.first.id);
-        return;
-      }
-      // Fallback: use first profile in user doc
-      final userDoc =
-          await _firestore.collection('users').doc(phone).get();
-      final profileIds = ((userDoc.data()?['profiles']) as List?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [];
-      if (profileIds.isNotEmpty) {
-        await switchProfile(profileIds.first);
-      }
-    } catch (_) {}
+    // The default profile ID is deterministic — no Firestore read required.
+    await switchProfile(defaultProfileId(phone));
   }
 
   Future<String> _generateShareCode() async {

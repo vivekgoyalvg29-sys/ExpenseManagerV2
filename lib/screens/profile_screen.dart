@@ -189,7 +189,6 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
   void _showCreateProfileSheet() {
     final nameCtrl = TextEditingController();
     bool isShareable = false;
-    String defaultRole = 'editor';
 
     showModalBottomSheet<void>(
       context: context,
@@ -235,35 +234,6 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
                     value: isShareable,
                     onChanged: (v) => setSheet(() => isShareable = v),
                   ),
-                  if (isShareable) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'New members join as:',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    Row(
-                      children: [
-                        for (final pair in [
-                          ('editor', 'Editor'),
-                          ('viewer', 'View only'),
-                        ])
-                          Expanded(
-                            child: RadioListTile<String>(
-                              title: Text(
-                                pair.$2,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                              value: pair.$1,
-                              groupValue: defaultRole,
-                              onChanged: (v) =>
-                                  setSheet(() => defaultRole = v!),
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -284,7 +254,6 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
                               await _profileService.createProfile(
                                 name,
                                 isShareable: isShareable,
-                                defaultMemberRole: defaultRole,
                               );
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -599,13 +568,6 @@ class _OwnedProfileCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'New members: ${profile.defaultMemberRole == 'editor' ? 'Editor' : 'View only'}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
-            ),
           ],
           const SizedBox(height: 12),
           Row(
@@ -658,7 +620,6 @@ class _JoinedProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final role = profile.members[myPhone] ?? 'viewer';
     return SectionTile(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -675,12 +636,7 @@ class _JoinedProfileCard extends StatelessWidget {
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
-              _Badge(
-                role == 'editor' ? 'Editor' : 'View only',
-                role == 'editor'
-                    ? Colors.green.shade700
-                    : cs.onSurfaceVariant,
-              ),
+              _Badge('Member', cs.onSurfaceVariant),
             ],
           ),
           const SizedBox(height: 4),

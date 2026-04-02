@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'screens/add_transaction_page.dart';
 import 'screens/auth/phone_auth_screen.dart';
 import 'screens/home_screen.dart';
@@ -202,11 +204,26 @@ class _PostLoginInitScreenState extends State<_PostLoginInitScreen> {
 
   Future<void> _init() async {
     try {
-      final migrationService = MigrationService();
-      final profileService = ProfileService();
+      final phone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
 
-      // On first run after Firebase integration: wipe all SQLite data so the
-      // old local-only records can never bleed into any Firebase-backed profile.
+      // Step 1 — Instantly set active_profile_id from the deterministic default
+      // profile ID. No network call required. This ensures every subsequent
+      // operation has a valid profile ID from the very first frame.
+      if (phone.isNotEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        final existing = prefs.getString('active_profile_id');
+        if (existing == null || existing.isEmpty) {
+          await prefs.setString(
+            'active_profile_id',
+            ProfileService.defaultProfileId(phone),
+          );
+          FirestoreService().clearCaches();
+        }
+      }
+
+      // Step 2 — One-time SQLite wipe on the first run after Firebase
+      // integration, so old local-only data never contaminates Firestore profiles.
+      final migrationService = MigrationService();
       if (!await migrationService.hasMigrated()) {
         try {
           await DatabaseService.deleteAllData();
@@ -214,24 +231,12 @@ class _PostLoginInitScreenState extends State<_PostLoginInitScreen> {
         await migrationService.markDone();
       }
 
-      // Initialize user profile state (creates default profile for new users,
-      // or ensures an active profile is set for returning users).
-      // 10 s timeout — if it fails the user lands on HomeScreen with empty data.
-      try {
-        await profileService
-            .initializeUserOnFirstLogin()
-            .timeout(const Duration(seconds: 10));
-      } catch (_) {}
-
-      // Safety-net: if no active profile was set (e.g. Firestore timeout),
-      // clear any leftover SQLite data so the fallback shows empty, not stale.
-      try {
-        final activeId = await profileService.getActiveProfileId();
-        if (activeId == null || activeId.isEmpty) {
-          await DatabaseService.deleteAllData();
-          FirestoreService().clearCaches();
-        }
-      } catch (_) {}
+      // Step 3 — Background: ensure the default profile document exists in
+      // Firestore. With offline persistence this hits the local cache
+      // immediately, so the profile appears in the real-time stream at once.
+      if (phone.isNotEmpty) {
+        ProfileService().ensureDefaultProfileExists().catchError((_) {});
+      }
     } catch (_) {}
 
     if (mounted) setState(() => _initializing = false);
