@@ -1291,36 +1291,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const Divider(height: 1, thickness: 1),
                   // ---- Profiles section ----
-                  InkWell(
-                    onTap: () => setMenuState(() => profilesExpanded = !profilesExpanded),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 6, 8, 4),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Profiles',
-                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
-                          ),
-                          Icon(
-                            profilesExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                            size: 18,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (profilesExpanded) StreamBuilder<List<ProfileModel>>(
+                  StreamBuilder<List<ProfileModel>>(
                     stream: _profileService.getMyProfiles(),
                     builder: (ctx, snap) {
                       final profiles = snap.data ?? [];
                       final myPhone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
+
+                      // Active profile — used to label the header
+                      final activeProfile = profiles.cast<ProfileModel?>().firstWhere(
+                        (p) => p?.id == _activeProfileId,
+                        orElse: () => null,
+                      );
+                      final activeLabel = activeProfile != null
+                          ? ' (${activeProfile.name} · ${activeProfile.isShareable ? 'Shared' : 'Private'})'
+                          : '';
 
                       // My Profiles: default + owned non-shareable
                       final myProfiles = profiles
@@ -1392,62 +1376,101 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (myProfiles.isNotEmpty) ...[
-                            subHeader('My Profiles'),
-                            ...myProfiles.map(profileTile),
-                          ],
-                          if (sharedProfiles.isNotEmpty) ...[
-                            subHeader('Shared Profiles'),
-                            ...sharedProfiles.map(profileTile),
-                          ],
-                          actionTile(
-                            icon: Icons.add_circle_outline,
-                            title: 'New profile',
-                            onTap: () async {
-                              Navigator.of(drawerContext).pop();
-                              await _showNewProfileDialog();
-                            },
-                          ),
-                          actionTile(
-                            icon: Icons.qr_code_outlined,
-                            title: 'Join with invite code',
-                            onTap: () async {
-                              Navigator.of(drawerContext).pop();
-                              await _showJoinProfileDialog();
-                            },
-                          ),
-                          actionTile(
-                            icon: Icons.manage_accounts_outlined,
-                            title: 'Manage profiles',
-                            onTap: () async {
-                              Navigator.of(drawerContext).pop();
-                              await showGeneralDialog<void>(
-                                context: context,
-                                barrierDismissible: true,
-                                barrierLabel: 'Close',
-                                barrierColor: const Color(0x66000000),
-                                transitionDuration: const Duration(milliseconds: 220),
-                                transitionBuilder: (ctx, anim, _, child) => FadeTransition(
-                                  opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
-                                  child: child,
-                                ),
-                                pageBuilder: (ctx, _, __) => BackdropFilter(
-                                  filter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
-                                  child: Center(
-                                    child: Dialog(
-                                      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-                                      clipBehavior: Clip.antiAlias,
-                                      child: SizedBox(
-                                        height: MediaQuery.sizeOf(context).height * 0.85,
-                                        child: const ManageProfilesScreen(),
+                          InkWell(
+                            onTap: () => setMenuState(() => profilesExpanded = !profilesExpanded),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(14, 6, 8, 4),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: RichText(
+                                      text: TextSpan(
+                                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                        children: [
+                                          const TextSpan(text: 'Profiles'),
+                                          if (activeLabel.isNotEmpty)
+                                            TextSpan(
+                                              text: activeLabel,
+                                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                fontWeight: FontWeight.normal,
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
                                   ),
-                                ),
-                              );
-                              await _loadRoleAndProfile();
-                            },
+                                  Icon(
+                                    profilesExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                    size: 18,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
+                              ),
+                            ),
                           ),
+                          if (profilesExpanded) ...[
+                            if (myProfiles.isNotEmpty) ...[
+                              subHeader('My Profiles'),
+                              ...myProfiles.map(profileTile),
+                            ],
+                            if (sharedProfiles.isNotEmpty) ...[
+                              subHeader('Shared Profiles'),
+                              ...sharedProfiles.map(profileTile),
+                            ],
+                            actionTile(
+                              icon: Icons.add_circle_outline,
+                              title: 'New profile',
+                              onTap: () async {
+                                Navigator.of(drawerContext).pop();
+                                await _showNewProfileDialog();
+                              },
+                            ),
+                            actionTile(
+                              icon: Icons.qr_code_outlined,
+                              title: 'Join with invite code',
+                              onTap: () async {
+                                Navigator.of(drawerContext).pop();
+                                await _showJoinProfileDialog();
+                              },
+                            ),
+                            actionTile(
+                              icon: Icons.manage_accounts_outlined,
+                              title: 'Manage profiles',
+                              onTap: () async {
+                                Navigator.of(drawerContext).pop();
+                                await showGeneralDialog<void>(
+                                  context: context,
+                                  barrierDismissible: true,
+                                  barrierLabel: 'Close',
+                                  barrierColor: const Color(0x66000000),
+                                  transitionDuration: const Duration(milliseconds: 220),
+                                  transitionBuilder: (ctx, anim, _, child) => FadeTransition(
+                                    opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+                                    child: child,
+                                  ),
+                                  pageBuilder: (ctx, _, __) => BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
+                                    child: Center(
+                                      child: Dialog(
+                                        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: SizedBox(
+                                          height: MediaQuery.sizeOf(context).height * 0.85,
+                                          child: const ManageProfilesScreen(),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                                await _loadRoleAndProfile();
+                              },
+                            ),
+                          ],
                         ],
                       );
                     },
