@@ -13,8 +13,9 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="March-26"
-        android:textColor="#777777"
-        android:textSize="10sp" />
+        android:textColor="#AAAAAA"
+        android:textSize="14sp"
+        android:textStyle="bold" />
 
     <TextView
         android:id="@+id/widget_expense"
@@ -22,7 +23,7 @@
         android:layout_height="wrap_content"
         android:text="₹0"
         android:textColor="#FFFFFF"
-        android:textSize="16sp"
+        android:textSize="14sp"
         android:textStyle="bold" />
 
 </LinearLayout>

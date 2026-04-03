@@ -38,7 +38,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const String _firstRunInitPromptedKey = 'first_run_init_prompted';
+  static String _firstRunKey(String profileId) =>
+      'first_run_init_prompted_$profileId';
   late int currentIndex;
   int _refreshVersion = 0;
   String _appVersion = 'v1.0.0';
@@ -882,15 +883,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _ensureFirstRunInitializationPrompt() async {
+    final profileId = await _profileService.getActiveProfileId();
+    if (profileId == null || !mounted) return;
     final prefs = await SharedPreferences.getInstance();
-    final prompted = prefs.getBool(_firstRunInitPromptedKey) ?? false;
+    final key = _firstRunKey(profileId);
+    final prompted = prefs.getBool(key) ?? false;
     if (prompted || !mounted) return;
 
-    await prefs.setBool(_firstRunInitPromptedKey, true);
-    await _showInitializeDefaultsDialog(fromMenu: false);
+    await prefs.setBool(key, true);
+    await _showInitializeDefaultsDialog(fromMenu: false, targetProfileId: profileId);
   }
 
-  Future<void> _showInitializeDefaultsDialog({required bool fromMenu}) async {
+  Future<void> _showInitializeDefaultsDialog({
+    required bool fromMenu,
+    String? targetProfileId,
+  }) async {
     if (!mounted) return;
     final shouldInitialize = await showDialog<bool>(
       context: context,
@@ -911,7 +918,19 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
-    if (shouldInitialize != true) return;
+    if (shouldInitialize != true) {
+      if (!fromMenu && !mounted) return;
+      if (!fromMenu) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'You can initialize defaults later from Main Menu > Data management.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
     if (!mounted) return;
 
     BuildContext? progressCtx;
@@ -935,7 +954,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     int created = 0;
     try {
-      created = await DataService.initializeDefaultCategoriesAndAccounts();
+      if (targetProfileId != null) {
+        created = await DataService.initializeDefaultCategoriesAndAccountsForProfile(
+            targetProfileId);
+      } else {
+        created = await DataService.initializeDefaultCategoriesAndAccounts();
+      }
     } finally {
       final dlg = progressCtx;
       if (dlg != null && dlg.mounted) {
@@ -1045,6 +1069,13 @@ class _HomeScreenState extends State<HomeScreen> {
           SnackBar(content: Text('Profile "$name" created.')),
         );
       }
+
+      // Step 2: offer to initialize defaults for the newly created profile
+      if (!mounted) return;
+      await _showInitializeDefaultsDialog(
+        fromMenu: false,
+        targetProfileId: profileId,
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)

@@ -1,126 +1,58 @@
 rules_version = '2';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// WhereIsMyMoney – Firestore Security Rules
-//
-// Data model
-// ──────────
-//   users/{phone}
-//       activeProfileId : string
-//       profiles        : string[]
-//       revokedProfiles : map[]    (temporary notification list)
-//
-//   profiles/{profileId}
-//       name            : string
-//       isDefault       : bool
-//       isShareable     : bool
-//       shareCode       : string   (6-char, always present)
-//       shareCodeActive : bool
-//       createdBy       : phone string
-//       members         : { phone: 'owner' | 'member' }
-//
-//   profiles/{profileId}/transactions/{docId}
-//   profiles/{profileId}/accounts/{docId}
-//   profiles/{profileId}/categories/{docId}
-//   profiles/{profileId}/budgets/{docId}
-// ─────────────────────────────────────────────────────────────────────────────
+// Target database: krchabookdb
+// Apply these rules in Firebase Console → Firestore → Rules (select krchabookdb database)
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helper functions ────────────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────────────────
 
-    // True when the caller is authenticated via Firebase phone auth.
-    function isSignedIn() {
-      return request.auth != null && request.auth.token.phone_number != null;
+    function isAuthed() {
+      return request.auth != null;
     }
 
-    // The caller's phone number (e.g. "+919876543210").
+    // Phone number stored in the JWT by Firebase Phone Auth
     function myPhone() {
       return request.auth.token.phone_number;
     }
 
-    // Fetch the profile document to inspect membership. Reads inside rules
-    // are free and do not count against your quota.
-    function profileDoc(profileId) {
-      return get(/databases/$(database)/documents/profiles/$(profileId)).data;
-    }
-
-    // True when the caller is listed in the profile's members map.
+    // Any authenticated user whose phone appears in the profile's members map
     function isMember(profileId) {
-      return myPhone() in profileDoc(profileId).members;
+      return isAuthed() &&
+        get(/databases/$(database)/documents/profiles/$(profileId))
+          .data.members[myPhone()] != null;
     }
 
-    // True when the caller has write access to the profile's data.
-    // All members (owner and member) can write.
-    function canEdit(profileId) {
-      return isMember(profileId);
+    // Only the owner may delete/restructure the profile itself
+    function isOwner(profileId) {
+      return isAuthed() &&
+        get(/databases/$(database)/documents/profiles/$(profileId))
+          .data.members[myPhone()] == 'owner';
     }
 
-    // ── users/{phone} ───────────────────────────────────────────────────────
-
-    match /users/{userPhone} {
-      // Only the owner can read their own user document.
-      allow read: if isSignedIn() && myPhone() == userPhone;
-
-      // Write rules:
-      //  • A user always writes to their own document (active profile, joining).
-      //  • A profile OWNER also writes to OTHER members' user documents when
-      //    revoking access or removing a member (see ProfileService). We cannot
-      //    cheaply verify the caller is an owner of a shared profile without an
-      //    extra read, so we permit writes by any authenticated user. The app
-      //    only ever writes known fields (profiles[], revokedProfiles[],
-      //    activeProfileId), limiting the blast radius.
-      allow write: if isSignedIn();
-    }
-
-    // ── profiles/{profileId} ────────────────────────────────────────────────
+    // ── Profiles ─────────────────────────────────────────────────────────────
 
     match /profiles/{profileId} {
+      // Any member can read the profile document (needed for share-code display etc.)
+      allow read: if isMember(profileId);
+      // Any authenticated user can create a profile (owner sets themselves as member)
+      allow create: if isAuthed();
+      // Any member can update the profile document (rename, toggle shareable, etc.)
+      allow update: if isMember(profileId);
+      // Only the owner can delete the profile
+      allow delete: if isOwner(profileId);
 
-      // Any signed-in user can READ profile documents.
-      // Required so a non-member can query by shareCode in the join flow and
-      // so ProfileService can look up share-code uniqueness when generating codes.
-      allow read: if isSignedIn();
-
-      // Any signed-in user can CREATE a profile (the app always sets the creator
-      // as 'owner' in the members map).
-      allow create: if isSignedIn();
-
-      // UPDATE is allowed in two distinct situations:
-      //   1. The caller is already a member of this profile (any role). This
-      //      covers: owner changing settings, owner revoking shareable, owner
-      //      renaming, owner removing members, member leaving, etc.
-      //   2. The caller is NOT yet a member and is adding only themselves as a
-      //      new member with a non-owner role (the join-by-code flow).
-      allow update: if isSignedIn() && (
-        // Case 1 – existing member
-        myPhone() in resource.data.members
-        ||
-        // Case 2 – joining: only the 'members' map changes, only the caller's
-        // own phone is being added, and the role is not 'owner'.
-        (
-          request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['members'])
-          && !(myPhone() in resource.data.members)
-          && request.resource.data.members.keys().toSet()
-               == resource.data.members.keys().toSet()
-                    .union([myPhone()].toSet())
-                      && request.resource.data.members[myPhone()] in ['member', 'editor', 'viewer']
-        )
-      );
-
-      // Only the profile owner can delete a profile document.
-      allow delete: if isSignedIn()
-        && resource.data.members[myPhone()] == 'owner';
-
-      // ── Subcollections: transactions / accounts / categories / budgets ────
-
-      match /{subcollection}/{docId} {
-        allow read:  if isSignedIn() && isMember(profileId);
-        allow write: if isSignedIn() && canEdit(profileId);
+      // ── Sub-collections (categories, accounts, transactions, budgets) ──────
+      match /{collection}/{docId} {
+        allow read:  if isMember(profileId);
+        allow write: if isMember(profileId);
       }
     }
 
+    // ── Users ────────────────────────────────────────────────────────────────
+    // Each user document is keyed by phone number; only that user may access it.
+    match /users/{phone} {
+      allow read, write: if isAuthed() && myPhone() == phone;
+    }
   }
 }
