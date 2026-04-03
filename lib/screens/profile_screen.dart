@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models.dart';
+import '../services/data_service.dart';
 import '../services/profile_service.dart';
 import '../widgets/section_tile.dart';
 
@@ -300,19 +301,15 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
                             final name = nameCtrl.text.trim();
                             if (name.isEmpty) return;
                             Navigator.pop(sheetCtx);
+                            String? newProfileId;
                             await _withBusy(() async {
-                              await _profileService.createProfile(
+                              newProfileId = await _profileService.createProfile(
                                 name,
                                 isShareable: isShareable,
                               );
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Profile "$name" created.'),
-                                  ),
-                                );
-                              }
                             });
+                            if (newProfileId == null || !mounted) return;
+                            await _showPostCreateFlow(name, newProfileId!);
                           },
                           child: const Text('Create'),
                         ),
@@ -327,6 +324,126 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
       ),
     );
     nameCtrl.addListener(() {});
+  }
+
+  /// Two-step post-creation flow:
+  /// Step 1 — offer to switch to the new profile.
+  /// Step 2 — offer to initialize defaults for it.
+  Future<void> _showPostCreateFlow(String name, String profileId) async {
+    if (!mounted) return;
+
+    // Step 1: switch?
+    final shouldSwitch = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Switch Profile?'),
+        content: Text('Profile "$name" created. Switch to it now?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Switch'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+
+    if (shouldSwitch == true) {
+      await _withBusy(() => _profileService.switchProfile(profileId));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Switched to "$name".')));
+    } else {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Profile "$name" created.')));
+    }
+
+    // Step 2: initialize defaults?
+    if (!mounted) return;
+    final shouldInit = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Initialize defaults?'),
+        content: const Text(
+          'Create default categories and accounts for this profile?\n\n'
+          'You can do this later from Main Menu > Data management.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+
+    if (shouldInit == true) {
+      BuildContext? progressCtx;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) {
+          progressCtx = ctx;
+          return const AlertDialog(
+            content: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Text('Creating defaults…'),
+              ],
+            ),
+          );
+        },
+      );
+      int created = 0;
+      try {
+        created = await DataService
+            .initializeDefaultCategoriesAndAccountsForProfile(profileId);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      } finally {
+        final dlg = progressCtx;
+        if (dlg != null && dlg.mounted) {
+          Navigator.of(dlg).pop();
+        } else if (mounted) {
+          Navigator.of(context).pop();
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              created == 0
+                  ? 'Defaults are already available.'
+                  : 'Added $created default categories/accounts.',
+            ),
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'You can initialize defaults later from Main Menu > Data management.',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _showJoinCodeDialog() async {

@@ -696,18 +696,7 @@ class _RecordsPageState extends State<RecordsPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                FloatingActionButton.small(
-                  heroTag: 'scanQrFab',
-                  onPressed: _openQrScannerFlow,
-                  tooltip: 'Scan QR',
-                  child: _isProcessingQr
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.qr_code_scanner),
-                ),
+                // QR scanner temporarily hidden — will be re-enabled in a future release
                 const SizedBox(height: 10),
                 FloatingActionButton(
                   heroTag: 'addRecordFab',

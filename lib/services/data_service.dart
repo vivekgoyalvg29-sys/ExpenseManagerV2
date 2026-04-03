@@ -248,4 +248,16 @@ class DataService {
 
   static Future<int> initializeDefaultCategoriesAndAccounts() =>
       _instance._fs.initializeDefaultCategoriesAndAccounts();
+
+  /// Runs default category/account initialization scoped to [profileId],
+  /// regardless of whichever profile is currently active in SharedPreferences.
+  static Future<int> initializeDefaultCategoriesAndAccountsForProfile(
+      String profileId) async {
+    _instance._fs.setImportOverride(profileId);
+    try {
+      return await _instance._fs.initializeDefaultCategoriesAndAccounts();
+    } finally {
+      _instance._fs.setImportOverride(null);
+    }
+  }
 }

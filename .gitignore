@@ -1,2 +1,47 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+
+# Gradle files
+android/.gradle
+android/local.properties
+
+# Generated files
+android/app/src/main/java/
+ios/Flutter/GeneratedPluginRegistrant.swift
+ios/Flutter/flutter_export_environment.sh
+ios/Runner/GeneratedPluginRegistrant.h
+ios/Runner/GeneratedPluginRegistrant.m
+
+# Secrets / Firebase config — injected at CI time, never committed
+**/google-services.json
+**/GoogleService-Info.plist
+android/app/fintrack.jks
+
+# Env / node
 .env
 node_modules/
