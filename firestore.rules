@@ -16,14 +16,26 @@ service cloud.firestore {
       return request.auth.token.phone_number;
     }
 
-    // Any authenticated user whose phone appears in the profile's members map
+    // Checks membership using resource.data (the document already in hand).
+    // Use this for rules on the profile document itself to avoid a circular
+    // get() call (i.e. fetching the same doc the rule is evaluating).
+    function isMemberByData() {
+      return isAuthed() && resource.data.members[myPhone()] != null;
+    }
+
+    function isOwnerByData() {
+      return isAuthed() && resource.data.members[myPhone()] == 'owner';
+    }
+
+    // Checks membership via a get() on the parent profile document.
+    // Safe to use only from sub-collection rules (where profileId is the
+    // parent, not the current document — so no circular reference).
     function isMember(profileId) {
       return isAuthed() &&
         get(/databases/$(database)/documents/profiles/$(profileId))
           .data.members[myPhone()] != null;
     }
 
-    // Only the owner may delete/restructure the profile itself
     function isOwner(profileId) {
       return isAuthed() &&
         get(/databases/$(database)/documents/profiles/$(profileId))
@@ -33,16 +45,25 @@ service cloud.firestore {
     // ── Profiles ─────────────────────────────────────────────────────────────
 
     match /profiles/{profileId} {
-      // Any member can read the profile document (needed for share-code display etc.)
-      allow read: if isMember(profileId);
-      // Any authenticated user can create a profile (owner sets themselves as member)
+      // Any authenticated user can read profile documents.
+      // This is intentionally permissive so that:
+      //   • getMyProfiles() list queries work without circular get() errors
+      //   • joinProfileByCode() can look up profiles by shareCode before joining
+      //   • _generateShareCode() can check uniqueness across all profiles
+      allow read: if isAuthed();
+
+      // Any authenticated user can create a profile (they add themselves as owner)
       allow create: if isAuthed();
-      // Any member can update the profile document (rename, toggle shareable, etc.)
-      allow update: if isMember(profileId);
-      // Only the owner can delete the profile
-      allow delete: if isOwner(profileId);
+
+      // Only members can update (uses resource.data — no circular get())
+      allow update: if isMemberByData();
+
+      // Only the owner can delete (uses resource.data — no circular get())
+      allow delete: if isOwnerByData();
 
       // ── Sub-collections (categories, accounts, transactions, budgets) ──────
+      // Financial data is strictly member-only. The get() here fetches the
+      // parent profile document, which is a different doc — not circular.
       match /{collection}/{docId} {
         allow read:  if isMember(profileId);
         allow write: if isMember(profileId);
