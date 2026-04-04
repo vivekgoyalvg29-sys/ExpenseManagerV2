@@ -159,10 +159,12 @@ class _FinTrackAppState extends State<FinTrackApp> {
           stream: FirebaseAuth.instance.authStateChanges(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                backgroundColor: Colors.black,
+              return Scaffold(
+                backgroundColor: Theme.of(context).scaffoldBackgroundColor,
                 body: Center(
-                  child: CircularProgressIndicator(color: Color(0xFFF77A4A)),
+                  child: CircularProgressIndicator(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               );
             }
@@ -244,12 +246,12 @@ class _PostLoginInitScreenState extends State<_PostLoginInitScreen> {
         const HomeScreen(),
         // Non-blocking banner shown while background init runs.
         if (_initializing)
-          const Positioned(
+          Positioned(
             top: 0,
             left: 0,
             right: 0,
             child: LinearProgressIndicator(
-              color: Color(0xFFF77A4A),
+              color: Theme.of(context).colorScheme.primary,
               backgroundColor: Colors.transparent,
             ),
           ),
