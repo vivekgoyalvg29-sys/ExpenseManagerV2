@@ -154,7 +154,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                               ),
                             ),
                             child: AppPageIcon(
-                              icon: IconData(selectedIcon, fontFamily: 'MaterialIcons'),
+                              icon: iconFromCodePoint(selectedIcon),
                               imagePath: path,
                               size: 18,
                               boxSize: 36,
