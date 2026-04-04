@@ -36,8 +36,9 @@ class MigrationService {
       final categories = await DatabaseService.getCategories();
       final accounts = await DatabaseService.getAccounts();
 
-      // Create the default profile (also sets it as active)
-      await profileService.createProfile('My Profile');
+      // New profile for migrated data — switch into it so uploads use its id.
+      final migratedId = await profileService.createProfile('My Profile');
+      await profileService.switchProfile(migratedId);
 
       int idOffset = 0;
 

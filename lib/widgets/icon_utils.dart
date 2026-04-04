@@ -115,11 +115,11 @@ class ModernProgressBar extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [color.withOpacity(0.72), color],
+                        colors: [color.withValues(alpha: 0.72), color],
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: color.withOpacity(0.18),
+                          color: color.withValues(alpha: 0.18),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),

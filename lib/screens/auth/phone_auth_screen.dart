@@ -197,7 +197,8 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
               if (!_otpSent) ...[
                 // Country picker
                 DropdownButtonFormField<_Country>(
-                  value: _selectedCountry,
+                  key: ValueKey(_selectedCountry),
+                  initialValue: _selectedCountry,
                   dropdownColor: const Color(0xFF1A1A1A),
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(

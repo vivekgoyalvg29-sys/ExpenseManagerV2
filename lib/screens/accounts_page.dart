@@ -58,7 +58,8 @@ class _AccountsPageState extends State<AccountsPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String>(
-                      value: selectedType,
+                      key: ValueKey(selectedType),
+                      initialValue: selectedType,
                       items: const [
                         DropdownMenuItem(value: 'expense', child: Text('Expense')),
                         DropdownMenuItem(value: 'income', child: Text('Income')),

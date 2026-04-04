@@ -215,7 +215,8 @@ class _RecordsPageState extends State<RecordsPage> {
                         ),
                         const SizedBox(height: 10),
                         DropdownButtonFormField<String>(
-                          value: selectedAccount,
+                          key: ValueKey(selectedAccount ?? ''),
+                          initialValue: selectedAccount,
                           items: expenseAccounts
                               .map(
                                 (acc) => DropdownMenuItem<String>(
@@ -233,7 +234,8 @@ class _RecordsPageState extends State<RecordsPage> {
                         ),
                         const SizedBox(height: 10),
                         DropdownButtonFormField<String>(
-                          value: selectedCategory,
+                          key: ValueKey(selectedCategory ?? ''),
+                          initialValue: selectedCategory,
                           items: expenseCategories
                               .map(
                                 (cat) => DropdownMenuItem<String>(
@@ -545,21 +547,23 @@ class _RecordsPageState extends State<RecordsPage> {
                     ),
                     const SizedBox(height: 10),
                     Expanded(
-                      child: ListView.builder(
-                        itemCount: allApps.length,
-                        itemBuilder: (_, index) {
-                          final app = allApps[index];
-                          return RadioListTile<String>(
-                            value: app.packageName,
-                            groupValue: selectedPackage,
-                            onChanged: (value) {
-                              setSheetState(() => selectedPackage = value);
-                            },
-                            secondary: _AppIcon(bytes: app.icon),
-                            title: Text(app.name),
-                            subtitle: Text(app.packageName),
-                          );
+                      child: RadioGroup<String>(
+                        groupValue: selectedPackage,
+                        onChanged: (value) {
+                          setSheetState(() => selectedPackage = value);
                         },
+                        child: ListView.builder(
+                          itemCount: allApps.length,
+                          itemBuilder: (_, index) {
+                            final app = allApps[index];
+                            return RadioListTile<String>(
+                              value: app.packageName,
+                              secondary: _AppIcon(bytes: app.icon),
+                              title: Text(app.name),
+                              subtitle: Text(app.packageName),
+                            );
+                          },
+                        ),
                       ),
                     ),
                     Row(
@@ -1003,7 +1007,9 @@ class _PaymentAppTile extends StatelessWidget {
             color: selected ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
             width: selected ? 2 : 1,
           ),
-          color: selected ? Theme.of(context).colorScheme.primary.withOpacity(0.08) : null,
+          color: selected
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
+              : null,
         ),
         padding: const EdgeInsets.all(10),
         child: _AppIcon(bytes: iconBytes),

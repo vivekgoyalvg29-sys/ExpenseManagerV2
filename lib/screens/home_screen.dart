@@ -91,6 +91,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     currentIndex = widget.initialIndex;
+    // Same deterministic default as _PostLoginInitScreen — avoids a race where
+    // prefs are not seeded yet and the drawer shows no active profile tick/name.
+    final phone = FirebaseAuth.instance.currentUser?.phoneNumber;
+    if (phone != null && phone.isNotEmpty) {
+      _activeProfileId = ProfileService.defaultProfileId(phone);
+    }
     _loadPackageInfo();
     _loadUsername();
     _loadRoleAndProfile();
@@ -105,7 +111,10 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final profileId = await _profileService.getActiveProfileId();
       if (!mounted) return;
-      setState(() => _activeProfileId = profileId);
+      // Do not clear optimistic default when Firestore/prefs are briefly null.
+      if (profileId != null && profileId.isNotEmpty) {
+        setState(() => _activeProfileId = profileId);
+      }
     } catch (_) {}
   }
 
@@ -376,7 +385,8 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 DropdownButtonFormField<String>(
-                  value: fontKey,
+                  key: ValueKey(fontKey),
+                  initialValue: fontKey,
                   decoration: const InputDecoration(labelText: 'Font family'),
                   items: VisualSettings.fontOptions.map((option) => DropdownMenuItem<String>(value: option.key, child: Text(option.label))).toList(),
                   onChanged: (value) {
@@ -1030,11 +1040,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (confirmed != true || name.isEmpty || !mounted) return;
 
     try {
-      final previousProfileId = _activeProfileId;
       final profileId = await _profileService.createProfile(
         name,
         isShareable: isShareable,
       );
+      if (!mounted) return;
+      await Future<void>.delayed(Duration.zero);
       if (!mounted) return;
       final shouldSwitch = await showDialog<bool>(
         context: context,
@@ -1055,16 +1066,16 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       if (!mounted) return;
       if (shouldSwitch == true) {
+        try {
+          await _profileService.switchProfile(profileId);
+        } catch (_) {}
+        if (!mounted) return;
         setState(() {
           _activeProfileId = profileId;
           _refreshVersion++;
         });
       } else {
-        if (previousProfileId != null) {
-          try {
-            await _profileService.switchProfile(previousProfileId);
-          } catch (_) {}
-        }
+        // Still on the previous profile — no switch ran during create.
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Profile "$name" created.')),
         );
