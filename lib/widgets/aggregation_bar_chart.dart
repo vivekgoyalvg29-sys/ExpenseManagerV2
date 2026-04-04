@@ -129,6 +129,11 @@ class _ChartBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ratio = maxValue == 0 ? 0.0 : (value / maxValue).clamp(0.0, 1.0).toDouble();
+    final primary = Theme.of(context).colorScheme.primary;
+    final selectedBorder = Color.lerp(primary, Colors.black, 0.18) ?? primary;
+    final selectedEnd = Color.lerp(primary, Colors.black, 0.25) ?? primary;
+    final defaultStart = Color.lerp(primary, Colors.white, 0.08) ?? primary;
+    final defaultEnd = Color.lerp(primary, Colors.black, 0.12) ?? primary;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
@@ -152,15 +157,15 @@ class _ChartBar extends StatelessWidget {
                     constraints: const BoxConstraints(minWidth: 18, maxWidth: 26),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(999),
-                      border: selected ? Border.all(color: const Color(0xFF312E81), width: 1.2) : null,
+                      border: selected ? Border.all(color: selectedBorder, width: 1.2) : null,
                       gradient: selected
-                          ? const LinearGradient(
-                              colors: [Color(0xFF312E81), Color(0xFF6D28D9)],
+                          ? LinearGradient(
+                              colors: [selectedBorder, selectedEnd],
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                             )
-                          : const LinearGradient(
-                              colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
+                          : LinearGradient(
+                              colors: [defaultStart, defaultEnd],
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                             ),

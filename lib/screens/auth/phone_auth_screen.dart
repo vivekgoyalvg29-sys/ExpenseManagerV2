@@ -150,26 +150,22 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
     super.dispose();
   }
 
-  InputDecoration _inputDecoration({required String hint, Widget? prefix}) {
+  InputDecoration _inputDecoration(BuildContext context, {required String hint, Widget? prefix}) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Colors.grey),
+      hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
       prefixIcon: prefix,
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.grey),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.green),
-      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(32.0),
@@ -178,10 +174,10 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 60),
-              const Text(
+              Text(
                 'Kharcha Book',
-                style: TextStyle(
-                  color: Colors.white,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  color: cs.onSurface,
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                 ),
@@ -191,7 +187,10 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                 _otpSent
                     ? 'Enter the OTP sent to ${_selectedCountry.code}${_phoneController.text}'
                     : 'Sign in or create your account',
-                style: const TextStyle(color: Colors.grey, fontSize: 14),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  fontSize: 14,
+                ),
               ),
               const SizedBox(height: 40),
               if (!_otpSent) ...[
@@ -199,24 +198,15 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                 DropdownButtonFormField<_Country>(
                   key: ValueKey(_selectedCountry),
                   initialValue: _selectedCountry,
-                  dropdownColor: const Color(0xFF1A1A1A),
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.grey),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.green),
-                    ),
-                  ),
+                  dropdownColor: cs.surface,
+                  style: TextStyle(color: cs.onSurface),
+                  decoration: const InputDecoration(),
                   items: _countries.map((c) {
                     return DropdownMenuItem<_Country>(
                       value: c,
                       child: Text(
                         '${c.flag}  ${c.name} (${c.code})',
-                        style: const TextStyle(color: Colors.white),
+                        style: TextStyle(color: cs.onSurface),
                       ),
                     );
                   }).toList(),
@@ -229,14 +219,15 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                 TextField(
                   controller: _phoneController,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: cs.onSurface),
                   decoration: _inputDecoration(
+                    context,
                     hint: '98765 43210',
                     prefix: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                       child: Text(
                         _selectedCountry.code,
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                        style: TextStyle(color: cs.onSurface, fontSize: 16),
                       ),
                     ),
                   ),
@@ -246,10 +237,11 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                 TextField(
                   controller: _usernameController,
                   keyboardType: TextInputType.name,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: cs.onSurface),
                   decoration: _inputDecoration(
+                    context,
                     hint: 'Username (optional)',
-                    prefix: const Icon(Icons.person_outline, color: Colors.grey),
+                    prefix: Icon(Icons.person_outline, color: cs.onSurfaceVariant),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -258,7 +250,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                   child: ElevatedButton(
                     onPressed: _loading ? null : _sendOtp,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                      backgroundColor: cs.primary,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -277,20 +269,12 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                   keyboardType: TextInputType.number,
                   maxLength: 6,
                   style: const TextStyle(
-                      color: Colors.white, fontSize: 24, letterSpacing: 8),
+                      fontSize: 24, letterSpacing: 8),
                   textAlign: TextAlign.center,
                   decoration: InputDecoration(
                     hintText: '------',
-                    hintStyle: const TextStyle(color: Colors.grey),
+                    hintStyle: TextStyle(color: cs.onSurfaceVariant),
                     counterText: '',
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.grey),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.green),
-                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -299,7 +283,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                   child: ElevatedButton(
                     onPressed: _loading ? null : _verifyOtp,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                      backgroundColor: cs.primary,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
