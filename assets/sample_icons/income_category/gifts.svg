@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Gifts">
-  <rect width="128" height="128" rx="24" fill="#F8FAFC"/>
-  <circle cx="64" cy="56" r="34" fill="#14B8A6"/>
-  <text x="64" y="64" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">GI</text>
-  <text x="64" y="108" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#0F172A">Gifts</text>
+  <rect width="128" height="128" rx="24" fill="#FFF1F2"/>
+  <circle cx="64" cy="64" r="36" fill="#E11D48"/>
+  <rect x="42" y="54" width="44" height="28" rx="5" fill="white"/><path d="M64 54v28M42 66h44" stroke="#FDA4AF" stroke-width="3"/><path d="M64 48c0-5-4-9-9-9-3 0-5 2-5 4 0 3 3 5 7 5h7z" fill="white"/><path d="M64 48c0-5 4-9 9-9 3 0 5 2 5 4 0 3-3 5-7 5h-7z" fill="white"/>
 </svg>

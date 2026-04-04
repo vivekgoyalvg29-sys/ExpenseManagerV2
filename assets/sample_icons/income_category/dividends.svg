@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Dividends">
-  <rect width="128" height="128" rx="24" fill="#F8FAFC"/>
-  <circle cx="64" cy="56" r="34" fill="#0EA5A4"/>
-  <text x="64" y="64" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">DI</text>
-  <text x="64" y="108" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#0F172A">Dividends</text>
+  <rect width="128" height="128" rx="24" fill="#ECFDF5"/>
+  <circle cx="64" cy="64" r="36" fill="#10B981"/>
+  <rect x="40" y="64" width="8" height="16" rx="2" fill="white"/><rect x="54" y="58" width="8" height="22" rx="2" fill="white"/><rect x="68" y="50" width="8" height="30" rx="2" fill="white"/><path d="M40 52l16-10 14 8 14-14" stroke="white" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

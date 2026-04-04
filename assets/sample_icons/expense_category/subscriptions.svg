@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Subscriptions">
-  <rect width="128" height="128" rx="24" fill="#F8FAFC"/>
-  <circle cx="64" cy="56" r="34" fill="#A855F7"/>
-  <text x="64" y="64" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">SU</text>
-  <text x="64" y="108" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#0F172A">Subscriptions</text>
+  <rect width="128" height="128" rx="24" fill="#ECFEFF"/>
+  <circle cx="64" cy="64" r="36" fill="#0891B2"/>
+  <rect x="40" y="48" width="48" height="32" rx="8" fill="white"/><circle cx="54" cy="64" r="4" fill="#67E8F9"/><path d="M64 64h14" stroke="#67E8F9" stroke-width="4" stroke-linecap="round"/>
 </svg>

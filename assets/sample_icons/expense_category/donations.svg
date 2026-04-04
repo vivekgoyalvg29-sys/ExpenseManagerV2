@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Donations">
-  <rect width="128" height="128" rx="24" fill="#F8FAFC"/>
-  <circle cx="64" cy="56" r="34" fill="#EC4899"/>
-  <text x="64" y="64" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">DO</text>
-  <text x="64" y="108" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#0F172A">Donations</text>
+  <rect width="128" height="128" rx="24" fill="#FFF7ED"/>
+  <circle cx="64" cy="64" r="36" fill="#EA580C"/>
+  <path d="M64 80s-20-11-20-24a10 10 0 0 1 18-6l2 3 2-3a10 10 0 0 1 18 6c0 13-20 24-20 24z" fill="white"/>
 </svg>
