@@ -64,6 +64,8 @@ class FirestoreService {
     return (data['localId'] as num?)?.toInt() ?? docId.hashCode.abs();
   }
 
+  String _norm(String? value) => (value ?? '').trim().toLowerCase();
+
   void clearCaches() {
     _txDocIds.clear();
     _accountDocIds.clear();
@@ -89,19 +91,58 @@ class FirestoreService {
       query = query.where('date', isLessThanOrEqualTo: endDate.toIso8601String());
     }
     final snap = await query.get();
+    final accountById = await _accountNameByLocalId();
+    final categoryById = await _categoryNameByLocalId();
+    final accountIdByName = await _accountLocalIdByName();
+    final categoryIdByName = await _categoryLocalIdByName();
+
     final results = <Map<String, dynamic>>[];
     for (final doc in snap.docs) {
       final data = doc.data();
       final localId = _localIdFromDoc(data, doc.id);
       _txDocIds[localId] = doc.id;
+
+      final originalTitle = (data['title'] ?? '').toString();
+      final originalAccount = (data['account'] ?? '').toString();
+      final type = (data['type'] ?? 'expense').toString();
+      final categoryId = (data['categoryId'] as num?)?.toInt();
+      final accountId = (data['accountId'] as num?)?.toInt();
+
+      final resolvedCategoryId = categoryId ??
+          categoryIdByName[_norm('$type::$originalTitle')];
+      final resolvedAccountId = accountId ??
+          accountIdByName[_norm('$type::$originalAccount')];
+
+      final resolvedCategoryName =
+          resolvedCategoryId != null ? categoryById[resolvedCategoryId] : null;
+      final resolvedAccountName =
+          resolvedAccountId != null ? accountById[resolvedAccountId] : null;
+
+      final canonicalTitle = resolvedCategoryName ?? originalTitle;
+      final canonicalAccount = resolvedAccountName ?? originalAccount;
+
+      if (resolvedCategoryId != null ||
+          resolvedAccountId != null ||
+          canonicalTitle != originalTitle ||
+          canonicalAccount != originalAccount) {
+        await doc.reference.update({
+          if (resolvedCategoryId != null) 'categoryId': resolvedCategoryId,
+          if (resolvedAccountId != null) 'accountId': resolvedAccountId,
+          if (canonicalTitle != originalTitle) 'title': canonicalTitle,
+          if (canonicalAccount != originalAccount) 'account': canonicalAccount,
+        });
+      }
+
       results.add({
         'id': localId,
-        'title': data['title'] ?? '',
+        'title': canonicalTitle,
         'amount': data['amount'] ?? 0.0,
         'date': data['date'] ?? DateTime.now().toIso8601String(),
-        'type': data['type'] ?? 'expense',
-        'account': data['account'] ?? '',
+        'type': type,
+        'account': canonicalAccount,
         'comment': data['comment'] ?? '',
+        'categoryId': resolvedCategoryId,
+        'accountId': resolvedAccountId,
       });
     }
     return results;
@@ -118,6 +159,8 @@ class FirestoreService {
   ) async {
     final col = await _col('transactions');
     if (col == null) return;
+    final categoryId = await _categoryIdByNameAndType(title, type);
+    final accountId = await _accountIdByNameAndType(account, type);
     final ref = await col.add({
       'localId': localId,
       'title': title,
@@ -125,6 +168,8 @@ class FirestoreService {
       'date': date.toIso8601String(),
       'type': type,
       'account': account,
+      'categoryId': categoryId,
+      'accountId': accountId,
       'comment': comment,
       'createdBy': _currentPhone,
       'createdAt': FieldValue.serverTimestamp(),
@@ -145,12 +190,16 @@ class FirestoreService {
     if (col == null) return;
     final docId = await _resolveDocId(col, _txDocIds, id);
     if (docId == null) return;
+    final categoryId = await _categoryIdByNameAndType(title, type);
+    final accountId = await _accountIdByNameAndType(account, type);
     await col.doc(docId).update({
       'title': title,
       'amount': amount,
       'date': date.toIso8601String(),
       'type': type,
       'account': account,
+      'categoryId': categoryId,
+      'accountId': accountId,
       'comment': comment,
     });
   }
@@ -243,12 +292,20 @@ class FirestoreService {
     if (col == null) return;
     final docId = await _resolveDocId(col, _accountDocIds, id);
     if (docId == null) return;
+    final oldSnap = await col.doc(docId).get();
+    final oldName = oldSnap.data()?['name']?.toString() ?? '';
     await col.doc(docId).update({
       'name': name,
       'type': type,
       'icon': icon,
       'icon_path': iconPath,
     });
+    await _cascadeAccountUpdate(
+      accountId: id,
+      type: type,
+      oldName: oldName,
+      newName: name,
+    );
   }
 
   Future<void> deleteAccount(int id) async {
@@ -353,12 +410,20 @@ class FirestoreService {
     if (col == null) return;
     final docId = await _resolveDocId(col, _categoryDocIds, id);
     if (docId == null) return;
+    final oldSnap = await col.doc(docId).get();
+    final oldName = oldSnap.data()?['name']?.toString() ?? '';
     await col.doc(docId).update({
       'name': name,
       'type': type,
       'icon': icon,
       'icon_path': iconPath,
     });
+    await _cascadeCategoryUpdate(
+      categoryId: id,
+      type: type,
+      oldName: oldName,
+      newName: name,
+    );
   }
 
   Future<void> deleteCategory(int id) async {
@@ -438,9 +503,11 @@ class FirestoreService {
   ) async {
     final col = await _col('budgets');
     if (col == null) return;
+    final categoryId = await _categoryIdByNameAndType(category, 'expense');
     final ref = await col.add({
       'localId': localId,
       'category': category,
+      'categoryId': categoryId,
       'amount': amount,
       'month': month,
       'year': year,
@@ -461,8 +528,10 @@ class FirestoreService {
     if (col == null) return;
     final docId = await _resolveDocId(col, _budgetDocIds, id);
     if (docId == null) return;
+    final categoryId = await _categoryIdByNameAndType(category, 'expense');
     await col.doc(docId).update({
       'category': category,
+      'categoryId': categoryId,
       'amount': amount,
       'month': month,
       'year': year,
@@ -598,4 +667,171 @@ class FirestoreService {
       batch.commit();
     } while (snap.docs.length == 400);
   }
+
+  Future<Map<int, String>> _accountNameByLocalId() async {
+    final col = await _col('accounts');
+    if (col == null) return {};
+    final snap = await col.get();
+    final map = <int, String>{};
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final localId = _localIdFromDoc(data, doc.id);
+      map[localId] = (data['name'] ?? '').toString();
+    }
+    return map;
+  }
+
+  Future<Map<int, String>> _categoryNameByLocalId() async {
+    final col = await _col('categories');
+    if (col == null) return {};
+    final snap = await col.get();
+    final map = <int, String>{};
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final localId = _localIdFromDoc(data, doc.id);
+      map[localId] = (data['name'] ?? '').toString();
+    }
+    return map;
+  }
+
+  Future<Map<String, int>> _accountLocalIdByName() async {
+    final col = await _col('accounts');
+    if (col == null) return {};
+    final snap = await col.get();
+    final map = <String, int>{};
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final localId = _localIdFromDoc(data, doc.id);
+      final type = (data['type'] ?? 'expense').toString();
+      final name = (data['name'] ?? '').toString();
+      map[_norm('$type::$name')] = localId;
+    }
+    return map;
+  }
+
+  Future<Map<String, int>> _categoryLocalIdByName() async {
+    final col = await _col('categories');
+    if (col == null) return {};
+    final snap = await col.get();
+    final map = <String, int>{};
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final localId = _localIdFromDoc(data, doc.id);
+      final type = (data['type'] ?? 'expense').toString();
+      final name = (data['name'] ?? '').toString();
+      map[_norm('$type::$name')] = localId;
+    }
+    return map;
+  }
+
+  Future<int?> _accountIdByNameAndType(String name, String type) async {
+    final lookup = await _accountLocalIdByName();
+    return lookup[_norm('$type::$name')];
+  }
+
+  Future<int?> _categoryIdByNameAndType(String name, String type) async {
+    final lookup = await _categoryLocalIdByName();
+    return lookup[_norm('$type::$name')];
+  }
+
+  Future<void> _cascadeAccountUpdate({
+    required int accountId,
+    required String type,
+    required String oldName,
+    required String newName,
+  }) async {
+    final col = await _col('transactions');
+    if (col == null) return;
+    final snap = await col.get();
+    WriteBatch batch = _firestore.batch();
+    var writes = 0;
+
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final txType = (data['type'] ?? '').toString();
+      final txAccountId = (data['accountId'] as num?)?.toInt();
+      final txAccountName = (data['account'] ?? '').toString();
+      final matchesById = txAccountId == accountId;
+      final matchesByLegacyName = txAccountId == null &&
+          txType == type &&
+          _norm(txAccountName) == _norm(oldName);
+      if (!matchesById && !matchesByLegacyName) continue;
+      batch.update(doc.reference, {'account': newName, 'accountId': accountId});
+      writes++;
+      if (writes == 400) {
+        await batch.commit();
+        batch = _firestore.batch();
+        writes = 0;
+      }
+    }
+
+    if (writes > 0) {
+      await batch.commit();
+    }
+  }
+
+  Future<void> _cascadeCategoryUpdate({
+    required int categoryId,
+    required String type,
+    required String oldName,
+    required String newName,
+  }) async {
+    final txCol = await _col('transactions');
+    if (txCol != null) {
+      final txSnap = await txCol.get();
+      WriteBatch batch = _firestore.batch();
+      var writes = 0;
+      for (final doc in txSnap.docs) {
+        final data = doc.data();
+        final txType = (data['type'] ?? '').toString();
+        final txCategoryId = (data['categoryId'] as num?)?.toInt();
+        final txCategoryName = (data['title'] ?? '').toString();
+        final matchesById = txCategoryId == categoryId;
+        final matchesByLegacyName = txCategoryId == null &&
+            txType == type &&
+            _norm(txCategoryName) == _norm(oldName);
+        if (!matchesById && !matchesByLegacyName) continue;
+        batch.update(doc.reference, {'title': newName, 'categoryId': categoryId});
+        writes++;
+        if (writes == 400) {
+          await batch.commit();
+          batch = _firestore.batch();
+          writes = 0;
+        }
+      }
+      if (writes > 0) {
+        await batch.commit();
+      }
+    }
+
+    final budgetCol = await _col('budgets');
+    if (budgetCol == null) return;
+    final budgetSnap = await budgetCol.get();
+    WriteBatch budgetBatch = _firestore.batch();
+    var budgetWrites = 0;
+    for (final doc in budgetSnap.docs) {
+      final data = doc.data();
+      final budgetCategoryId = (data['categoryId'] as num?)?.toInt();
+      final budgetCategory = (data['category'] ?? '').toString();
+      final matchesById = budgetCategoryId == categoryId;
+      final matchesByLegacyName = budgetCategoryId == null &&
+          _norm(budgetCategory) == _norm(oldName);
+      if (!matchesById && !matchesByLegacyName) continue;
+      budgetBatch.update(doc.reference, {
+        'category': newName,
+        'categoryId': categoryId,
+      });
+      budgetWrites++;
+      if (budgetWrites == 400) {
+        await budgetBatch.commit();
+        budgetBatch = _firestore.batch();
+        budgetWrites = 0;
+      }
+    }
+
+    if (budgetWrites > 0) {
+      await budgetBatch.commit();
+    }
+  }
 }
+
