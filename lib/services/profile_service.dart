@@ -120,7 +120,9 @@ class ProfileService {
 
   // ─── Profile CRUD ──────────────────────────────────────────────────────────
 
-  /// Creates a new non-default profile and switches to it.
+  /// Creates a new non-default profile and adds it to the user's profile list.
+  /// Does not change the active profile or clear local data — call [switchProfile]
+  /// after the user confirms (e.g. "Switch to this profile?").
   Future<String> createProfile(
     String name, {
     bool isShareable = false,
@@ -143,15 +145,17 @@ class ProfileService {
       'members': {phone: 'owner'},
     });
 
+    // Only register the new profile — do not change active profile or wipe local
+    // data here. Callers show "Switch to new profile?" and call [switchProfile]
+    // when the user confirms, so the UI stays responsive and SQLite is not cleared
+    // until then.
     await _firestore.collection('users').doc(phone).set(
       {
-        'activeProfileId': profileId,
         'profiles': FieldValue.arrayUnion([profileId]),
       },
       SetOptions(merge: true),
     );
 
-    await switchProfile(profileId);
     return profileId;
   }
 

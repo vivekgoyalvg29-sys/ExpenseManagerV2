@@ -937,10 +937,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                     child: Container(
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
-                                        color: Theme.of(context).colorScheme.surfaceVariant,
+                                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
                                         borderRadius: BorderRadius.circular(16),
                                         border: Border.all(
-                                          color: Theme.of(context).colorScheme.outline.withOpacity(0.35),
+                                          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.35),
                                         ),
                                       ),
                                       child: Row(
@@ -979,7 +979,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                     overflow: TextOverflow.ellipsis,
                                                     style: TextStyle(
                                                       fontSize: 12,
-                                                      color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.85),
+                                                      color: Theme.of(context)
+                                                          .colorScheme
+                                                          .onSurfaceVariant
+                                                          .withValues(alpha: 0.85),
                                                     ),
                                                   ),
                                                 ],
@@ -1341,7 +1344,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                               Container(
                                                 height: 16,
                                                 decoration: BoxDecoration(
-                                                  color: Theme.of(context).colorScheme.surfaceVariant,
+                                                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                                                   borderRadius: BorderRadius.circular(999),
                                                 ),
                                               ),
@@ -1407,7 +1410,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                               Container(
                                                 height: 16,
                                                 decoration: BoxDecoration(
-                                                  color: Theme.of(context).colorScheme.surfaceVariant,
+                                                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                                                   borderRadius: BorderRadius.circular(999),
                                                 ),
                                               ),

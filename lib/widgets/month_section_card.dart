@@ -49,7 +49,10 @@ class MonthSectionCard extends StatelessWidget {
                       fontSize: 10.5,
                       height: 1.05,
                       fontWeight: FontWeight.w400,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurfaceVariant
+                          .withValues(alpha: 0.5),
                     ),
               ),
             ],

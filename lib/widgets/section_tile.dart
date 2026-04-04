@@ -23,7 +23,9 @@ class SectionTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(theme.brightness == Brightness.dark ? 0.25 : 0.06),
+            color: Colors.black.withValues(
+              alpha: theme.brightness == Brightness.dark ? 0.25 : 0.06,
+            ),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

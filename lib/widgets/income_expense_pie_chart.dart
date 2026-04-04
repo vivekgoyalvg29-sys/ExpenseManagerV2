@@ -145,7 +145,7 @@ class _PiePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.butt
-      ..color = Colors.black.withOpacity(0.05);
+      ..color = Colors.black.withValues(alpha: 0.05);
     canvas.drawCircle(center, ringRadius, bgPaint);
 
     final incomePaint = Paint()
@@ -161,8 +161,16 @@ class _PiePainter extends CustomPainter {
     final incomeSelected = selectedSlice == IncomeExpensePieSlice.income;
     final expenseSelected = selectedSlice == IncomeExpensePieSlice.expense;
 
-    incomePaint.color = incomeSelected ? incomeColor : incomeColor.withOpacity(selectedSlice == null ? 1.0 : 0.35);
-    expensePaint.color = expenseSelected ? expenseColor : expenseColor.withOpacity(selectedSlice == null ? 1.0 : 0.35);
+    incomePaint.color = incomeSelected
+        ? incomeColor
+        : incomeColor.withValues(
+            alpha: selectedSlice == null ? 1.0 : 0.35,
+          );
+    expensePaint.color = expenseSelected
+        ? expenseColor
+        : expenseColor.withValues(
+            alpha: selectedSlice == null ? 1.0 : 0.35,
+          );
 
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: ringRadius),

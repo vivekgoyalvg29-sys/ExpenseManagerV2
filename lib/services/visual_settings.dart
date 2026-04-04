@@ -147,7 +147,7 @@ class FinTrackTheme {
             surface: const Color(0xFF151A21),
             onSurface: const Color(0xFFE8EAED),
             onSurfaceVariant: const Color(0xFFC4C9D4),
-            surfaceVariant: const Color(0xFF252D38),
+            surfaceContainerHighest: const Color(0xFF252D38),
             outline: const Color(0xFF3D4754),
           )
         : ColorScheme.light(
@@ -156,7 +156,7 @@ class FinTrackTheme {
             surface: Colors.white,
             onSurface: const Color(0xFF1F2933),
             onSurfaceVariant: const Color(0xFF52606D),
-            surfaceVariant: const Color(0xFFE8ECF2),
+            surfaceContainerHighest: const Color(0xFFE8ECF2),
             outline: const Color(0xFFCBD2DC),
           );
 

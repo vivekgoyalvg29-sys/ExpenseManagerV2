@@ -278,7 +278,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     final theme = Theme.of(context);
     final largerFieldLabelStyle = theme.textTheme.titleSmall;
     final helperTextStyle = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurface.withOpacity(0.4),
+      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
     );
 
     final content = SingleChildScrollView(
@@ -286,7 +286,8 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           DropdownButtonFormField<String>(
-            value: transactionType,
+            key: ValueKey(transactionType),
+            initialValue: transactionType,
             items: [
               DropdownMenuItem(child: Text(context.tr('Expense')), value: 'expense'),
               DropdownMenuItem(child: Text(context.tr('Income')), value: 'income'),
@@ -352,9 +353,10 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               width: double.infinity,
               constraints: const BoxConstraints(maxHeight: 180),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceVariant,
+                color: theme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: theme.colorScheme.outline.withOpacity(0.4)),
+                border: Border.all(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.4)),
               ),
               child: ListView.builder(
                 shrinkWrap: true,

@@ -35,7 +35,7 @@ class MiniProgressBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
               child: Container(
                 height: 3,
-                color: theme.dividerColor.withOpacity(0.6),
+                color: theme.dividerColor.withValues(alpha: 0.6),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: FractionallySizedBox(
@@ -52,9 +52,10 @@ class MiniProgressBar extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceVariant,
+              color: theme.colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: theme.colorScheme.outline.withOpacity(0.5)),
+              border: Border.all(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.5)),
             ),
             child: Text(
               '$percentage%',

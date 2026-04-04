@@ -94,7 +94,8 @@ class _BudgetsPageState extends State<BudgetsPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<String>(
-                    value: selectedCategory,
+                    key: ValueKey(selectedCategory ?? ''),
+                    initialValue: selectedCategory,
                     items: DataStore.categories
                         .where((cat) => cat['type'] == 'expense')
                         .map((cat) => DropdownMenuItem<String>(

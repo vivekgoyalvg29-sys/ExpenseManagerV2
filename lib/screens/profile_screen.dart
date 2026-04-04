@@ -331,6 +331,10 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
   /// Step 2 — offer to initialize defaults for it.
   Future<void> _showPostCreateFlow(String name, String profileId) async {
     if (!mounted) return;
+    // Let the bottom-sheet route finish popping before stacking dialogs; avoids
+    // delayed or missing dialogs on some devices.
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
 
     // Step 1: switch?
     final shouldSwitch = await showDialog<bool>(
@@ -840,7 +844,7 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
