@@ -51,8 +51,16 @@ class _AccountsPageState extends State<AccountsPage> {
         builder: (dialogContext, setDialogState) {
           bool saving = false;
           return StatefulBuilder(
-            builder: (dialogContext, setInnerState) => AlertDialog(
-              title: Text(account == null ? 'Create Account' : 'Edit Account'),
+            builder: (dialogContext, setInnerState) {
+              final fieldLabelStyle = Theme.of(dialogContext).textTheme.bodyMedium;
+              final fieldTextStyle = Theme.of(dialogContext).textTheme.bodyLarge;
+              return AlertDialog(
+              title: Text(
+                account == null ? 'Create Account' : 'Edit Account',
+                style: Theme.of(dialogContext).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -67,17 +75,30 @@ class _AccountsPageState extends State<AccountsPage> {
                       onChanged: (value) {
                         if (value != null) selectedType = value;
                       },
-                      decoration: const InputDecoration(labelText: 'Transaction Type'),
+                      style: fieldTextStyle,
+                      decoration: InputDecoration(
+                        labelText: 'Transaction Type',
+                        labelStyle: fieldLabelStyle,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: controller,
-                      decoration: const InputDecoration(labelText: 'Account Name'),
+                      style: fieldTextStyle,
+                      decoration: InputDecoration(
+                        labelText: 'Account Name',
+                        labelStyle: fieldLabelStyle,
+                      ),
                     ),
                     const SizedBox(height: 10),
-                    const Align(
+                    Align(
                       alignment: Alignment.centerLeft,
-                      child: Text('Icon', style: TextStyle(fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'Icon',
+                        style: Theme.of(dialogContext).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -174,10 +195,11 @@ class _AccountsPageState extends State<AccountsPage> {
                       : const Text('Save'),
                 ),
               ],
-            ),
-          );
-        },
-      ),
+            );
+          },
+        );
+      },
+    ),
     );
     controller.addListener(() {});
   }

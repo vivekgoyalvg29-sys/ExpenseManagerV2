@@ -198,8 +198,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openFeedbackDialog() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final phone = user?.phoneNumber ?? '';
     final bodyController = TextEditingController();
     final sent = await showDialog<bool>(
       context: context,
@@ -235,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Feedback is empty.')));
       return;
     }
-    final subject = Uri.encodeComponent('Feedback-Android-$phone');
+    final subject = Uri.encodeComponent('Feedback-Android');
     final bodyEnc = Uri.encodeComponent(body);
     final uri = Uri.parse('mailto:vivekgoyal.vg29@gmail.com?subject=$subject&body=$bodyEnc');
     final ok = await launchUrl(uri);
@@ -377,7 +375,10 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Customize visuals'),
+          title: Text(
+            'Customize visuals',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
           content: SizedBox(
             width: 360,
             child: Column(
@@ -387,7 +388,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 DropdownButtonFormField<String>(
                   key: ValueKey(fontKey),
                   initialValue: fontKey,
-                  decoration: const InputDecoration(labelText: 'Font family'),
+                  style: Theme.of(context).textTheme.bodyLarge,
+                  decoration: InputDecoration(
+                    labelText: 'Font family',
+                    labelStyle: Theme.of(context).textTheme.bodyMedium,
+                  ),
                   items: VisualSettings.fontOptions.map((option) => DropdownMenuItem<String>(value: option.key, child: Text(option.label))).toList(),
                   onChanged: (value) {
                     if (value == null) return;
@@ -890,6 +895,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (confirmed != true) return;
     await FirebaseAuth.instance.signOut();
+    await ProfileService().clearProfilePrefsForLogout();
   }
 
   Future<void> _ensureFirstRunInitializationPrompt() async {
@@ -912,9 +918,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final shouldInitialize = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Initialize defaults?'),
+        title: const Text('Create General Categories and Accounts?'),
         content: const Text(
-          'Create default categories and accounts now?\n\nYou can still create or initialize them later from Main Menu > Data management.',
+          'Create general categories and accounts now?\n\nYou can still add them later from Main Menu > Data management.',
         ),
         actions: [
           TextButton(
@@ -934,7 +940,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'You can initialize defaults later from Main Menu > Data management.',
+              'You can create general categories and accounts later from Main Menu > Data management.',
             ),
           ),
         );
@@ -955,7 +961,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               CircularProgressIndicator(),
               SizedBox(width: 20),
-              Text('Creating defaults…'),
+              Text('Creating general categories and accounts…'),
             ],
           ),
         );
@@ -985,8 +991,8 @@ class _HomeScreenState extends State<HomeScreen> {
       SnackBar(
         content: Text(
           created == 0
-              ? 'Defaults are already available.'
-              : 'Added $created default categories/accounts.',
+              ? 'General categories and accounts are already available.'
+              : 'Added $created general categories/accounts.',
         ),
       ),
     );
@@ -1210,12 +1216,17 @@ class _HomeScreenState extends State<HomeScreen> {
           VoidCallback? onTap,
           bool enabled = true,
         }) {
+          final titleStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontSize: 13,
+                color: enabled ? null : Theme.of(context).disabledColor,
+              );
           return ListTile(
             enabled: enabled,
             visualDensity: VisualDensity.compact,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-            leading: Icon(icon, color: enabled ? null : Theme.of(context).disabledColor),
-            title: Text(title, style: enabled ? null : TextStyle(color: Theme.of(context).disabledColor)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            minVerticalPadding: 8,
+            leading: Icon(icon, size: 20, color: enabled ? null : Theme.of(context).disabledColor),
+            title: Text(title, style: titleStyle),
             subtitle: subtitle == null
                 ? null
                 : Text(subtitle, style: enabled ? null : TextStyle(color: Theme.of(context).disabledColor)),
@@ -1294,13 +1305,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 controller: _menuScrollController,
                 padding: const EdgeInsets.only(bottom: 36),
                 children: [
-                  const _MenuSectionHeader('Account'),
-                  menuTile(
-                    icon: Icons.logout_outlined,
-                    title: 'Logout',
-                    onTap: () => handleSelection('logout'),
-                  ),
-                  const Divider(height: 1, thickness: 1),
                   // ---- Profiles section ----
                   StreamBuilder<List<ProfileModel>>(
                     stream: _profileService.getMyProfiles(),
@@ -1327,13 +1331,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           .toList();
 
                       Widget subHeader(String label) => Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 6, 14, 1),
+                        padding: const EdgeInsets.fromLTRB(20, 12, 14, 6),
                         child: Text(
                           label,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            letterSpacing: 0.3,
-                          ),
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                letterSpacing: 0.2,
+                              ),
                         ),
                       );
 
@@ -1341,7 +1347,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         final isActive = profile.id == _activeProfileId;
                         return ListTile(
                           visualDensity: VisualDensity.compact,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
                           leading: Icon(
                             profile.isDefault ? Icons.folder_special_outlined : Icons.folder_outlined,
                             size: 20,
@@ -1351,12 +1357,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             profile.name,
                             style: TextStyle(
                               fontSize: 13,
-                              fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
+                              fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
                               color: isActive ? const Color(0xFF4F46E5) : null,
                             ),
                           ),
                           trailing: isActive
-                              ? const Icon(Icons.check, color: Color(0xFF4F46E5), size: 16)
+                              ? const Icon(Icons.check, color: Color(0xFF4F46E5), size: 18)
                               : null,
                           onTap: isActive
                               ? null
@@ -1377,52 +1383,99 @@ class _HomeScreenState extends State<HomeScreen> {
                       Widget actionTile({required IconData icon, required String title, required VoidCallback onTap}) =>
                           ListTile(
                             visualDensity: VisualDensity.compact,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
                             leading: Icon(icon, size: 20),
-                            title: Text(title, style: const TextStyle(fontSize: 13)),
+                            title: Text(
+                              title,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
+                            ),
                             onTap: onTap,
                           );
+
+                      Future<void> openManageProfiles() async {
+                        Navigator.of(drawerContext).pop();
+                        await showGeneralDialog<void>(
+                          context: context,
+                          barrierDismissible: true,
+                          barrierLabel: 'Close',
+                          barrierColor: const Color(0x66000000),
+                          transitionDuration: const Duration(milliseconds: 220),
+                          transitionBuilder: (ctx, anim, _, child) => FadeTransition(
+                            opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+                            child: child,
+                          ),
+                          pageBuilder: (ctx, _, __) => BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
+                            child: Center(
+                              child: Dialog(
+                                insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                                clipBehavior: Clip.antiAlias,
+                                child: SizedBox(
+                                  height: MediaQuery.sizeOf(context).height * 0.85,
+                                  child: const ManageProfilesScreen(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                        await _loadRoleAndProfile();
+                      }
 
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          InkWell(
-                            onTap: () => setMenuState(() => profilesExpanded = !profilesExpanded),
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(14, 6, 8, 4),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: RichText(
-                                      text: TextSpan(
-                                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                          fontWeight: FontWeight.w700,
-                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                        ),
-                                        children: [
-                                          const TextSpan(text: 'Profiles'),
-                                          if (activeLabel.isNotEmpty)
-                                            TextSpan(
-                                              text: activeLabel,
-                                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: InkWell(
+                              onTap: () => setMenuState(() => profilesExpanded = !profilesExpanded),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: RichText(
+                                        text: TextSpan(
+                                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w700,
                                                 color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                                fontWeight: FontWeight.normal,
                                               ),
-                                            ),
-                                        ],
+                                          children: [
+                                            const TextSpan(text: 'Profiles'),
+                                            if (activeLabel.isNotEmpty)
+                                              TextSpan(
+                                                text: activeLabel,
+                                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                  fontSize: 13,
+                                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                  fontWeight: FontWeight.w400,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  Icon(
-                                    profilesExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                    size: 18,
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                  ),
-                                  const SizedBox(width: 6),
-                                ],
+                                    Icon(
+                                      profilesExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                      size: 20,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                ),
                               ),
                             ),
+                          ),
+                          ListTile(
+                            visualDensity: VisualDensity.compact,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                            leading: const Icon(Icons.manage_accounts_outlined, size: 20),
+                            title: const Text(
+                              'Manage profiles',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
+                            ),
+                            onTap: openManageProfiles,
                           ),
                           if (profilesExpanded) ...[
                             if (myProfiles.isNotEmpty) ...[
@@ -1449,38 +1502,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                 await _showJoinProfileDialog();
                               },
                             ),
-                            actionTile(
-                              icon: Icons.manage_accounts_outlined,
-                              title: 'Manage profiles',
-                              onTap: () async {
-                                Navigator.of(drawerContext).pop();
-                                await showGeneralDialog<void>(
-                                  context: context,
-                                  barrierDismissible: true,
-                                  barrierLabel: 'Close',
-                                  barrierColor: const Color(0x66000000),
-                                  transitionDuration: const Duration(milliseconds: 220),
-                                  transitionBuilder: (ctx, anim, _, child) => FadeTransition(
-                                    opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
-                                    child: child,
-                                  ),
-                                  pageBuilder: (ctx, _, __) => BackdropFilter(
-                                    filter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
-                                    child: Center(
-                                      child: Dialog(
-                                        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-                                        clipBehavior: Clip.antiAlias,
-                                        child: SizedBox(
-                                          height: MediaQuery.sizeOf(context).height * 0.85,
-                                          child: const ManageProfilesScreen(),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                                await _loadRoleAndProfile();
-                              },
-                            ),
                           ],
                         ],
                       );
@@ -1489,35 +1510,39 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Divider(height: 1, thickness: 1),
                   // ---- End Profiles section ----
                   // ---- Data management section ----
-                  InkWell(
-                    onTap: () => setMenuState(() => dataExpanded = !dataExpanded),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 6, 8, 4),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Data management',
-                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: InkWell(
+                      onTap: () => setMenuState(() => dataExpanded = !dataExpanded),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Data management',
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
                             ),
-                          ),
-                          Icon(
-                            dataExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                            size: 18,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 6),
-                        ],
+                            Icon(
+                              dataExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                              size: 20,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                   if (dataExpanded) ...[
                     menuTile(icon: Icons.upload_file_outlined, title: 'Export (Excel)', onTap: () => handleSelection('export')),
                     menuTile(icon: Icons.download_outlined, title: 'Import (Excel)', onTap: () => handleSelection('import')),
-                    menuTile(icon: Icons.playlist_add_check_circle_outlined, title: 'Initialize defaults', onTap: () => handleSelection('initialize_defaults')),
+                    menuTile(icon: Icons.playlist_add_check_circle_outlined, title: 'Create General Categories and Accounts', onTap: () => handleSelection('initialize_defaults')),
                     menuTile(icon: Icons.delete_forever_outlined, title: 'Delete everything', onTap: () => handleSelection('delete_everything')),
                     menuTile(icon: Icons.receipt_long_outlined, title: 'Delete transactions', onTap: () => handleSelection('delete_transactions')),
                     menuTile(icon: Icons.restart_alt_outlined, title: 'Reset app', onTap: () => handleSelection('reset_app')),
@@ -1525,30 +1550,36 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Divider(height: 1, thickness: 1),
                   const _MenuSectionHeader('Mode'),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                    padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+                    child: Column(
                       children: [
-                        ChoiceChip(
-                          label: const Text('Budget vs Expense'),
-                          selected: settings.comparisonMode == ComparisonMode.budgetVsExpense,
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          labelPadding: const EdgeInsets.symmetric(horizontal: 2),
-                          onSelected: (_) async {
+                        ListTile(
+                          dense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                          title: const Text(
+                            'Budget vs Expense',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
+                          ),
+                          trailing: settings.comparisonMode == ComparisonMode.budgetVsExpense
+                              ? const Icon(Icons.check, color: Color(0xFF4F46E5), size: 20)
+                              : null,
+                          onTap: () async {
                             await _setComparisonMode(ComparisonMode.budgetVsExpense);
                             if (!drawerContext.mounted) return;
                             Navigator.of(drawerContext).pop();
                           },
                         ),
-                        ChoiceChip(
-                          label: const Text('Income vs Expense'),
-                          selected: settings.comparisonMode == ComparisonMode.incomeVsExpense,
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          labelPadding: const EdgeInsets.symmetric(horizontal: 2),
-                          onSelected: (_) async {
+                        ListTile(
+                          dense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                          title: const Text(
+                            'Income vs Expense',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
+                          ),
+                          trailing: settings.comparisonMode == ComparisonMode.incomeVsExpense
+                              ? const Icon(Icons.check, color: Color(0xFF4F46E5), size: 20)
+                              : null,
+                          onTap: () async {
                             await _setComparisonMode(ComparisonMode.incomeVsExpense);
                             if (!drawerContext.mounted) return;
                             Navigator.of(drawerContext).pop();
@@ -1560,8 +1591,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Divider(height: 1, thickness: 1),
                   const _MenuSectionHeader('Visuals', compact: true),
                   ExpansionTile(
-                    title: const Text('Appearance'),
-                    leading: const Icon(Icons.palette_outlined),
+                    title: Text(
+                      'Appearance',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    leading: const Icon(Icons.palette_outlined, size: 22),
                     onExpansionChanged: (expanded) {
                       if (!expanded) return;
                       _scrollMenuAfterAppearanceExpand();
@@ -1594,7 +1631,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   menuTile(
                     icon: Icons.feedback_outlined,
                     title: 'Feedback',
-                    subtitle: 'vivekgoyal.vg29@gmail.com',
                     onTap: () async {
                       Navigator.of(drawerContext).pop();
                       await _openFeedbackDialog();
@@ -1607,6 +1643,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.of(drawerContext).pop();
                       await _openPrivacyPolicy();
                     },
+                  ),
+                  menuTile(
+                    icon: Icons.logout_outlined,
+                    title: 'Logout',
+                    onTap: () => handleSelection('logout'),
                   ),
                 ],
               ),
@@ -1721,10 +1762,11 @@ class _MenuSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(14, compact ? 2 : 6, 14, compact ? 0 : 2),
+      padding: EdgeInsets.fromLTRB(14, compact ? 8 : 12, 14, compact ? 6 : 10),
       child: Text(
         title,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontSize: 15,
               fontWeight: FontWeight.w700,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),

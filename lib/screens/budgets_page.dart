@@ -88,8 +88,16 @@ class _BudgetsPageState extends State<BudgetsPage> {
         builder: (dialogContext, setDialogState) {
           bool saving = false;
           return StatefulBuilder(
-            builder: (dialogContext, setInnerState) => AlertDialog(
-              title: Text(budget == null ? 'Create Budget' : 'Edit Budget'),
+            builder: (dialogContext, setInnerState) {
+              final fieldLabelStyle = Theme.of(dialogContext).textTheme.bodyMedium;
+              final fieldTextStyle = Theme.of(dialogContext).textTheme.bodyLarge;
+              return AlertDialog(
+              title: Text(
+                budget == null ? 'Create Budget' : 'Edit Budget',
+                style: Theme.of(dialogContext).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -104,13 +112,21 @@ class _BudgetsPageState extends State<BudgetsPage> {
                             ))
                         .toList(),
                     onChanged: (value) => setDialogState(() => selectedCategory = value),
-                    decoration: const InputDecoration(labelText: 'Category'),
+                    style: fieldTextStyle,
+                    decoration: InputDecoration(
+                      labelText: 'Category',
+                      labelStyle: fieldLabelStyle,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: amountController,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Amount'),
+                    style: fieldTextStyle,
+                    decoration: InputDecoration(
+                      labelText: 'Amount',
+                      labelStyle: fieldLabelStyle,
+                    ),
                   ),
                 ],
               ),
@@ -167,10 +183,11 @@ class _BudgetsPageState extends State<BudgetsPage> {
                       : const Text('Save'),
                 ),
               ],
-            ),
-          );
-        },
-      ),
+            );
+          },
+        );
+      },
+    ),
     );
     amountController.addListener(() {});
   }

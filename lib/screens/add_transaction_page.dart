@@ -179,7 +179,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                       Expanded(
                         child: Text(
                           isAccount ? 'Select Account' : 'Select Category',
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                          style: Theme.of(dialogContext).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                       ),
                       IconButton(
@@ -242,11 +244,18 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(isAccount ? 'Create Account' : 'Create Category'),
+        title: Text(
+          isAccount ? 'Create Account' : 'Create Category',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+        ),
         content: TextField(
           controller: nameController,
           autofocus: true,
-          decoration: InputDecoration(labelText: isAccount ? 'Account Name' : 'Category Name'),
+          style: Theme.of(context).textTheme.bodyLarge,
+          decoration: InputDecoration(
+            labelText: isAccount ? 'Account Name' : 'Category Name',
+            labelStyle: Theme.of(context).textTheme.bodyMedium,
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
@@ -276,7 +285,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   Widget build(BuildContext context) {
     final tr = AppLocalizationsScope.of(context);
     final theme = Theme.of(context);
-    final largerFieldLabelStyle = theme.textTheme.titleSmall;
+    final largerFieldLabelStyle = theme.textTheme.bodyMedium;
     final helperTextStyle = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
     );
@@ -436,7 +445,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                       widget.existingTransaction == null
                           ? tr.t('Add Transaction')
                           : tr.t('Edit Transaction'),
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
                   IconButton(

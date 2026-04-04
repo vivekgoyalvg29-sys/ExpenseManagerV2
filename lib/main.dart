@@ -7,8 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'screens/add_transaction_page.dart';
 import 'screens/auth/phone_auth_screen.dart';
 import 'screens/home_screen.dart';
@@ -16,7 +14,6 @@ import 'services/data_service.dart';
 import 'services/data_store.dart';
 import 'services/app_localizations.dart';
 import 'services/database_service.dart';
-import 'services/firestore_service.dart';
 import 'services/migration_service.dart';
 import 'services/profile_service.dart';
 import 'services/visual_settings.dart';
@@ -210,19 +207,11 @@ class _PostLoginInitScreenState extends State<_PostLoginInitScreen> {
     try {
       final phone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
 
-      // Step 1 — Instantly set active_profile_id from the deterministic default
-      // profile ID. No network call required. This ensures every subsequent
-      // operation has a valid profile ID from the very first frame.
+      // Step 1 — Ensure active_profile_id matches this Firebase user. SharedPreferences
+      // are global: logging in with another number used to leave the previous
+      // user's profile id in place, so Firestore looked empty for the new account.
       if (phone.isNotEmpty) {
-        final prefs = await SharedPreferences.getInstance();
-        final existing = prefs.getString('active_profile_id');
-        if (existing == null || existing.isEmpty) {
-          await prefs.setString(
-            'active_profile_id',
-            ProfileService.defaultProfileId(phone),
-          );
-          FirestoreService().clearCaches();
-        }
+        await ProfileService().syncActiveProfileForCurrentUser();
       }
 
       // Step 2 — One-time SQLite wipe on the first run after Firebase
