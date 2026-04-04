@@ -239,7 +239,10 @@ class _PostLoginInitScreenState extends State<_PostLoginInitScreen> {
       // Firestore. With offline persistence this hits the local cache
       // immediately, so the profile appears in the real-time stream at once.
       if (phone.isNotEmpty) {
-        ProfileService().ensureDefaultProfileExists().catchError((_) {});
+        ProfileService()
+            .ensureDefaultProfileExists()
+            .then((_) => ProfileService().ensureActiveProfileMembership())
+            .catchError((_) {});
       }
     } catch (_) {}
 
