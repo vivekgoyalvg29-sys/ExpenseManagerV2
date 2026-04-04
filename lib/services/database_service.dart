@@ -1,5 +1,6 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import 'default_seed_icons.dart';
 import 'package:flutter/material.dart';
 
 class DatabaseService {
@@ -521,18 +522,33 @@ class DatabaseService {
     var created = 0;
     for (final name in incomeCategories) {
       if (await categoryExists(name, 'income')) continue;
-      await insertCategory(name, 'income', Icons.trending_up.codePoint);
+      await insertCategory(
+        name,
+        'income',
+        Icons.trending_up.codePoint,
+        iconPath: DefaultSeedIcons.categoryIconPathFor(name, 'income'),
+      );
       created++;
     }
     for (final name in expenseCategories) {
       if (await categoryExists(name, 'expense')) continue;
-      await insertCategory(name, 'expense', Icons.shopping_bag_outlined.codePoint);
+      await insertCategory(
+        name,
+        'expense',
+        Icons.shopping_bag_outlined.codePoint,
+        iconPath: DefaultSeedIcons.categoryIconPathFor(name, 'expense'),
+      );
       created++;
     }
     for (final name in accounts) {
       for (final type in const ['income', 'expense']) {
         if (await accountExists(name, type)) continue;
-        await insertAccount(name, type, Icons.account_balance_wallet_outlined.codePoint);
+        await insertAccount(
+          name,
+          type,
+          Icons.account_balance_wallet_outlined.codePoint,
+          iconPath: DefaultSeedIcons.accountIconPathFor(name),
+        );
         created++;
       }
     }

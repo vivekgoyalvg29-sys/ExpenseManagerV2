@@ -121,6 +121,45 @@ class _AccountsPageState extends State<AccountsPage> {
                         );
                       }).toList(),
                     ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Default sample icons',
+                        style: Theme.of(dialogContext).textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: selectableAccountSampleIconPaths.map((path) {
+                        final selected = customIconPath == path;
+                        return InkWell(
+                          onTap: () => setDialogState(() {
+                            customIconPath = path;
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: selected ? Colors.green : Colors.transparent,
+                                width: 2,
+                              ),
+                            ),
+                            child: AppPageIcon(
+                              icon: IconData(selectedIcon, fontFamily: 'MaterialIcons'),
+                              imagePath: path,
+                              size: 18,
+                              boxSize: 36,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
                     const SizedBox(height: 14),
                     InkWell(
                       onTap: () async {

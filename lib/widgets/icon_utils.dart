@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 const IconData defaultAppIcon = Icons.category;
 
@@ -26,6 +27,44 @@ const List<IconData> selectableIcons = [
   Icons.card_giftcard,
   Icons.phone_android,
   Icons.bolt,
+];
+
+const List<String> selectableAccountSampleIconPaths = [
+  'assets/sample_icons/account/cash.svg',
+  'assets/sample_icons/account/bank.svg',
+  'assets/sample_icons/account/savings.svg',
+  'assets/sample_icons/account/credit_card.svg',
+  'assets/sample_icons/account/wallet.svg',
+];
+
+const List<String> selectableIncomeCategorySampleIconPaths = [
+  'assets/sample_icons/income_category/salary.svg',
+  'assets/sample_icons/income_category/bonus.svg',
+  'assets/sample_icons/income_category/freelance.svg',
+  'assets/sample_icons/income_category/interest.svg',
+  'assets/sample_icons/income_category/dividends.svg',
+  'assets/sample_icons/income_category/gifts.svg',
+  'assets/sample_icons/income_category/reimbursements.svg',
+  'assets/sample_icons/income_category/rental.svg',
+  'assets/sample_icons/income_category/other.svg',
+];
+
+const List<String> selectableExpenseCategorySampleIconPaths = [
+  'assets/sample_icons/expense_category/housing.svg',
+  'assets/sample_icons/expense_category/utilities.svg',
+  'assets/sample_icons/expense_category/groceries.svg',
+  'assets/sample_icons/expense_category/dining.svg',
+  'assets/sample_icons/expense_category/transport.svg',
+  'assets/sample_icons/expense_category/health.svg',
+  'assets/sample_icons/expense_category/insurance.svg',
+  'assets/sample_icons/expense_category/education.svg',
+  'assets/sample_icons/expense_category/entertainment.svg',
+  'assets/sample_icons/expense_category/shopping.svg',
+  'assets/sample_icons/expense_category/subscriptions.svg',
+  'assets/sample_icons/expense_category/debt.svg',
+  'assets/sample_icons/expense_category/savings.svg',
+  'assets/sample_icons/expense_category/donations.svg',
+  'assets/sample_icons/expense_category/misc.svg',
 ];
 
 IconData iconFromCodePoint(dynamic codePoint, {IconData fallback = defaultAppIcon}) {
@@ -56,7 +95,11 @@ class AppPageIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = imagePath != null && imagePath!.isNotEmpty && File(imagePath!).existsSync();
+    final hasAssetImage =
+        imagePath != null && imagePath!.isNotEmpty && imagePath!.startsWith('assets/');
+    final hasFileImage =
+        imagePath != null && imagePath!.isNotEmpty && File(imagePath!).existsSync();
+    final hasImage = hasAssetImage || hasFileImage;
 
     return Container(
       width: boxSize,
@@ -68,17 +111,24 @@ class AppPageIcon extends StatelessWidget {
       alignment: Alignment.center,
       clipBehavior: Clip.antiAlias,
       child: hasImage
-          ? Image.file(
-              File(imagePath!),
-              fit: BoxFit.cover,
-              width: boxSize,
-              height: boxSize,
-              errorBuilder: (_, __, ___) => Icon(
-                icon ?? Icons.image_outlined,
-                size: size,
-                color: const Color(0xFF1D4ED8),
-              ),
-            )
+          ? (hasAssetImage
+              ? SvgPicture.asset(
+                  imagePath!,
+                  fit: BoxFit.cover,
+                  width: boxSize,
+                  height: boxSize,
+                )
+              : Image.file(
+                  File(imagePath!),
+                  fit: BoxFit.cover,
+                  width: boxSize,
+                  height: boxSize,
+                  errorBuilder: (_, __, ___) => Icon(
+                    icon ?? Icons.image_outlined,
+                    size: size,
+                    color: const Color(0xFF1D4ED8),
+                  ),
+                ))
           : Icon(
               icon ?? Icons.category,
               size: size,

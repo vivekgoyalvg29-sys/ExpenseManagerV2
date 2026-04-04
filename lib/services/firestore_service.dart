@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'default_seed_icons.dart';
 
 class FirestoreService {
   static final FirestoreService _instance = FirestoreService._();
@@ -526,20 +527,38 @@ class FirestoreService {
     for (final name in incomeCategories) {
       if (await categoryExists(name, 'income')) continue;
       final id = DateTime.now().microsecondsSinceEpoch + created;
-      await insertCategory(id, name, 'income', Icons.trending_up.codePoint);
+      await insertCategory(
+        id,
+        name,
+        'income',
+        Icons.trending_up.codePoint,
+        iconPath: DefaultSeedIcons.categoryIconPathFor(name, 'income'),
+      );
       created++;
     }
     for (final name in expenseCategories) {
       if (await categoryExists(name, 'expense')) continue;
       final id = DateTime.now().microsecondsSinceEpoch + created;
-      await insertCategory(id, name, 'expense', Icons.shopping_bag_outlined.codePoint);
+      await insertCategory(
+        id,
+        name,
+        'expense',
+        Icons.shopping_bag_outlined.codePoint,
+        iconPath: DefaultSeedIcons.categoryIconPathFor(name, 'expense'),
+      );
       created++;
     }
     for (final name in accountNames) {
       for (final type in const ['income', 'expense']) {
         if (await accountExists(name, type)) continue;
         final id = DateTime.now().microsecondsSinceEpoch + created;
-        await insertAccount(id, name, type, Icons.account_balance_wallet_outlined.codePoint);
+        await insertAccount(
+          id,
+          name,
+          type,
+          Icons.account_balance_wallet_outlined.codePoint,
+          iconPath: DefaultSeedIcons.accountIconPathFor(name),
+        );
         created++;
       }
     }
