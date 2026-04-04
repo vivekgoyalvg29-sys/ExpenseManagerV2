@@ -14,10 +14,8 @@ if (localPropertiesFile.exists()) {
 
 android {
     namespace 'vivek.fintrack.app'
-    // Keep SDK levels aligned with broadly available CI images.
-    // API 35 is currently available in most hosted Android runners,
-    // while API 36 may be missing and cause release builds to fail.
-    compileSdk 35
+    // Keep these pinned to API 36+ for androidx.browser:1.9.0 / androidx.core:1.17.0+.
+    compileSdk Integer.parseInt(project.findProperty('fintrack.compileSdk').toString())
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -31,7 +29,7 @@ android {
     defaultConfig {
         applicationId 'vivek.fintrack.app'
         minSdkVersion flutter.minSdkVersion
-        targetSdk 35
+        targetSdk Integer.parseInt(project.findProperty('fintrack.targetSdk').toString())
         versionCode 3
         versionName '1.0.2'
     }
