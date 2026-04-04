@@ -4,12 +4,14 @@ class SectionTile extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? margin;
   final EdgeInsetsGeometry padding;
+  final double borderRadius;
 
   const SectionTile({
     super.key,
     required this.child,
     this.margin,
     this.padding = const EdgeInsets.all(8),
+    this.borderRadius = 16,
   });
 
   @override
@@ -19,15 +21,24 @@ class SectionTile extends StatelessWidget {
       margin: margin ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       padding: padding,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
+        color: theme.colorScheme.surface.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.92 : 0.98,
+        ),
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(
+            alpha: theme.brightness == Brightness.dark ? 0.28 : 0.22,
+          ),
+          width: 0.8,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(
-              alpha: theme.brightness == Brightness.dark ? 0.25 : 0.06,
+              alpha: theme.brightness == Brightness.dark ? 0.22 : 0.05,
             ),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            blurRadius: 16,
+            spreadRadius: -4,
+            offset: const Offset(0, 6),
           ),
         ],
       ),

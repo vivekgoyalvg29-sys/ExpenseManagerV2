@@ -64,7 +64,7 @@ class SegmentedToggle<T> extends StatelessWidget {
         theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.65);
 
     const double inset = 3;
-    const double horizontalHeight = 36;
+    const double horizontalHeight = 42;
     const double verticalCellHeight = 40;
 
     return LayoutBuilder(
@@ -125,6 +125,7 @@ class SegmentedToggle<T> extends StatelessWidget {
                                   label: option.label,
                                   selected: option.value == selectedValue,
                                   onTap: () => onChanged(option.value),
+                                  axis: axis,
                                 ),
                               ),
                             ),
@@ -139,6 +140,7 @@ class SegmentedToggle<T> extends StatelessWidget {
                                 label: option.label,
                                 selected: option.value == selectedValue,
                                 onTap: () => onChanged(option.value),
+                                axis: axis,
                               ),
                             ),
                         ],
@@ -156,11 +158,13 @@ class _ToggleOptionLabel extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final SegmentedToggleAxis axis;
 
   const _ToggleOptionLabel({
     required this.label,
     required this.selected,
     required this.onTap,
+    required this.axis,
   });
 
   @override
@@ -176,8 +180,10 @@ class _ToggleOptionLabel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Text(
               label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              maxLines: axis == SegmentedToggleAxis.horizontal ? 2 : 1,
+              softWrap: axis == SegmentedToggleAxis.horizontal,
+              overflow: TextOverflow.fade,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
