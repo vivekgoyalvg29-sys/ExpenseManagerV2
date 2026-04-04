@@ -18,6 +18,10 @@ class ProfileService {
 
   static const String _activeProfileKey = 'active_profile_id';
 
+  /// Last Firebase phone number that [active_profile_id] was validated for.
+  /// Without this, switching accounts reuses the previous user's profile id from prefs.
+  static const String _prefsPhoneKey = 'profile_prefs_phone';
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instanceFor(
     app: Firebase.app(),
     databaseId: 'krchabookdb',
@@ -32,6 +36,68 @@ class ProfileService {
   /// Derived from the phone number so it is known immediately at login, with
   /// zero network calls.
   static String defaultProfileId(String phone) => 'default_$phone';
+
+  /// Returns the phone segment for ids shaped as `default_<phone>`, else null.
+  static String? phoneFromDefaultProfileId(String? id) {
+    if (id == null || !id.startsWith('default_')) return null;
+    return id.substring('default_'.length);
+  }
+
+  /// Aligns [active_profile_id] with the signed-in user. Call on every app start
+  /// after Firebase Auth is ready. Clears SQLite when the account changes so
+  /// the previous user's cache cannot mask the new default profile.
+  Future<void> syncActiveProfileForCurrentUser() async {
+    final phone = _currentPhone;
+    if (phone.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final storedPhone = prefs.getString(_prefsPhoneKey);
+    final activeId = prefs.getString(_activeProfileKey);
+
+    if (storedPhone == phone) {
+      if (activeId == null || activeId.isEmpty) {
+        await prefs.setString(_activeProfileKey, defaultProfileId(phone));
+        FirestoreService().clearCaches();
+      }
+      return;
+    }
+
+    var needWipe = false;
+    if (storedPhone != null && storedPhone != phone) {
+      needWipe = true;
+    } else if (storedPhone == null &&
+        activeId != null &&
+        activeId.startsWith('default_')) {
+      final forPhone = phoneFromDefaultProfileId(activeId);
+      if (forPhone != null && forPhone != phone) {
+        needWipe = true;
+      }
+    }
+
+    if (needWipe) {
+      await prefs.setString(_activeProfileKey, defaultProfileId(phone));
+      await prefs.setString(_prefsPhoneKey, phone);
+      FirestoreService().clearCaches();
+      try {
+        await DatabaseService.deleteAllData();
+      } catch (_) {}
+      return;
+    }
+
+    if (activeId == null || activeId.isEmpty) {
+      await prefs.setString(_activeProfileKey, defaultProfileId(phone));
+      FirestoreService().clearCaches();
+    }
+    await prefs.setString(_prefsPhoneKey, phone);
+  }
+
+  /// Clears profile selection prefs on sign-out so the next user never inherits
+  /// the previous account's active profile id.
+  Future<void> clearProfilePrefsForLogout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_activeProfileKey);
+    await prefs.remove(_prefsPhoneKey);
+  }
 
   /// Derives a 6-char share code from the phone number without any network call.
   /// Used only for the default profile. Custom profiles still use random codes.

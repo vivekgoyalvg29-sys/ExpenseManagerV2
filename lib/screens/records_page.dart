@@ -186,6 +186,9 @@ class _RecordsPageState extends State<RecordsPage> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final tt = Theme.of(context).textTheme;
+            final fieldLabelStyle = tt.bodyMedium;
+            final fieldTextStyle = tt.bodyLarge;
             final expenseAccounts = DataStore.accounts
                 .where((acc) => (acc['type'] ?? '').toString() == 'expense')
                 .toList();
@@ -203,15 +206,19 @@ class _RecordsPageState extends State<RecordsPage> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
+                        Text(
                           'Add Expense from QR',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                          style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
                           initialValue: 'Expense',
                           readOnly: true,
-                          decoration: const InputDecoration(labelText: 'Type'),
+                          style: fieldTextStyle,
+                          decoration: InputDecoration(
+                            labelText: 'Type',
+                            labelStyle: fieldLabelStyle,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         DropdownButtonFormField<String>(
@@ -230,7 +237,11 @@ class _RecordsPageState extends State<RecordsPage> {
                               selectedAccount = v;
                             });
                           },
-                          decoration: const InputDecoration(labelText: 'Account'),
+                          style: fieldTextStyle,
+                          decoration: InputDecoration(
+                            labelText: 'Account',
+                            labelStyle: fieldLabelStyle,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         DropdownButtonFormField<String>(
@@ -249,22 +260,32 @@ class _RecordsPageState extends State<RecordsPage> {
                               selectedCategory = v;
                             });
                           },
-                          decoration: const InputDecoration(labelText: 'Category'),
+                          style: fieldTextStyle,
+                          decoration: InputDecoration(
+                            labelText: 'Category',
+                            labelStyle: fieldLabelStyle,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         TextField(
                           controller: commentController,
                           minLines: 1,
                           maxLines: 3,
-                          decoration: const InputDecoration(labelText: 'Comments'),
+                          style: fieldTextStyle,
+                          decoration: InputDecoration(
+                            labelText: 'Comments',
+                            labelStyle: fieldLabelStyle,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         TextField(
                           controller: amountController,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           readOnly: lockAmountField,
+                          style: fieldTextStyle,
                           decoration: InputDecoration(
                             labelText: 'Amount',
+                            labelStyle: fieldLabelStyle,
                             helperText: lockAmountField
                                 ? 'Amount is taken from merchant QR.'
                                 : null,

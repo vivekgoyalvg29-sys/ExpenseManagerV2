@@ -371,9 +371,9 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
     final shouldInit = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Initialize defaults?'),
+        title: const Text('Create General Categories and Accounts?'),
         content: const Text(
-          'Create default categories and accounts for this profile?\n\n'
+          'Create general categories and accounts for this profile?\n\n'
           'You can do this later from Main Menu > Data management.',
         ),
         actions: [
@@ -403,7 +403,7 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
               children: [
                 CircularProgressIndicator(),
                 SizedBox(width: 20),
-                Text('Creating defaults…'),
+                Text('Creating general categories and accounts…'),
               ],
             ),
           );
@@ -431,8 +431,8 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
           SnackBar(
             content: Text(
               created == 0
-                  ? 'Defaults are already available.'
-                  : 'Added $created default categories/accounts.',
+                  ? 'General categories and accounts are already available.'
+                  : 'Added $created general categories/accounts.',
             ),
           ),
         );
@@ -442,7 +442,7 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'You can initialize defaults later from Main Menu > Data management.',
+              'You can create general categories and accounts later from Main Menu > Data management.',
             ),
           ),
         );
