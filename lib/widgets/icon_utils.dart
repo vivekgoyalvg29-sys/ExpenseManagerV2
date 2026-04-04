@@ -67,16 +67,30 @@ const List<String> selectableExpenseCategorySampleIconPaths = [
   'assets/sample_icons/expense_category/misc.svg',
 ];
 
-IconData iconFromCodePoint(dynamic codePoint, {IconData fallback = defaultAppIcon}) {
-  if (codePoint is int) {
-    for (final icon in selectableIcons) {
-      if (icon.codePoint == codePoint) {
-        return icon;
-      }
-    }
-  }
+const List<IconData> _persistedCodePointIcons = [
+  ...selectableIcons,
+  Icons.trending_up,
+  Icons.shopping_bag_outlined,
+  Icons.account_balance_wallet,
+  Icons.account_balance_wallet_outlined,
+];
 
-  return fallback;
+final Map<int, IconData> _persistedCodePointIconMap = {
+  for (final icon in _persistedCodePointIcons) icon.codePoint: icon,
+};
+
+int? _parseStoredCodePoint(dynamic codePoint) {
+  if (codePoint is int) return codePoint;
+  if (codePoint is num) return codePoint.toInt();
+  if (codePoint is String) return int.tryParse(codePoint.trim());
+  return null;
+}
+
+IconData iconFromCodePoint(dynamic codePoint, {IconData fallback = defaultAppIcon}) {
+  final parsedCodePoint = _parseStoredCodePoint(codePoint);
+  if (parsedCodePoint == null) return fallback;
+
+  return _persistedCodePointIconMap[parsedCodePoint] ?? fallback;
 }
 
 class AppPageIcon extends StatelessWidget {
