@@ -633,8 +633,8 @@ class _DefaultProfileCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          const Icon(Icons.folder_special_outlined,
-              color: Color(0xFF4F46E5), size: 20),
+          Icon(Icons.folder_special_outlined,
+              color: cs.primary, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -657,7 +657,7 @@ class _DefaultProfileCard extends StatelessWidget {
               ],
             ),
           ),
-          _Badge('Default', const Color(0xFF4F46E5)),
+          _Badge('Default', cs.primary),
           IconButton(
             icon: const Icon(Icons.edit_outlined, size: 18),
             tooltip: 'Rename',
@@ -734,8 +734,8 @@ class _OwnedProfileCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 GestureDetector(
                   onTap: onCopyCode,
-                  child: const Icon(Icons.copy_outlined,
-                      size: 14, color: Color(0xFF4F46E5)),
+                  child: Icon(Icons.copy_outlined,
+                      size: 14, color: cs.primary),
                 ),
               ],
             ),

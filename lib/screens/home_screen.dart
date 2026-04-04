@@ -1351,18 +1351,18 @@ class _HomeScreenState extends State<HomeScreen> {
                           leading: Icon(
                             profile.isDefault ? Icons.folder_special_outlined : Icons.folder_outlined,
                             size: 20,
-                            color: isActive ? const Color(0xFF4F46E5) : null,
+                            color: isActive ? Theme.of(context).colorScheme.primary : null,
                           ),
                           title: Text(
                             profile.name,
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
-                              color: isActive ? const Color(0xFF4F46E5) : null,
+                              color: isActive ? Theme.of(context).colorScheme.primary : null,
                             ),
                           ),
                           trailing: isActive
-                              ? const Icon(Icons.check, color: Color(0xFF4F46E5), size: 18)
+                              ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary, size: 18)
                               : null,
                           onTap: isActive
                               ? null
@@ -1561,7 +1561,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
                           ),
                           trailing: settings.comparisonMode == ComparisonMode.budgetVsExpense
-                              ? const Icon(Icons.check, color: Color(0xFF4F46E5), size: 20)
+                              ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary, size: 20)
                               : null,
                           onTap: () async {
                             await _setComparisonMode(ComparisonMode.budgetVsExpense);
@@ -1577,7 +1577,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
                           ),
                           trailing: settings.comparisonMode == ComparisonMode.incomeVsExpense
-                              ? const Icon(Icons.check, color: Color(0xFF4F46E5), size: 20)
+                              ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary, size: 20)
                               : null,
                           onTap: () async {
                             await _setComparisonMode(ComparisonMode.incomeVsExpense);
@@ -1701,7 +1701,7 @@ class _HomeScreenState extends State<HomeScreen> {
             type: BottomNavigationBarType.fixed,
             elevation: 0,
             backgroundColor: Colors.transparent,
-            selectedItemColor: const Color(0xFF4F46E5),
+            selectedItemColor: Theme.of(context).colorScheme.primary,
             unselectedItemColor: Theme.of(context).colorScheme.onSurfaceVariant,
             onTap: (index) => setState(() => currentIndex = index),
             items: [for (final item in items) BottomNavigationBarItem(icon: Icon(item.icon), label: item.label)],

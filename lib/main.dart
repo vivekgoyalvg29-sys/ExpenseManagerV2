@@ -162,7 +162,7 @@ class _FinTrackAppState extends State<FinTrackApp> {
               return const Scaffold(
                 backgroundColor: Colors.black,
                 body: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
+                  child: CircularProgressIndicator(color: Color(0xFFF77A4A)),
                 ),
               );
             }
@@ -249,7 +249,7 @@ class _PostLoginInitScreenState extends State<_PostLoginInitScreen> {
             left: 0,
             right: 0,
             child: LinearProgressIndicator(
-              color: Color(0xFF4F46E5),
+              color: Color(0xFFF77A4A),
               backgroundColor: Colors.transparent,
             ),
           ),
