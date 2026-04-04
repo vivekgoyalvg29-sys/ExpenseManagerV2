@@ -140,9 +140,9 @@ class VisualSettingsController extends ValueNotifier<VisualSettings> {
 class FinTrackTheme {
   static ThemeData build(VisualSettings settings, {Brightness brightness = Brightness.light}) {
     final isDark = brightness == Brightness.dark;
-    const primary = Color(0xFFF77A4A);
-    const primaryDark = Color(0xFFE3683C);
-    const accent = Color(0xFFFF5E57);
+    const primary = Color(0xFFE88363);
+    const primaryDark = Color(0xFFD86F4E);
+    const accent = Color(0xFFF2A287);
     final colorScheme = isDark
         ? ColorScheme.dark(
             primary: primaryDark,
@@ -150,10 +150,10 @@ class FinTrackTheme {
             secondary: accent,
             onSecondary: Colors.white,
             surface: const Color(0xFF1E1410),
-            onSurface: const Color(0xFFFFEFE6),
-            onSurfaceVariant: const Color(0xFFE4BBAA),
-            surfaceContainerHighest: const Color(0xFF2A1D18),
-            outline: const Color(0xFF6D4A3F),
+            onSurface: const Color(0xFFFFF4EF),
+            onSurfaceVariant: const Color(0xFFD8B4A6),
+            surfaceContainerHighest: const Color(0xFF281D18),
+            outline: const Color(0xFF775649),
           )
         : ColorScheme.light(
             primary: primary,
@@ -162,9 +162,9 @@ class FinTrackTheme {
             onSecondary: Colors.white,
             surface: Colors.white,
             onSurface: const Color(0xFF2A1A14),
-            onSurfaceVariant: const Color(0xFF8A5A4A),
-            surfaceContainerHighest: const Color(0xFFFFEDE3),
-            outline: const Color(0xFFF0C8B7),
+            onSurfaceVariant: const Color(0xFF7A5A4D),
+            surfaceContainerHighest: const Color(0xFFFFF2EC),
+            outline: const Color(0xFFE9D2C8),
           );
 
     final base = ThemeData(
@@ -172,11 +172,11 @@ class FinTrackTheme {
       useMaterial3: true,
       colorScheme: colorScheme,
       primarySwatch: Colors.deepOrange,
-      scaffoldBackgroundColor: isDark ? const Color(0xFF160E0B) : const Color(0xFFFFF7F2),
-      dividerColor: isDark ? const Color(0xFF6D4A3F) : const Color(0xFFF0C8B7),
-      splashColor: colorScheme.primary.withValues(alpha: 0.16),
-      highlightColor: colorScheme.primary.withValues(alpha: 0.08),
-      hoverColor: colorScheme.primary.withValues(alpha: 0.06),
+      scaffoldBackgroundColor: isDark ? const Color(0xFF160E0B) : Colors.white,
+      dividerColor: isDark ? const Color(0xFF6D4A3F) : const Color(0xFFE9D2C8),
+      splashColor: colorScheme.primary.withValues(alpha: 0.10),
+      highlightColor: colorScheme.primary.withValues(alpha: 0.05),
+      hoverColor: colorScheme.primary.withValues(alpha: 0.04),
     );
 
     final scaledTextTheme = base.textTheme.apply(
@@ -243,7 +243,8 @@ class FinTrackTheme {
       ),
       popupMenuTheme: const PopupMenuThemeData(),
       appBarTheme: AppBarTheme(
-        backgroundColor: isDark ? const Color(0xFF160E0B) : primary,
+        backgroundColor:
+            isDark ? const Color(0xFF160E0B) : (Color.lerp(primary, Colors.white, 0.34) ?? primary),
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
