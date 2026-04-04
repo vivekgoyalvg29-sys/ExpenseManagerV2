@@ -142,31 +142,31 @@ class FinTrackTheme {
     final isDark = brightness == Brightness.dark;
     final colorScheme = isDark
         ? ColorScheme.dark(
-            primary: const Color(0xFF818CF8),
-            onPrimary: const Color(0xFF0B0F14),
-            surface: const Color(0xFF151A21),
-            onSurface: const Color(0xFFE8EAED),
-            onSurfaceVariant: const Color(0xFFC4C9D4),
-            surfaceContainerHighest: const Color(0xFF252D38),
-            outline: const Color(0xFF3D4754),
+            primary: const Color(0xFF20B2AA),
+            onPrimary: Colors.white,
+            surface: const Color(0xFF111C1F),
+            onSurface: const Color(0xFFE6F1F3),
+            onSurfaceVariant: const Color(0xFFB6C8CC),
+            surfaceContainerHighest: const Color(0xFF162429),
+            outline: const Color(0xFF244047),
           )
         : ColorScheme.light(
-            primary: const Color(0xFF4F46E5),
+            primary: const Color(0xFF20B2AA),
             onPrimary: Colors.white,
             surface: Colors.white,
-            onSurface: const Color(0xFF1F2933),
-            onSurfaceVariant: const Color(0xFF52606D),
-            surfaceContainerHighest: const Color(0xFFE8ECF2),
-            outline: const Color(0xFFCBD2DC),
+            onSurface: const Color(0xFF0F172A),
+            onSurfaceVariant: const Color(0xFF475569),
+            surfaceContainerHighest: const Color(0xFFE8F8F7),
+            outline: const Color(0xFFD7E3E3),
           );
 
     final base = ThemeData(
       brightness: brightness,
       useMaterial3: true,
       colorScheme: colorScheme,
-      primarySwatch: Colors.blue,
-      scaffoldBackgroundColor: isDark ? const Color(0xFF0E1218) : const Color(0xFFF3F5F9),
-      dividerColor: isDark ? const Color(0xFF2A323D) : const Color(0xFFE3E7EE),
+      primarySwatch: Colors.teal,
+      scaffoldBackgroundColor: isDark ? const Color(0xFF0B1416) : const Color(0xFFF7FAFA),
+      dividerColor: isDark ? const Color(0xFF244047) : const Color(0xFFD7E3E3),
     );
 
     final scaledTextTheme = base.textTheme.apply(
@@ -233,7 +233,7 @@ class FinTrackTheme {
       ),
       popupMenuTheme: const PopupMenuThemeData(),
       appBarTheme: AppBarTheme(
-        backgroundColor: isDark ? const Color(0xFF0B0D10) : const Color(0xFF4F46E5),
+        backgroundColor: isDark ? const Color(0xFF0B1416) : const Color(0xFF20B2AA),
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
