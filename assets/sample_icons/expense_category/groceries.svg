@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Groceries">
-  <rect width="128" height="128" rx="24" fill="#F8FAFC"/>
-  <circle cx="64" cy="56" r="34" fill="#D97706"/>
-  <text x="64" y="64" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">GR</text>
-  <text x="64" y="108" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#0F172A">Groceries</text>
+  <rect width="128" height="128" rx="24" fill="#ECFCCB"/>
+  <circle cx="64" cy="64" r="36" fill="#65A30D"/>
+  <path d="M44 52h40l-4 28H48z" fill="white"/><path d="M52 52c0-6 4-10 10-10s10 4 10 10" stroke="white" stroke-width="4" fill="none"/>
 </svg>

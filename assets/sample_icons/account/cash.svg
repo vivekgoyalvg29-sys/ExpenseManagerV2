@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Cash">
-  <rect width="128" height="128" rx="24" fill="#F8FAFC"/>
-  <circle cx="64" cy="56" r="34" fill="#2563EB"/>
-  <text x="64" y="64" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">CA</text>
-  <text x="64" y="108" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#0F172A">Cash</text>
+  <rect width="128" height="128" rx="24" fill="#EEF6FF"/>
+  <circle cx="64" cy="64" r="36" fill="#2563EB"/>
+  <rect x="38" y="48" width="52" height="30" rx="8" fill="white"/><circle cx="64" cy="63" r="8" fill="#2563EB"/><path d="M44 48h40" stroke="#DBEAFE" stroke-width="3"/>
 </svg>

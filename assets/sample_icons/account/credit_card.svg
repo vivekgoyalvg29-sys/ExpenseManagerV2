@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Credit Card">
-  <rect width="128" height="128" rx="24" fill="#F8FAFC"/>
-  <circle cx="64" cy="56" r="34" fill="#0EA5E9"/>
-  <text x="64" y="64" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">CC</text>
-  <text x="64" y="108" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#0F172A">Credit Card</text>
+  <rect width="128" height="128" rx="24" fill="#F5F3FF"/>
+  <circle cx="64" cy="64" r="36" fill="#7C3AED"/>
+  <rect x="34" y="46" width="60" height="38" rx="8" fill="white"/><rect x="34" y="56" width="60" height="8" fill="#DDD6FE"/><rect x="42" y="69" width="16" height="6" rx="2" fill="#C4B5FD"/>
 </svg>

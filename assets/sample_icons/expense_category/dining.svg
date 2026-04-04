@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Dining">
-  <rect width="128" height="128" rx="24" fill="#F8FAFC"/>
-  <circle cx="64" cy="56" r="34" fill="#F59E0B"/>
-  <text x="64" y="64" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">DN</text>
-  <text x="64" y="108" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#0F172A">Dining</text>
+  <rect width="128" height="128" rx="24" fill="#FFF7ED"/>
+  <circle cx="64" cy="64" r="36" fill="#F97316"/>
+  <rect x="48" y="44" width="6" height="38" rx="3" fill="white"/><rect x="58" y="44" width="6" height="38" rx="3" fill="white"/><rect x="68" y="44" width="12" height="38" rx="6" fill="white"/>
 </svg>

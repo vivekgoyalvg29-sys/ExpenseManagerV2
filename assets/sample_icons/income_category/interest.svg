@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Interest">
-  <rect width="128" height="128" rx="24" fill="#F8FAFC"/>
-  <circle cx="64" cy="56" r="34" fill="#059669"/>
-  <text x="64" y="64" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">IN</text>
-  <text x="64" y="108" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#0F172A">Interest</text>
+  <rect width="128" height="128" rx="24" fill="#FEFCE8"/>
+  <circle cx="64" cy="64" r="36" fill="#CA8A04"/>
+  <circle cx="56" cy="62" r="14" fill="white"/><circle cx="72" cy="62" r="14" fill="#FEF08A"/><path d="M46 62h20M72 52v20" stroke="#CA8A04" stroke-width="3" stroke-linecap="round"/>
 </svg>

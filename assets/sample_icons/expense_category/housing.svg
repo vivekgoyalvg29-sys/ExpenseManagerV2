@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Housing">
-  <rect width="128" height="128" rx="24" fill="#F8FAFC"/>
-  <circle cx="64" cy="56" r="34" fill="#DC2626"/>
-  <text x="64" y="64" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">HO</text>
-  <text x="64" y="108" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#0F172A">Housing</text>
+  <rect width="128" height="128" rx="24" fill="#FEF2F2"/>
+  <circle cx="64" cy="64" r="36" fill="#DC2626"/>
+  <path d="M40 58l24-18 24 18v24H40z" fill="white"/><rect x="58" y="68" width="12" height="14" rx="2" fill="#FCA5A5"/>
 </svg>

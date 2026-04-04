@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Utilities">
-  <rect width="128" height="128" rx="24" fill="#F8FAFC"/>
-  <circle cx="64" cy="56" r="34" fill="#EA580C"/>
-  <text x="64" y="64" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">UT</text>
-  <text x="64" y="108" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#0F172A">Utilities</text>
+  <rect width="128" height="128" rx="24" fill="#FFFBEB"/>
+  <circle cx="64" cy="64" r="36" fill="#D97706"/>
+  <path d="M68 40L50 66h12l-2 22 18-28H66z" fill="white"/>
 </svg>

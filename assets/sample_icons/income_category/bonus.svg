@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Bonus">
-  <rect width="128" height="128" rx="24" fill="#F8FAFC"/>
-  <circle cx="64" cy="56" r="34" fill="#22C55E"/>
-  <text x="64" y="64" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">BO</text>
-  <text x="64" y="108" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#0F172A">Bonus</text>
+  <rect width="128" height="128" rx="24" fill="#FFF7ED"/>
+  <circle cx="64" cy="64" r="36" fill="#EA580C"/>
+  <rect x="42" y="52" width="44" height="30" rx="5" fill="white"/><rect x="40" y="48" width="48" height="8" rx="3" fill="white"/><path d="M64 48v34M42 63h44" stroke="#FDBA74" stroke-width="3"/><path d="M58 46c0-4 3-7 6-7s6 3 6 7" stroke="white" stroke-width="3" fill="none"/>
 </svg>
