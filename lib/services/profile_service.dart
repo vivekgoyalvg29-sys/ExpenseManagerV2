@@ -84,6 +84,40 @@ class ProfileService {
     );
   }
 
+  /// If [active_profile_id] points at a profile this user is no longer a
+  /// member of (revoked, deleted account, stale prefs), switch to the default
+  /// profile so Firestore rules allow reads/writes again.
+  Future<void> ensureActiveProfileMembership() async {
+    final phone = _currentPhone;
+    if (phone.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final activeId = prefs.getString(_activeProfileKey);
+    if (activeId == null || activeId.isEmpty) {
+      await prefs.setString(_activeProfileKey, defaultProfileId(phone));
+      FirestoreService().clearCaches();
+      return;
+    }
+
+    if (activeId == defaultProfileId(phone)) {
+      return;
+    }
+
+    try {
+      final doc = await _firestore.collection('profiles').doc(activeId).get();
+      if (!doc.exists) {
+        await _switchToDefaultProfile();
+        return;
+      }
+      final members = doc.data()?['members'] as Map<String, dynamic>?;
+      if (members == null || members[phone] == null) {
+        await _switchToDefaultProfile();
+      }
+    } catch (_) {
+      // Offline or transient error — keep current selection
+    }
+  }
+
   // ─── Profile CRUD ──────────────────────────────────────────────────────────
 
   /// Creates a new non-default profile and switches to it.

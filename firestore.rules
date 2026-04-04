@@ -55,8 +55,11 @@ service cloud.firestore {
       // Any authenticated user can create a profile (they add themselves as owner)
       allow create: if isAuthed();
 
-      // Only members can update (uses resource.data — no circular get())
-      allow update: if isMemberByData();
+      // Members can update. Also allow the original creator to update when
+      // members[phone] is missing/corrupt (e.g. legacy keys or account
+      // recreated) so merge/self-heal in ensureDefaultProfileExists can run.
+      allow update: if isMemberByData() ||
+        (isAuthed() && resource.data.createdBy == myPhone());
 
       // Only the owner can delete (uses resource.data — no circular get())
       allow delete: if isOwnerByData();
