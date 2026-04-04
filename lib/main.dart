@@ -85,7 +85,7 @@ class _FinTrackAppState extends State<FinTrackApp> {
 
   Future<void> _handleWidgetNavigation(MethodCall call) async {
     if (call.method != 'navigateToRoute') return;
-    final routeName = (call.arguments as String?) ?? '/';
+    final routeName = (call.arguments as String?) ?? '/transactions';
     _pendingWidgetRoute = routeName;
     _schedulePendingNavigationFlush();
   }
@@ -115,7 +115,7 @@ class _FinTrackAppState extends State<FinTrackApp> {
     try {
       await navigator.pushNamedAndRemoveUntil(routeName, (route) => false);
     } catch (_) {
-      await navigator.pushNamedAndRemoveUntil('/', (route) => false);
+      await navigator.pushNamedAndRemoveUntil('/transactions', (route) => false);
     }
   }
 
@@ -173,7 +173,6 @@ class _FinTrackAppState extends State<FinTrackApp> {
           },
         ),
         routes: {
-          '/': (_) => const HomeScreen(),
           '/transactions': (_) => const HomeScreen(initialIndex: 0),
           '/add-transaction': (_) => const WidgetQuickAddTransactionPage(),
         },
