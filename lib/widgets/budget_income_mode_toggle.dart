@@ -18,9 +18,9 @@ class BudgetIncomeModeToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const thumb = 26.0;
-    const vPad = 3.0;
-    const hPad = 4.0;
+    const thumb = 22.0;
+    const vPad = 2.0;
+    const hPad = 3.0;
     const trackHeight = thumb + vPad * 2;
 
     return Material(
@@ -44,7 +44,7 @@ class BudgetIncomeModeToggle extends StatelessWidget {
               textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: Colors.white.withValues(alpha: 0.92),
                     fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                    fontSize: 12,
                   ),
             ),
           ),
@@ -81,13 +81,18 @@ class _BudgetIncomeTogglePainted extends StatelessWidget {
       return tp.width;
     }
 
-    return (w('Budget') > w('Income') ? w('Budget') : w('Income')) + 6;
+    return (w('Budget') > w('Income') ? w('Budget') : w('Income')) + 8;
   }
 
   @override
   Widget build(BuildContext context) {
     final labelSlot = _labelSlotWidth(textStyle);
-    final trackWidth = horizontalPadding * 2 + thumbDiameter + labelSlot;
+    // Labels live in a 50/50 [Row]; each half must fit the longer word and the
+    // thumb + padding when the thumb sits in that half.
+    final halfMin = labelSlot > thumbDiameter + 2 * horizontalPadding
+        ? labelSlot
+        : thumbDiameter + 2 * horizontalPadding;
+    final trackWidth = 2 * halfMin;
 
     final trackColor = Colors.white.withValues(alpha: 0.26);
     final borderColor = Colors.white.withValues(alpha: 0.38);
@@ -115,13 +120,25 @@ class _BudgetIncomeTogglePainted extends StatelessWidget {
                   child: Center(
                     child: isBudget
                         ? const SizedBox.shrink()
-                        : Text('Income', style: textStyle, textAlign: TextAlign.center),
+                        : Text(
+                            'Income',
+                            style: textStyle,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            softWrap: false,
+                          ),
                   ),
                 ),
                 Expanded(
                   child: Center(
                     child: isBudget
-                        ? Text('Budget', style: textStyle, textAlign: TextAlign.center)
+                        ? Text(
+                            'Budget',
+                            style: textStyle,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            softWrap: false,
+                          )
                         : const SizedBox.shrink(),
                   ),
                 ),
