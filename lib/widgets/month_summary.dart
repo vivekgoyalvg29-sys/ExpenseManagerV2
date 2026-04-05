@@ -179,7 +179,7 @@ class _SecondaryPair extends StatelessWidget {
   }
 }
 
-class _EmbeddedMonthProgress extends StatelessWidget {
+class _EmbeddedMonthProgress extends StatefulWidget {
   final double expense;
   final double reference;
 
@@ -189,11 +189,55 @@ class _EmbeddedMonthProgress extends StatelessWidget {
   });
 
   @override
+  State<_EmbeddedMonthProgress> createState() => _EmbeddedMonthProgressState();
+}
+
+class _EmbeddedMonthProgressState extends State<_EmbeddedMonthProgress>
+    with SingleTickerProviderStateMixin {
+  static const Duration _edgePulseDuration = Duration(milliseconds: 2400);
+
+  late final AnimationController _edgeController;
+
+  @override
+  void initState() {
+    super.initState();
+    _edgeController = AnimationController(vsync: this, duration: _edgePulseDuration);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncEdgeAnimation();
+  }
+
+  @override
+  void didUpdateWidget(covariant _EmbeddedMonthProgress oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncEdgeAnimation();
+  }
+
+  void _syncEdgeAnimation() {
+    if (!mounted) return;
+    final hasFill = widget.reference > 0 && widget.expense > 0;
+    if (MediaQuery.of(context).disableAnimations || !hasFill) {
+      _edgeController.stop();
+    } else if (!_edgeController.isAnimating) {
+      _edgeController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _edgeController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final hasReference = reference > 0;
-    final ratio = hasReference && expense > 0 ? (expense / reference) : 0.0;
+    final hasReference = widget.reference > 0;
+    final ratio = hasReference && widget.expense > 0 ? (widget.expense / widget.reference) : 0.0;
     final clamped = ratio.clamp(0.0, 2.0).toDouble();
 
     Color fillColor(double r) {
@@ -204,33 +248,78 @@ class _EmbeddedMonthProgress extends StatelessWidget {
     }
 
     final percentage =
-        hasReference && expense > 0 ? (ratio * 100).clamp(0, 999).round() : 0;
+        hasReference && widget.expense > 0 ? (ratio * 100).clamp(0, 999).round() : 0;
+
+    final trackColor = cs.outlineVariant.withValues(
+      alpha: theme.brightness == Brightness.dark ? 0.45 : 0.55,
+    );
+    final disableMotion = MediaQuery.of(context).disableAnimations;
 
     return Row(
       children: [
         Expanded(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(999),
-            child: SizedBox(
-              height: 5,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ColoredBox(
-                    color: cs.outlineVariant.withValues(
-                      alpha: theme.brightness == Brightness.dark ? 0.45 : 0.55,
-                    ),
-                  ),
-                  if (hasReference && expense > 0)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: FractionallySizedBox(
-                        widthFactor: clamped.clamp(0.0, 1.0),
-                        child: ColoredBox(color: fillColor(clamped)),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final maxW = constraints.maxWidth;
+                var fillW = maxW * clamped.clamp(0.0, 1.0);
+                if (fillW > 0 && fillW < 1.0) {
+                  fillW = 1.0;
+                }
+                final showFill = hasReference && widget.expense > 0 && fillW > 0;
+
+                return SizedBox(
+                  height: 6,
+                  width: maxW,
+                  child: Stack(
+                    clipBehavior: Clip.hardEdge,
+                    children: [
+                      Positioned.fill(
+                        child: ColoredBox(color: trackColor),
                       ),
-                    ),
-                ],
-              ),
+                      if (showFill)
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: fillW,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ColoredBox(color: fillColor(clamped)),
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                bottom: 0,
+                                width: 3,
+                                child: AnimatedBuilder(
+                                  animation: _edgeController,
+                                  builder: (context, _) {
+                                    final t = Curves.easeInOut.transform(_edgeController.value);
+                                    final highlight = disableMotion ? 0.22 : (0.12 + 0.26 * t);
+                                    return DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.centerLeft,
+                                          end: Alignment.centerRight,
+                                          colors: [
+                                            Colors.white.withValues(alpha: 0),
+                                            Colors.white.withValues(alpha: highlight),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ),
