@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'app_navigator.dart';
 import 'screens/add_transaction_page.dart';
 import 'screens/auth/phone_auth_screen.dart';
 import 'screens/home_screen.dart';
@@ -19,8 +20,7 @@ import 'services/migration_service.dart';
 import 'services/profile_service.dart';
 import 'services/visual_settings.dart';
 import 'services/widget_sync_service.dart';
-
-final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+import 'services/app_update_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,6 +84,9 @@ class _FinTrackAppState extends State<FinTrackApp> {
     _widgetNavigationChannel.setMethodCallHandler(_handleWidgetNavigation);
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) _schedulePendingNavigationFlush();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(AppUpdateService.checkAfterFirstFrameIfAndroid());
     });
   }
 
