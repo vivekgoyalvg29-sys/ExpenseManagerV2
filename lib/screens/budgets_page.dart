@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/data_store.dart';
@@ -24,6 +25,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
   static const _budgetAggregationKey = 'budget.aggregation';
   static const _budgetSortKey = 'budget.sort';
   static const _budgetShowPercentageKey = 'budget.showPercentage';
+  static const _budgetChartGroupByKey = 'budget.chartGroupBy';
 
   DateTime currentMonth = DateTime.now();
   List<Map<String, dynamic>> budgets = [];
@@ -32,6 +34,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
   BudgetAggregation budgetAggregation = BudgetAggregation.selectedMonth;
   BudgetSortOrder sortOrder = BudgetSortOrder.amount;
   bool showPercentage = true;
+  BudgetChartGroupBy budgetChartGroupBy = BudgetChartGroupBy.month;
   @override
   void initState() {
     super.initState();
@@ -43,6 +46,12 @@ class _BudgetsPageState extends State<BudgetsPage> {
     budgetAggregation = BudgetAggregation.values[prefs.getInt(_budgetAggregationKey) ?? budgetAggregation.index];
     sortOrder = BudgetSortOrder.values[prefs.getInt(_budgetSortKey) ?? sortOrder.index];
     showPercentage = prefs.getBool(_budgetShowPercentageKey) ?? true;
+    final chartGroupIdx = prefs.getInt(_budgetChartGroupByKey);
+    if (chartGroupIdx != null &&
+        chartGroupIdx >= 0 &&
+        chartGroupIdx < BudgetChartGroupBy.values.length) {
+      budgetChartGroupBy = BudgetChartGroupBy.values[chartGroupIdx];
+    }
     if (!mounted) return;
     setState(() {});
     await loadBudgets();
@@ -53,6 +62,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
     await prefs.setInt(_budgetAggregationKey, budgetAggregation.index);
     await prefs.setInt(_budgetSortKey, sortOrder.index);
     await prefs.setBool(_budgetShowPercentageKey, showPercentage);
+    await prefs.setInt(_budgetChartGroupByKey, budgetChartGroupBy.index);
   }
 
   String? _budgetAggregationSubtitle() {
@@ -233,6 +243,17 @@ class _BudgetsPageState extends State<BudgetsPage> {
 
   bool get _isCategoryAggregatedView => budgetAggregation != BudgetAggregation.selectedMonth;
 
+  BudgetChartGroupBy get _effectiveChartGroupBy {
+    if (budgetAggregation == BudgetAggregation.selectedMonth) {
+      return BudgetChartGroupBy.category;
+    }
+    return budgetChartGroupBy;
+  }
+
+  static String _monthChartLabel(int month) {
+    return DateFormat.MMM().format(DateTime(2020, month));
+  }
+
   List<Map<String, dynamic>> get displayBudgets {
     if (!_isCategoryAggregatedView) return filteredBudgets;
 
@@ -271,7 +292,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
     return true;
   }
 
-  List<AggregationBarData> _budgetChartData() {
+  List<AggregationBarData> _budgetChartDataByCategory() {
     final grouped = <String, double>{};
     for (final budget in filteredBudgets) {
       final category = (budget['category'] as String?)?.trim() ?? '';
@@ -296,6 +317,39 @@ class _BudgetsPageState extends State<BudgetsPage> {
           ),
         )
         .toList();
+  }
+
+  List<AggregationBarData> _budgetChartDataByMonth() {
+    if (filteredBudgets.isEmpty) return [];
+    final totals = <int, double>{};
+    for (final budget in filteredBudgets) {
+      final month = (budget['month'] as num?)?.toInt() ?? 0;
+      if (month < 1 || month > 12) continue;
+      totals[month] = (totals[month] ?? 0) + (budget['amount'] as num).toDouble();
+    }
+    final lastMonth = budgetAggregation == BudgetAggregation.cumulativeToSelectedMonth
+        ? currentMonth.month
+        : 12;
+    final data = <AggregationBarData>[];
+    for (var m = 1; m <= lastMonth; m++) {
+      data.add(
+        AggregationBarData(
+          label: _monthChartLabel(m),
+          value: totals[m] ?? 0,
+          bucket: m,
+        ),
+      );
+    }
+    return data;
+  }
+
+  List<AggregationBarData> _budgetChartData() {
+    switch (_effectiveChartGroupBy) {
+      case BudgetChartGroupBy.category:
+        return _budgetChartDataByCategory();
+      case BudgetChartGroupBy.month:
+        return _budgetChartDataByMonth();
+    }
   }
 
   Future<void> _applyBudgetPreferenceChange(VoidCallback updateParent) async {
@@ -351,6 +405,21 @@ class _BudgetsPageState extends State<BudgetsPage> {
                     onChanged: (value) => apply(() => budgetAggregation = value),
                   ),
                 ),
+                if (budgetAggregation != BudgetAggregation.selectedMonth) ...[
+                  const Divider(height: 1),
+                  const _MenuSectionHeader('Chart'),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: SegmentedToggle<BudgetChartGroupBy>(
+                      options: const [
+                        SegmentedToggleOption(value: BudgetChartGroupBy.month, label: 'Month'),
+                        SegmentedToggleOption(value: BudgetChartGroupBy.category, label: 'Category'),
+                      ],
+                      selectedValue: budgetChartGroupBy,
+                      onChanged: (value) => apply(() => budgetChartGroupBy = value),
+                    ),
+                  ),
+                ],
                 const Divider(height: 1),
                 const _MenuSectionHeader('Sort'),
                 Padding(
@@ -482,15 +551,17 @@ class _BudgetsPageState extends State<BudgetsPage> {
               child: AggregationBarChart(
                 data: _budgetChartData(),
                 emptyMessage: 'No budget data available for this aggregation.',
-                labelBuilder: (context, item) {
-                  final category = _categoryDetails(item.label);
-                  return AppPageIcon(
-                    icon: iconFromCodePoint(category?['icon']),
-                    imagePath: category?['icon_path']?.toString(),
-                    size: 11,
-                    boxSize: 22,
-                  );
-                },
+                labelBuilder: _effectiveChartGroupBy == BudgetChartGroupBy.category
+                    ? (context, item) {
+                        final category = _categoryDetails(item.label);
+                        return AppPageIcon(
+                          icon: iconFromCodePoint(category?['icon']),
+                          imagePath: category?['icon_path']?.toString(),
+                          size: 11,
+                          boxSize: 22,
+                        );
+                      }
+                    : null,
               ),
             ),
             Expanded(
@@ -580,6 +651,11 @@ enum BudgetAggregation {
   selectedMonth,
   cumulativeToSelectedMonth,
   cumulativeYear,
+}
+
+enum BudgetChartGroupBy {
+  category,
+  month,
 }
 
 class _MenuSectionHeader extends StatelessWidget {
