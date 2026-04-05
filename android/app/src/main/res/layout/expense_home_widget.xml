@@ -3,10 +3,10 @@
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingStart="3dp"
-    android:paddingTop="4dp"
-    android:paddingEnd="3dp"
-    android:paddingBottom="5dp">
+    android:paddingStart="2dp"
+    android:paddingTop="2dp"
+    android:paddingEnd="2dp"
+    android:paddingBottom="3dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -14,29 +14,23 @@
         android:background="@drawable/widget_card_bg"
         android:clipChildren="false"
         android:clipToPadding="false"
-        android:elevation="5dp"
+        android:elevation="4dp"
         android:orientation="vertical"
-        android:paddingStart="3dp"
+        android:paddingStart="10dp"
         android:paddingTop="8dp"
-        android:paddingEnd="3dp"
-        android:paddingBottom="10dp">
+        android:paddingEnd="10dp"
+        android:paddingBottom="8dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:clipChildren="false"
-            android:gravity="top"
-            android:minHeight="48dp"
-            android:orientation="horizontal"
-            android:paddingStart="6dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="2dp">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <FrameLayout
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginStart="0dp"
-                android:layout_marginTop="-2dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:background="@drawable/widget_calendar_bg">
 
                 <TextView
@@ -46,20 +40,19 @@
                     android:layout_gravity="center"
                     android:background="@drawable/widget_calendar_day_inner"
                     android:gravity="center"
-                    android:minWidth="28dp"
-                    android:minHeight="24dp"
-                    android:paddingHorizontal="3dp"
-                    android:paddingVertical="1dp"
+                    android:minWidth="24dp"
+                    android:minHeight="20dp"
+                    android:paddingHorizontal="2dp"
+                    android:paddingVertical="0dp"
                     android:text="5"
-                    android:textColor="#FF374151"
-                    android:textSize="15sp"
+                    android:textColor="@color/widget_theme_on_surface"
+                    android:textSize="13sp"
                     android:textStyle="bold" />
             </FrameLayout>
 
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical"
                 android:layout_marginStart="8dp"
                 android:layout_weight="1"
                 android:orientation="vertical">
@@ -67,7 +60,7 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:gravity="top"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal">
 
                     <TextView
@@ -76,23 +69,22 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:ellipsize="end"
-                        android:gravity="center_horizontal"
+                        android:gravity="center_vertical|start"
                         android:maxLines="1"
                         android:singleLine="true"
                         android:text="April-26"
-                        android:textColor="#FF111111"
-                        android:textSize="15sp"
+                        android:textColor="@color/widget_theme_on_surface"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/widget_pace"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_gravity="top"
-                        android:layout_marginStart="4dp"
+                        android:layout_marginStart="6dp"
                         android:maxLines="1"
                         android:text="↑ High"
-                        android:textColor="#FF16A34A"
+                        android:textColor="@color/widget_pace_green"
                         android:textSize="11sp"
                         android:textStyle="bold"
                         android:visibility="gone" />
@@ -100,8 +92,8 @@
                     <!-- ImageView: plain View is not reliably inflateable in RemoteViews. -->
                     <ImageView
                         android:id="@+id/widget_trailing_balance"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
                         android:contentDescription="@null"
                         android:visibility="gone" />
                 </LinearLayout>
@@ -115,8 +107,8 @@
                     android:maxLines="1"
                     android:singleLine="true"
                     android:text="₹0"
-                    android:textColor="#FFDC2626"
-                    android:textSize="22sp"
+                    android:textColor="@color/widget_theme_primary"
+                    android:textSize="20sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>
@@ -125,14 +117,14 @@
             android:id="@+id/widget_bar"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
-            android:layout_height="7dp"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginTop="4dp"
+            android:layout_height="5dp"
+            android:layout_marginStart="0dp"
+            android:layout_marginTop="6dp"
+            android:layout_marginEnd="0dp"
             android:indeterminate="false"
             android:max="1000"
-            android:maxHeight="7dp"
-            android:minHeight="7dp"
+            android:maxHeight="5dp"
+            android:minHeight="5dp"
             android:progress="0"
             android:progressDrawable="@drawable/widget_expense_progress" />
     </LinearLayout>

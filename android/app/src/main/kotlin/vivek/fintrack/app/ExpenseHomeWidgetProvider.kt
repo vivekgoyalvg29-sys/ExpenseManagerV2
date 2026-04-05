@@ -51,9 +51,9 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
         val dm = context.resources.displayMetrics
         val totalPx = (minWdDp * dm.density).toInt().coerceAtLeast(1)
 
-        // Reserve: outer padding, card padding, row padding, calendar, gaps, pace column when shown.
-        val paceReserveDp = if (paceVisible && paceLabel.isNotEmpty()) 76f else 48f
-        val reservedHorizDp = 3f + 3f + 3f + 3f + 6f + 8f + 48f + 8f + paceReserveDp + 4f
+        // Reserve: outer + card padding, calendar tile, gap, pace or trailing column.
+        val paceReserveDp = if (paceVisible && paceLabel.isNotEmpty()) 58f else 36f
+        val reservedHorizDp = 2f + 2f + 10f + 10f + 36f + 8f + 6f + paceReserveDp
         val textColumnPx = (totalPx - reservedHorizDp * dm.density).toInt()
             .coerceAtLeast((72f * dm.density).toInt())
 
@@ -61,6 +61,11 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.expense_home_widget)
 
             views.setTextViewText(R.id.widget_calendar_day, calendarDay.toString())
+            views.setInt(
+                R.id.widget_expense,
+                "setTextColor",
+                ContextCompat.getColor(context, R.color.widget_theme_primary),
+            )
 
             WidgetTextFit.setTextViewTextSingleLineFit(
                 views,
@@ -76,7 +81,7 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
                 R.id.widget_expense,
                 expenseDisplay,
                 textColumnPx,
-                24f,
+                22f,
                 11f,
                 dm,
             )
@@ -111,6 +116,11 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
         } catch (_: Exception) {
             val fallback = RemoteViews(context.packageName, R.layout.expense_home_widget)
             val w = (200 * dm.density).toInt()
+            fallback.setInt(
+                R.id.widget_expense,
+                "setTextColor",
+                ContextCompat.getColor(context, R.color.widget_theme_primary),
+            )
             WidgetTextFit.setTextViewTextSingleLineFit(
                 fallback,
                 R.id.widget_period,
@@ -125,7 +135,7 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
                 R.id.widget_expense,
                 expenseDisplay,
                 w,
-                24f,
+                22f,
                 11f,
                 dm,
             )

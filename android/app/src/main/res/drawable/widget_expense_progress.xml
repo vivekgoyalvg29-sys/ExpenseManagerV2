@@ -2,17 +2,17 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@android:id/background">
         <shape android:shape="rectangle">
-            <solid android:color="#FFE5E7EB" />
-            <corners android:radius="6dp" />
+            <solid android:color="@color/widget_theme_track" />
+            <corners android:radius="4dp" />
         </shape>
     </item>
     <item android:id="@android:id/progress">
         <scale
-            android:scaleWidth="100%"
-            android:scaleGravity="fill_vertical|start">
+            android:scaleGravity="fill_vertical|start"
+            android:scaleWidth="100%">
             <shape android:shape="rectangle">
-                <solid android:color="#FF22C55E" />
-                <corners android:radius="6dp" />
+                <solid android:color="@color/widget_theme_primary" />
+                <corners android:radius="4dp" />
             </shape>
         </scale>
     </item>

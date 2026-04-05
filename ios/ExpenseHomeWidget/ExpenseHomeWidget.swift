@@ -86,6 +86,18 @@ struct Provider: TimelineProvider {
   }
 }
 
+// MARK: - Theme (FinTrack light — matches Android widget / app ColorScheme)
+
+private enum WidgetTheme {
+  static let primary = Color(red: 0.91, green: 0.51, blue: 0.39)  // #E88363
+  static let secondary = Color(red: 0.95, green: 0.64, blue: 0.53)  // #F2A287
+  static let surface = Color(red: 1.0, green: 0.949, blue: 0.925)  // #FFF2EC
+  static let surfaceSoft = Color(red: 1.0, green: 0.973, blue: 0.957)  // #FFF8F4
+  static let onSurface = Color(red: 0.165, green: 0.102, blue: 0.078)  // #2A1A14
+  static let pace = Color(red: 0.09, green: 0.50, blue: 0.24)  // green-700, budget pace
+  static let track = Color(red: 0.91, green: 0.82, blue: 0.78).opacity(0.45)  // outline tint
+}
+
 // MARK: - Linear bar (no `let` in ViewBuilder; avoids widget load failures)
 
 private struct WidgetLinearBar: View {
@@ -95,28 +107,18 @@ private struct WidgetLinearBar: View {
     GeometryReader { geometry in
       ZStack(alignment: .leading) {
         Capsule()
-          .fill(Color.black.opacity(0.08))
-          .frame(width: max(geometry.size.width, 1), height: 5)
+          .fill(WidgetTheme.track)
+          .frame(width: max(geometry.size.width, 1), height: 4)
         Capsule()
-          .fill(Color(red: 0.13, green: 0.77, blue: 0.37))
+          .fill(WidgetTheme.primary)
           .frame(
             width: max(geometry.size.width, 1) * CGFloat(min(max(progress, 0), 1)),
-            height: 5
+            height: 4
           )
-        if min(max(progress, 0), 1) > 0.02 {
-          Circle()
-            .fill(Color.white)
-            .frame(width: 9, height: 9)
-            .overlay(Circle().stroke(Color(red: 0.13, green: 0.77, blue: 0.37), lineWidth: 2))
-            .offset(
-              x: max(geometry.size.width, 1) * CGFloat(min(max(progress, 0), 1)) - 4.5,
-              y: 0
-            )
-        }
       }
-      .frame(width: max(geometry.size.width, 1), height: 12, alignment: .leading)
+      .frame(width: max(geometry.size.width, 1), height: 8, alignment: .leading)
     }
-    .frame(height: 12)
+    .frame(height: 8)
   }
 }
 
@@ -128,73 +130,69 @@ struct ExpenseHomeWidgetEntryView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      HStack(alignment: .top, spacing: 8) {
+      HStack(alignment: .center, spacing: 8) {
         ZStack {
-          RoundedRectangle(cornerRadius: 12, style: .continuous)
+          RoundedRectangle(cornerRadius: 10, style: .continuous)
             .fill(
               LinearGradient(
-                colors: [
-                  Color(red: 0.37, green: 0.92, blue: 0.83),
-                  Color(red: 0.05, green: 0.58, blue: 0.53),
-                ],
+                colors: [WidgetTheme.secondary, WidgetTheme.primary],
                 startPoint: .top,
                 endPoint: .bottom
               )
             )
-            .frame(width: 40, height: 40)
+            .frame(width: 36, height: 36)
           Text("\(entry.calendarDay)")
-            .font(.system(size: family == .systemSmall ? 14 : 15, weight: .heavy))
-            .foregroundColor(.white)
-            .padding(.top, 3)
+            .font(.system(size: family == .systemSmall ? 13 : 14, weight: .heavy))
+            .foregroundColor(WidgetTheme.onSurface)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(
+              RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.white.opacity(0.92))
+            )
         }
 
-        Text(entry.cardPeriodTitle)
-          .font(.system(size: family == .systemSmall ? 13 : 14, weight: .heavy))
-          .foregroundColor(Color(white: 0.07))
-          .lineLimit(1)
-          .minimumScaleFactor(0.75)
-          .multilineTextAlignment(.center)
-          .frame(maxWidth: .infinity)
+        VStack(alignment: .leading, spacing: 2) {
+          HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(entry.cardPeriodTitle)
+              .font(.system(size: family == .systemSmall ? 13 : 14, weight: .semibold))
+              .foregroundColor(WidgetTheme.onSurface)
+              .lineLimit(1)
+              .minimumScaleFactor(0.75)
 
-        Group {
-          if entry.paceVisible && !entry.paceLabel.isEmpty {
-            VStack(alignment: .trailing, spacing: 2) {
-              Image(systemName: entry.paceIsHigh ? "arrow.up.right" : "checkmark.circle")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(Color(red: 0.09, green: 0.50, blue: 0.24))
-              Text(entry.paceLabel)
-                .font(.system(size: 11, weight: .heavy))
-                .foregroundColor(Color(red: 0.09, green: 0.50, blue: 0.24))
+            if entry.paceVisible && !entry.paceLabel.isEmpty {
+              HStack(spacing: 3) {
+                Image(systemName: entry.paceIsHigh ? "arrow.up.right" : "checkmark.circle.fill")
+                  .font(.system(size: 10, weight: .semibold))
+                Text(entry.paceLabel)
+                  .font(.system(size: 11, weight: .heavy))
+              }
+              .foregroundColor(WidgetTheme.pace)
             }
-            .frame(minWidth: 44, alignment: .trailing)
-          } else {
-            // Keeps the period title optically centered vs. the calendar tile on the left.
-            Color.clear
-              .frame(width: 40, height: 40)
           }
+
+          Text(entry.expenseDisplay)
+            .font(.system(size: family == .systemSmall ? 17 : 19, weight: .heavy))
+            .foregroundColor(WidgetTheme.primary)
+            .minimumScaleFactor(0.5)
+            .lineLimit(1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .padding(.top, 2)
 
       if !entry.modeShort.isEmpty {
         Text(entry.modeShort)
           .font(.system(size: 9, weight: .regular))
-          .foregroundColor(Color.black.opacity(0.45))
+          .foregroundColor(WidgetTheme.onSurface.opacity(0.55))
           .lineLimit(1)
           .padding(.top, 4)
       }
 
-      Text(entry.expenseDisplay)
-        .font(.system(size: family == .systemSmall ? 18 : 20, weight: .heavy))
-        .foregroundColor(Color(red: 0.86, green: 0.15, blue: 0.15))
-        .minimumScaleFactor(0.5)
-        .lineLimit(1)
-        .padding(.top, 2)
-        .padding(.bottom, 6)
-
       WidgetLinearBar(progress: entry.barProgress)
+        .padding(.top, 6)
     }
-    .padding(10)
+    .padding(.horizontal, 10)
+    .padding(.vertical, 8)
   }
 }
 
@@ -206,12 +204,22 @@ private struct WidgetEntryContainer: View {
     if #available(iOSApplicationExtension 17.0, *) {
       ExpenseHomeWidgetEntryView(entry: entry)
         .containerBackground(for: .widget) {
-          Color.white
+          LinearGradient(
+            colors: [WidgetTheme.surface, WidgetTheme.surfaceSoft],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+          )
         }
     } else {
       ExpenseHomeWidgetEntryView(entry: entry)
         .padding(4)
-        .background(Color.white)
+        .background(
+          LinearGradient(
+            colors: [WidgetTheme.surface, WidgetTheme.surfaceSoft],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+          )
+        )
     }
   }
 }
