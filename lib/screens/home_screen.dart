@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
@@ -272,6 +273,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final controller = _visualSettingsController(context);
     if (controller.value.comparisonMode == mode) return;
     await controller.updateSettings(controller.value.copyWith(comparisonMode: mode));
+    unawaited(WidgetSyncService.syncFromStoredConfiguration());
     if (!mounted) return;
     setState(() {
       currentIndex = 0;
@@ -280,11 +282,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 
-  Widget _buildCurrentPage() {
-    final pageKey = ValueKey('$currentIndex-$_refreshVersion');
-    final safeIndex = currentIndex >= 0 && currentIndex < _navItems.length ? currentIndex : 0;
-    final item = _navItems[safeIndex];
-    return item.builder(pageKey, _refreshVersion);
+  Widget _buildIndexedTabBodies(List<_NavItem> items) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    final maxI = items.length - 1;
+    final idx = currentIndex < 0 ? 0 : (currentIndex > maxI ? maxI : currentIndex);
+    return IndexedStack(
+      index: idx,
+      sizing: StackFit.expand,
+      children: [
+        for (var i = 0; i < items.length; i++)
+          items[i].builder(ValueKey('tab-$i-$_refreshVersion'), _refreshVersion),
+      ],
+    );
   }
 
   static Widget _recordsBuilder(Key key, int refreshVersion) => RecordsPage(key: key);
@@ -336,21 +345,75 @@ class _HomeScreenState extends State<HomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not read selected file.')));
         return;
       }
-      final result = await ExcelTransferService.importAllDataFromBytes(bytes);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Importing data… This may take a few seconds. You’ll see a summary when it finishes.'),
+          duration: Duration(seconds: 5),
+        ),
+      );
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogCtx) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: Row(
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Text(
+                    'Importing… please wait.',
+                    style: Theme.of(dialogCtx).textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      late final ImportResult result;
+      try {
+        result = await ExcelTransferService.importAllDataFromBytes(bytes);
+      } catch (e) {
+        if (mounted) Navigator.of(context).pop();
+        rethrow;
+      }
+      if (mounted) Navigator.of(context).pop();
       if (!mounted) return;
       setState(() => _refreshVersion++);
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Import summary', textAlign: TextAlign.center),
-          content: SingleChildScrollView(
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('Sheet')),
-                DataColumn(label: Text('In Excel')),
-                DataColumn(label: Text('Imported')),
-              ],
-              rows: result.stats.map((s) => DataRow(cells: [DataCell(Text(s.name)), DataCell(Text('${s.totalRows}')), DataCell(Text('${s.importedRows}'))])).toList(),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(ctx).height * 0.55,
+              ),
+              child: SingleChildScrollView(
+                child: DataTable(
+                  columnSpacing: 12,
+                  columns: const [
+                    DataColumn(label: Text('Sheet')),
+                    DataColumn(label: Text('In Excel')),
+                    DataColumn(label: Text('Imported')),
+                  ],
+                  rows: result.stats
+                      .map(
+                        (s) => DataRow(
+                          cells: [
+                            DataCell(Text(s.name)),
+                            DataCell(Text('${s.totalRows}')),
+                            DataCell(Text('${s.importedRows}')),
+                          ],
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
             ),
           ),
           actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close'))],
@@ -955,14 +1018,23 @@ class _HomeScreenState extends State<HomeScreen> {
       barrierDismissible: false,
       builder: (ctx) {
         progressCtx = ctx;
-        return const AlertDialog(
-          content: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 20),
-              Text('Creating general categories and accounts…'),
-            ],
+        return PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Center(child: CircularProgressIndicator()),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Creating general categories and accounts…',
+                    style: Theme.of(ctx).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -1404,19 +1476,27 @@ class _HomeScreenState extends State<HomeScreen> {
                             opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
                             child: child,
                           ),
-                          pageBuilder: (ctx, _, __) => BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
-                            child: Center(
-                              child: Dialog(
-                                insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-                                clipBehavior: Clip.antiAlias,
-                                child: SizedBox(
-                                  height: MediaQuery.sizeOf(context).height * 0.85,
-                                  child: const ManageProfilesScreen(),
+                          pageBuilder: (ctx, _, __) {
+                            final h = MediaQuery.sizeOf(context).height;
+                            return BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
+                              child: Center(
+                                child: Dialog(
+                                  insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                                  clipBehavior: Clip.antiAlias,
+                                  backgroundColor: Theme.of(context).colorScheme.surface,
+                                  surfaceTintColor: Colors.transparent,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: 460,
+                                      maxHeight: h * 0.72,
+                                    ),
+                                    child: const ManageProfilesScreen(),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
                         );
                         await _loadRoleAndProfile();
                       }
@@ -1690,7 +1770,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: _buildCurrentPage(),
+      body: _buildIndexedTabBodies(items),
       bottomNavigationBar: SafeArea(
         top: false,
         child: SectionTile(

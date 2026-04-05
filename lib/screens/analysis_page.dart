@@ -10,8 +10,8 @@ import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/aggregation_bar_chart.dart';
 import '../widgets/month_summary.dart';
-import '../widgets/page_content_layout.dart';
 import '../widgets/mini_progress_bar.dart';
+import '../widgets/page_content_layout.dart';
 import '../widgets/segmented_toggle.dart';
 import '../widgets/section_tile.dart';
 import '../widgets/side_overlay_sheet.dart';
@@ -68,6 +68,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   List<Map<String, dynamic>> analysisData = [];
   List<Map<String, dynamic>> transactions = [];
   List<Map<String, dynamic>> budgets = [];
+  bool _isAnalysisLoading = true;
 
   ComparisonMode get _comparisonMode => VisualSettingsScope.of(context).value.comparisonMode;
   bool get _isIncomeVsExpense => _comparisonMode == ComparisonMode.incomeVsExpense;
@@ -139,6 +140,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
         startDate = DateTime(currentMonth.year, 1, 1);
         endDate = DateTime(currentMonth.year, 12, 31);
     }
+    if (mounted) {
+      setState(() => _isAnalysisLoading = true);
+    }
+    try {
     final tx = await DataService.getTransactions(startDate: startDate, endDate: endDate);
     final budgetData = await DataService.getBudgets();
     final categories = await DataService.getCategories();
@@ -454,6 +459,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
       month: currentMonth.month,
       year: currentMonth.year,
     );
+    } finally {
+      if (mounted) {
+        setState(() => _isAnalysisLoading = false);
+      }
+    }
   }
 
   List<Map<String, dynamic>> _filteredTransactionsOfType(String type) {
@@ -704,27 +714,39 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 const _MenuSectionHeader('Aggregation'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: SegmentedToggle<AnalysisMode>(
-                    options: const [
-                      SegmentedToggleOption(value: AnalysisMode.selectedMonth, label: 'Month'),
-                      SegmentedToggleOption(value: AnalysisMode.cumulativeToSelectedMonth, label: 'Till month'),
-                      SegmentedToggleOption(value: AnalysisMode.cumulativeYear, label: 'Year'),
-                    ],
-                    selectedValue: analysisMode,
-                    onChanged: (value) => applyChanges(() => analysisMode = value),
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: SegmentedToggle<AnalysisMode>(
+                      axis: SegmentedToggleAxis.vertical,
+                      shrinkWidth: true,
+                      verticalCellHeight: 32,
+                      options: const [
+                        SegmentedToggleOption(value: AnalysisMode.selectedMonth, label: 'Month'),
+                        SegmentedToggleOption(value: AnalysisMode.cumulativeToSelectedMonth, label: 'Till month'),
+                        SegmentedToggleOption(value: AnalysisMode.cumulativeYear, label: 'Year'),
+                      ],
+                      selectedValue: analysisMode,
+                      onChanged: (value) => applyChanges(() => analysisMode = value),
+                    ),
                   ),
                 ),
                 const Divider(height: 1),
                 const _MenuSectionHeader('Type'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: SegmentedToggle<AnalysisType>(
-                    options: const [
-                      SegmentedToggleOption(value: AnalysisType.category, label: 'Category'),
-                      SegmentedToggleOption(value: AnalysisType.account, label: 'Account'),
-                    ],
-                    selectedValue: analysisType,
-                    onChanged: (value) => applyChanges(() => analysisType = value),
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: SegmentedToggle<AnalysisType>(
+                      axis: SegmentedToggleAxis.vertical,
+                      shrinkWidth: true,
+                      verticalCellHeight: 32,
+                      options: const [
+                        SegmentedToggleOption(value: AnalysisType.category, label: 'Category'),
+                        SegmentedToggleOption(value: AnalysisType.account, label: 'Account'),
+                      ],
+                      selectedValue: analysisType,
+                      onChanged: (value) => applyChanges(() => analysisType = value),
+                    ),
                   ),
                 ),
                 const Divider(height: 1),
@@ -732,29 +754,41 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 const _MenuSectionHeader('Main analysis'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: SegmentedToggle<AnalysisSortField>(
-                    options: [
-                      SegmentedToggleOption(value: AnalysisSortField.budget, label: _isIncomeVsExpense ? 'Income' : 'Budget'),
-                      const SegmentedToggleOption(value: AnalysisSortField.expense, label: 'Expense'),
-                    ],
-                    selectedValue: analysisSortField,
-                    onChanged: (value) => applyChanges(() => analysisSortField = value),
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: SegmentedToggle<AnalysisSortField>(
+                      axis: SegmentedToggleAxis.vertical,
+                      shrinkWidth: true,
+                      verticalCellHeight: 32,
+                      options: [
+                        SegmentedToggleOption(value: AnalysisSortField.budget, label: _isIncomeVsExpense ? 'Income' : 'Budget'),
+                        const SegmentedToggleOption(value: AnalysisSortField.expense, label: 'Expense'),
+                      ],
+                      selectedValue: analysisSortField,
+                      onChanged: (value) => applyChanges(() => analysisSortField = value),
+                    ),
                   ),
                 ),
                 const _MenuSectionHeader('Sub menu'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: SegmentedToggle<TransactionSortOrder>(
-                    options: const [
-                      SegmentedToggleOption(value: TransactionSortOrder.newestFirst, label: 'Newest'),
-                      SegmentedToggleOption(value: TransactionSortOrder.oldestFirst, label: 'Oldest'),
-                    ],
-                    selectedValue: transactionSortOrder,
-                    onChanged: (value) async {
-                      setState(() => transactionSortOrder = value);
-                      setModalState(() {});
-                      await _persistPreferences();
-                    },
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: SegmentedToggle<TransactionSortOrder>(
+                      axis: SegmentedToggleAxis.vertical,
+                      shrinkWidth: true,
+                      verticalCellHeight: 32,
+                      options: const [
+                        SegmentedToggleOption(value: TransactionSortOrder.newestFirst, label: 'Newest'),
+                        SegmentedToggleOption(value: TransactionSortOrder.oldestFirst, label: 'Oldest'),
+                      ],
+                      selectedValue: transactionSortOrder,
+                      onChanged: (value) async {
+                        setState(() => transactionSortOrder = value);
+                        setModalState(() {});
+                        await _persistPreferences();
+                      },
+                    ),
                   ),
                 ),
                 const Divider(height: 1),
@@ -1237,7 +1271,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
             Expanded(
               child: SectionTile(
                 child: analysisData.isEmpty
-                    ? Center(child: Text(_emptyStateMessage()))
+                    ? Center(
+                        child: _isAnalysisLoading
+                            ? const Padding(
+                                padding: EdgeInsets.all(24),
+                                child: CircularProgressIndicator(),
+                              )
+                            : Text(_emptyStateMessage()),
+                      )
                     : ListView.builder(
                         padding: EdgeInsets.zero,
                         itemCount: analysisData.length,

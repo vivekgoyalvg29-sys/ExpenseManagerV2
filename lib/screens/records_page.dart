@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:android_intent_plus/android_intent.dart';
@@ -15,8 +16,8 @@ import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_summary.dart';
-import '../widgets/page_content_layout.dart';
 import '../widgets/mini_progress_bar.dart';
+import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
 import 'add_transaction_page.dart';
 
@@ -39,6 +40,7 @@ class _RecordsPageState extends State<RecordsPage> {
   DateTime currentMonth = DateTime.now();
   List<Map<String, dynamic>> transactions = [];
   List<Map<String, dynamic>> budgets = [];
+  bool _isLoadingTransactions = true;
 
   Set<int> selectedIndexes = {};
   bool selectionMode = false;
@@ -51,21 +53,32 @@ class _RecordsPageState extends State<RecordsPage> {
   }
 
   Future<void> loadTransactions() async {
+    if (mounted) {
+      setState(() => _isLoadingTransactions = true);
+    }
     final startDate = DateTime(currentMonth.year, currentMonth.month, 1);
     final endDate = DateTime(currentMonth.year, currentMonth.month + 1, 0);
-    final txData = await DataService.getTransactions(startDate: startDate, endDate: endDate);
-    final budgetData = await DataService.getBudgets();
-    final categoryData = await DataService.getCategories();
-    final accountData = await DataService.getAccounts();
+    try {
+      final txData = await DataService.getTransactions(startDate: startDate, endDate: endDate);
+      final budgetData = await DataService.getBudgets();
+      final categoryData = await DataService.getCategories();
+      final accountData = await DataService.getAccounts();
 
-    setState(() {
-      transactions = txData;
-      budgets = budgetData;
-      DataStore.categories = categoryData;
-      DataStore.accounts = accountData;
-    });
+      if (!mounted) return;
+      setState(() {
+        transactions = txData;
+        budgets = budgetData;
+        DataStore.categories = categoryData;
+        DataStore.accounts = accountData;
+        _isLoadingTransactions = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingTransactions = false);
+      }
+    }
 
-    await WidgetSyncService.syncFromStoredConfiguration();
+    unawaited(WidgetSyncService.syncFromStoredConfiguration());
   }
 
   List<Map<String, dynamic>> get filteredTransactions {
@@ -733,18 +746,36 @@ class _RecordsPageState extends State<RecordsPage> {
                     );
 
                     if (result != null) {
+                      final tempId = -DateTime.now().millisecondsSinceEpoch;
+                      final optimistic = <String, dynamic>{
+                        'id': tempId,
+                        'title': result['title'],
+                        'amount': result['amount'],
+                        'date': (result['date'] as DateTime).toIso8601String(),
+                        'type': result['type'],
+                        'account': (result['account'] ?? '').toString(),
+                        'comment': (result['comment'] ?? '').toString(),
+                      };
+                      if (mounted) {
+                        setState(() {
+                          transactions = [optimistic, ...transactions];
+                        });
+                      }
                       try {
                         await DataService.insertTransaction(
-                          result["title"],
-                          result["amount"],
-                          result["date"],
-                          result["type"],
-                          (result["account"] ?? '').toString(),
-                          (result["comment"] ?? '').toString(),
+                          result['title'] as String,
+                          result['amount'] as double,
+                          result['date'] as DateTime,
+                          result['type'] as String,
+                          (result['account'] ?? '').toString(),
+                          (result['comment'] ?? '').toString(),
                         );
-                        loadTransactions();
+                        await loadTransactions();
                       } catch (e) {
                         if (mounted) {
+                          setState(() {
+                            transactions = transactions.where((t) => t['id'] != tempId).toList();
+                          });
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Could not save transaction: $e')),
                           );
@@ -784,9 +815,16 @@ class _RecordsPageState extends State<RecordsPage> {
             ),
             Expanded(
               child: SectionTile(
-                child: filteredTransactions.isEmpty
-                    ? const Center(child: Text("No transactions"))
-                    : ListView.builder(
+                child: _isLoadingTransactions && filteredTransactions.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    : (!_isLoadingTransactions && filteredTransactions.isEmpty)
+                        ? const Center(child: Text('No transactions'))
+                        : ListView.builder(
                         padding: EdgeInsets.zero,
                         itemCount: filteredTransactions.length,
                         itemBuilder: (context, index) {
@@ -887,6 +925,9 @@ class _RecordsPageState extends State<RecordsPage> {
                                     });
                                     return;
                                   }
+
+                                  final rawId = tx['id'];
+                                  if (rawId is int && rawId < 0) return;
 
                                   final result = await showDialog<Map<String, dynamic>>(
                                     context: context,

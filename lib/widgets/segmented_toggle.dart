@@ -25,6 +25,9 @@ class SegmentedToggle<T> extends StatelessWidget {
   /// When true, vertical toggles size to content width instead of stretching full width.
   final bool shrinkWidth;
 
+  /// Row height for each option when [axis] is vertical. Defaults to 40 if null.
+  final double? verticalCellHeight;
+
   const SegmentedToggle({
     super.key,
     required this.options,
@@ -32,16 +35,21 @@ class SegmentedToggle<T> extends StatelessWidget {
     required this.onChanged,
     this.axis = SegmentedToggleAxis.horizontal,
     this.shrinkWidth = false,
+    this.verticalCellHeight,
   });
 
-  static double _labelMaxWidth(BuildContext context, List<SegmentedToggleOption<dynamic>> options) {
+  static double _labelMaxWidth(
+    BuildContext context,
+    List<SegmentedToggleOption<dynamic>> options, {
+    double baseFontSize = 12,
+  }) {
     // Account for system/app text scale so the knob width matches rendered text.
-    final scale = MediaQuery.textScalerOf(context).scale(12) / 12;
+    final scale = MediaQuery.textScalerOf(context).scale(baseFontSize) / baseFontSize;
     final style = Theme.of(context).textTheme.labelLarge?.copyWith(
-          fontSize: 12 * scale,
+          fontSize: baseFontSize * scale,
           fontWeight: FontWeight.w700,
         ) ??
-        TextStyle(fontSize: 12 * scale, fontWeight: FontWeight.w700);
+        TextStyle(fontSize: baseFontSize * scale, fontWeight: FontWeight.w700);
     double w = 0;
     for (final o in options) {
       final tp = TextPainter(
@@ -65,20 +73,23 @@ class SegmentedToggle<T> extends StatelessWidget {
 
     const double inset = 3;
     const double horizontalHeight = 42;
-    const double verticalCellHeight = 40;
+    const double defaultVerticalCellHeight = 40;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final count = options.length;
+        final vCell = verticalCellHeight ?? defaultVerticalCellHeight;
+        final compactVertical = axis == SegmentedToggleAxis.vertical && vCell < defaultVerticalCellHeight;
+        final labelBaseSize = compactVertical ? 11.0 : 12.0;
         final intrinsicW = shrinkWidth && axis == SegmentedToggleAxis.vertical
-            ? _labelMaxWidth(context, options)
+            ? _labelMaxWidth(context, options, baseFontSize: labelBaseSize)
             : null;
         final outerWidth = intrinsicW != null
             ? math.min(constraints.maxWidth.isFinite ? constraints.maxWidth : intrinsicW, intrinsicW)
             : (constraints.maxWidth.isFinite ? constraints.maxWidth : 320.0);
-        final outerHeight = axis == SegmentedToggleAxis.horizontal ? horizontalHeight : verticalCellHeight * count;
+        final outerHeight = axis == SegmentedToggleAxis.horizontal ? horizontalHeight : vCell * count;
 
-        final knobHeight = axis == SegmentedToggleAxis.horizontal ? (outerHeight - inset * 2) : (verticalCellHeight - inset * 2);
+        final knobHeight = axis == SegmentedToggleAxis.horizontal ? (outerHeight - inset * 2) : (vCell - inset * 2);
         final knobWidth = axis == SegmentedToggleAxis.horizontal ? (outerWidth / count - inset * 2) : (outerWidth - inset * 2);
 
         return ClipRRect(
@@ -97,7 +108,7 @@ class SegmentedToggle<T> extends StatelessWidget {
                   duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOutCubic,
                   left: axis == SegmentedToggleAxis.horizontal ? (outerWidth / count) * safeSelectedIndex + inset : inset,
-                  top: axis == SegmentedToggleAxis.horizontal ? inset : verticalCellHeight * safeSelectedIndex + inset,
+                  top: axis == SegmentedToggleAxis.horizontal ? inset : vCell * safeSelectedIndex + inset,
                   width: knobWidth,
                   height: knobHeight,
                   child: Container(
@@ -126,6 +137,7 @@ class SegmentedToggle<T> extends StatelessWidget {
                                   selected: option.value == selectedValue,
                                   onTap: () => onChanged(option.value),
                                   axis: axis,
+                                  compactHeight: false,
                                 ),
                               ),
                             ),
@@ -135,12 +147,13 @@ class SegmentedToggle<T> extends StatelessWidget {
                         children: [
                           for (final option in options)
                             SizedBox(
-                              height: verticalCellHeight,
+                              height: vCell,
                               child: _ToggleOptionLabel(
                                 label: option.label,
                                 selected: option.value == selectedValue,
                                 onTap: () => onChanged(option.value),
                                 axis: axis,
+                                compactHeight: compactVertical,
                               ),
                             ),
                         ],
@@ -159,17 +172,21 @@ class _ToggleOptionLabel extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final SegmentedToggleAxis axis;
+  final bool compactHeight;
 
   const _ToggleOptionLabel({
     required this.label,
     required this.selected,
     required this.onTap,
     required this.axis,
+    this.compactHeight = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final fontSize = compactHeight ? 11.0 : 12.0;
+    final hPad = compactHeight ? 8.0 : 10.0;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -177,15 +194,15 @@ class _ToggleOptionLabel extends StatelessWidget {
         onTap: onTap,
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            padding: EdgeInsets.symmetric(horizontal: hPad),
             child: Text(
               label,
               maxLines: axis == SegmentedToggleAxis.horizontal ? 2 : 1,
               softWrap: axis == SegmentedToggleAxis.horizontal,
-              overflow: TextOverflow.fade,
+              overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: fontSize,
                 fontWeight: FontWeight.w700,
                 color: selected ? Colors.white : onSurface,
               ),

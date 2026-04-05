@@ -34,6 +34,10 @@ class ImportResult {
 
 class ExcelTransferService {
   static final _profileService = ProfileService();
+
+  /// During a single import run, skip repeated category/account existence checks.
+  static final Set<String> _importEnsuredCategoryKeys = {};
+  static final Set<String> _importEnsuredAccountKeys = {};
   static const String _recordsSheet = 'Records';
   static const String _budgetsSheet = 'Budgets';
   static const String _accountsSheet = 'Accounts';
@@ -233,6 +237,8 @@ class ExcelTransferService {
   }
 
   static Future<ImportResult> importAllDataFromBytes(Uint8List bytes) async {
+    _importEnsuredCategoryKeys.clear();
+    _importEnsuredAccountKeys.clear();
     final excel = Excel.decodeBytes(bytes);
     final stats = <ImportStat>[];
     final customIconPathMap = await _importCustomIcons(excel);
@@ -339,7 +345,12 @@ class ExcelTransferService {
       ));
     }
 
-    return ImportResult(_sortStatsForDisplay(stats));
+    try {
+      return ImportResult(_sortStatsForDisplay(stats));
+    } finally {
+      _importEnsuredCategoryKeys.clear();
+      _importEnsuredAccountKeys.clear();
+    }
   }
 
   /// Import all data rows of a sheet into the currently active profile (legacy path).
@@ -514,11 +525,14 @@ class ExcelTransferService {
   ) async {
     final normalizedName = name.trim();
     if (normalizedName.isEmpty) return;
+    final key = '${type.trim().toLowerCase()}::${normalizedName.toLowerCase()}';
+    if (_importEnsuredCategoryKeys.contains(key)) return;
     try {
       final exists = await DataService.categoryExists(normalizedName, type);
       if (!exists) {
         await DataService.insertCategory(normalizedName, type, 0);
       }
+      _importEnsuredCategoryKeys.add(key);
     } catch (_) {}
   }
 
@@ -528,11 +542,14 @@ class ExcelTransferService {
   ) async {
     final normalizedName = name.trim();
     if (normalizedName.isEmpty) return;
+    final key = '${type.trim().toLowerCase()}::${normalizedName.toLowerCase()}';
+    if (_importEnsuredAccountKeys.contains(key)) return;
     try {
       final exists = await DataService.accountExists(normalizedName, type);
       if (!exists) {
         await DataService.insertAccount(normalizedName, type, 0);
       }
+      _importEnsuredAccountKeys.add(key);
     } catch (_) {}
   }
 

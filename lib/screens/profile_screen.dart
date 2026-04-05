@@ -17,9 +17,22 @@ class ManageProfilesScreen extends StatefulWidget {
 class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
   final ProfileService _profileService = ProfileService();
   bool _busy = false;
+  bool _expandAddOptions = false;
+  String? _activeProfileId;
 
   String get _myPhone =>
       FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshActiveProfileId();
+  }
+
+  Future<void> _refreshActiveProfileId() async {
+    final id = await _profileService.getActiveProfileId();
+    if (mounted) setState(() => _activeProfileId = id);
+  }
 
   // ─── Actions ───────────────────────────────────────────────────────────────
 
@@ -162,7 +175,10 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
             .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+        await _refreshActiveProfileId();
+      }
     }
   }
 
@@ -189,52 +205,6 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
           ),
         )) ==
         true;
-  }
-
-  // ─── Add Profile bottom sheet ──────────────────────────────────────────────
-
-  void _showAddProfileSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                'Add Profile',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.add_circle_outline),
-              title: const Text('Create new profile'),
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                _showCreateProfileSheet();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.qr_code_outlined),
-              title: const Text('Join with invite code'),
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                _showJoinCodeDialog();
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
   }
 
   void _showCreateProfileSheet() {
@@ -397,14 +367,20 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
         barrierDismissible: false,
         builder: (ctx) {
           progressCtx = ctx;
-          return const AlertDialog(
-            content: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(width: 20),
-                Text('Creating general categories and accounts…'),
-              ],
+          return AlertDialog(
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Center(child: CircularProgressIndicator()),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Creating general categories and accounts…',
+                    style: Theme.of(ctx).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -494,97 +470,190 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
   @override
   Widget build(BuildContext context) {
     final myPhone = _myPhone;
+    final theme = Theme.of(context);
+    final activeId = _activeProfileId;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Profiles')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddProfileSheet,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Profile'),
-      ),
-      body: Column(
+    return Material(
+      color: theme.colorScheme.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Non-intrusive progress indicator — keeps the profile list visible
-          // while a background operation (toggle shareable, delete, etc.) runs.
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outline.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 4, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Manage profiles',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.add_circle_outline,
+                    color: theme.colorScheme.primary,
+                  ),
+                  tooltip: 'Add profile',
+                  onPressed: () {
+                    setState(() => _expandAddOptions = !_expandAddOptions);
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20),
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ],
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: theme.dividerColor),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.add_circle_outline, size: 22),
+                      title: const Text('Create new profile'),
+                      onTap: () {
+                        setState(() => _expandAddOptions = false);
+                        _showCreateProfileSheet();
+                      },
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.qr_code_2_outlined, size: 22),
+                      title: const Text('Join with invite code'),
+                      onTap: () {
+                        setState(() => _expandAddOptions = false);
+                        _showJoinCodeDialog();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            crossFadeState: _expandAddOptions
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 180),
+          ),
           if (_busy)
-            const LinearProgressIndicator()
+            const LinearProgressIndicator(minHeight: 2)
           else
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
           Expanded(
             child: AbsorbPointer(
               absorbing: _busy,
               child: StreamBuilder<List<ProfileModel>>(
-              stream: _profileService.getMyProfiles(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting &&
-                    !snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+                stream: _profileService.getMyProfiles(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      !snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                final profiles = snapshot.data ?? [];
-                final defaultProfile = profiles
-                    .where((p) => p.isDefault)
-                    .cast<ProfileModel?>()
-                    .firstOrNull;
-                final ownedOthers = profiles
-                    .where((p) =>
-                        !p.isDefault &&
-                        p.members[myPhone] == 'owner')
-                    .toList();
-                final joined = profiles
-                    .where((p) =>
-                        !p.isDefault &&
-                        p.members[myPhone] != 'owner')
-                    .toList();
+                  final profiles = snapshot.data ?? [];
+                  final defaultProfile = profiles
+                      .where((p) => p.isDefault)
+                      .cast<ProfileModel?>()
+                      .firstOrNull;
+                  final ownedOthers = profiles
+                      .where((p) =>
+                          !p.isDefault && p.members[myPhone] == 'owner')
+                      .toList();
+                  final joined = profiles
+                      .where((p) =>
+                          !p.isDefault && p.members[myPhone] != 'owner')
+                      .toList();
 
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
-                  children: [
-                    if (defaultProfile != null) ...[
-                      _SectionHeader('Default Profile'),
-                      _DefaultProfileCard(
-                        profile: defaultProfile,
-                        phone: myPhone,
-                        onRename: () => _rename(defaultProfile),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                    if (ownedOthers.isNotEmpty) ...[
-                      _SectionHeader('My Profiles'),
-                      for (final p in ownedOthers) ...[
-                        _OwnedProfileCard(
-                          profile: p,
-                          onRename: () => _rename(p),
-                          onDelete: () => _delete(p),
-                          onToggleShareable: () => _toggleShareable(p),
-                          onCopyCode: () => _copyShareCode(p.shareCode),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                      const SizedBox(height: 12),
-                    ],
-                    if (joined.isNotEmpty) ...[
-                      _SectionHeader('Joined Profiles'),
-                      for (final p in joined) ...[
-                        _JoinedProfileCard(
-                          profile: p,
-                          myPhone: myPhone,
-                          onLeave: () => _leave(p),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                    ],
-                    if (profiles.isEmpty)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(32),
-                          child: Text('No profiles found.'),
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 8),
+                        child: Text(
+                          'Tap a profile in the main menu to switch. Active is marked below.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ),
-                  ],
-                );
-              },
-            ),
+                      if (defaultProfile != null) ...[
+                        const _SectionHeader('Default profile'),
+                        _DefaultProfileCard(
+                          profile: defaultProfile,
+                          phone: myPhone,
+                          isActive: activeId == defaultProfile.id,
+                          onRename: () => _rename(defaultProfile),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (ownedOthers.isNotEmpty) ...[
+                        const _SectionHeader('My profiles'),
+                        for (final p in ownedOthers) ...[
+                          _OwnedProfileCard(
+                            profile: p,
+                            isActive: activeId == p.id,
+                            onRename: () => _rename(p),
+                            onDelete: () => _delete(p),
+                            onToggleShareable: () => _toggleShareable(p),
+                            onCopyCode: () => _copyShareCode(p.shareCode),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        const SizedBox(height: 8),
+                      ],
+                      if (joined.isNotEmpty) ...[
+                        const _SectionHeader('Joined profiles'),
+                        for (final p in joined) ...[
+                          _JoinedProfileCard(
+                            profile: p,
+                            myPhone: myPhone,
+                            isActive: activeId == p.id,
+                            onLeave: () => _leave(p),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ],
+                      if (profiles.isEmpty)
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(28),
+                            child: Text(
+                              'No profiles found.',
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -618,11 +687,13 @@ class _SectionHeader extends StatelessWidget {
 class _DefaultProfileCard extends StatelessWidget {
   final ProfileModel profile;
   final String phone;
+  final bool isActive;
   final VoidCallback onRename;
 
   const _DefaultProfileCard({
     required this.profile,
     required this.phone,
+    required this.isActive,
     required this.onRename,
   });
 
@@ -657,6 +728,12 @@ class _DefaultProfileCard extends StatelessWidget {
               ],
             ),
           ),
+          if (isActive) ...[
+            Icon(Icons.check_circle, color: cs.primary, size: 20),
+            const SizedBox(width: 6),
+            _Badge('Active', cs.primary),
+            const SizedBox(width: 6),
+          ],
           _Badge('Default', cs.primary),
           IconButton(
             icon: const Icon(Icons.edit_outlined, size: 18),
@@ -671,6 +748,7 @@ class _DefaultProfileCard extends StatelessWidget {
 
 class _OwnedProfileCard extends StatelessWidget {
   final ProfileModel profile;
+  final bool isActive;
   final VoidCallback onRename;
   final VoidCallback onDelete;
   final VoidCallback onToggleShareable;
@@ -678,6 +756,7 @@ class _OwnedProfileCard extends StatelessWidget {
 
   const _OwnedProfileCard({
     required this.profile,
+    required this.isActive,
     required this.onRename,
     required this.onDelete,
     required this.onToggleShareable,
@@ -703,6 +782,12 @@ class _OwnedProfileCard extends StatelessWidget {
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
+              if (isActive) ...[
+                Icon(Icons.check_circle, color: cs.primary, size: 18),
+                const SizedBox(width: 4),
+                _Badge('Active', cs.primary),
+                const SizedBox(width: 6),
+              ],
               _Badge(
                 profile.isShareable ? 'Sharable' : 'Private',
                 profile.isShareable
@@ -780,11 +865,13 @@ class _OwnedProfileCard extends StatelessWidget {
 class _JoinedProfileCard extends StatelessWidget {
   final ProfileModel profile;
   final String myPhone;
+  final bool isActive;
   final VoidCallback onLeave;
 
   const _JoinedProfileCard({
     required this.profile,
     required this.myPhone,
+    required this.isActive,
     required this.onLeave,
   });
 
@@ -807,6 +894,12 @@ class _JoinedProfileCard extends StatelessWidget {
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
+              if (isActive) ...[
+                Icon(Icons.check_circle, color: cs.primary, size: 18),
+                const SizedBox(width: 4),
+                _Badge('Active', cs.primary),
+                const SizedBox(width: 6),
+              ],
               _Badge('Member', cs.onSurfaceVariant),
             ],
           ),

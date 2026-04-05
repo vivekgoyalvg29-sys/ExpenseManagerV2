@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../utils/indian_number_formatter.dart';
 import 'month_section_card.dart';
 
@@ -109,7 +110,6 @@ class _SummaryMetric extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Label row
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -130,7 +130,6 @@ class _SummaryMetric extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
-        // Value — same row level as all others
         LayoutBuilder(
           builder: (context, constraints) {
             return SizedBox(
