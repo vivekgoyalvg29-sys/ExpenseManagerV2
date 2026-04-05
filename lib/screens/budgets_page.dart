@@ -390,15 +390,8 @@ class _BudgetsPageState extends State<BudgetsPage> {
   Widget build(BuildContext context) {
     final visibleBudgets = displayBudgets;
     final totalBudget = visibleBudgets.fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
-    final summaryLabelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: const Color(0xFF52606D),
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        );
-    final summaryValueStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-        );
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -446,27 +439,42 @@ class _BudgetsPageState extends State<BudgetsPage> {
                 onPressed: _showBudgetOptions,
                 tooltip: 'Budget options',
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Expanded(
-                    child: _BudgetSummaryStat(
-                      label: 'Categories',
-                      value: '${visibleBudgets.length}',
-                      labelStyle: summaryLabelStyle,
-                      valueStyle: summaryValueStyle,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Total budget',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: cs.onSurfaceVariant.withValues(alpha: 0.9),
+                        letterSpacing: 0.2,
+                      ),
                     ),
-                  ),
-                  Container(width: 1, height: 36, color: Theme.of(context).dividerColor),
-                  Expanded(
-                    child: _BudgetSummaryStat(
-                      label: 'Total Budget',
-                      value: formatIndianCurrency(totalBudget),
-                      labelStyle: summaryLabelStyle,
-                      valueStyle: summaryValueStyle,
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        formatIndianCurrency(totalBudget),
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.6,
+                              color: cs.primary,
+                              height: 1.05,
+                            ) ??
+                            TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.6,
+                              color: cs.primary,
+                              height: 1.05,
+                            ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             Padding(
@@ -594,51 +602,3 @@ class _MenuSectionHeader extends StatelessWidget {
   }
 }
 
-class _BudgetSummaryStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final TextStyle? labelStyle;
-  final TextStyle? valueStyle;
-
-  const _BudgetSummaryStat({
-    required this.label,
-    required this.value,
-    this.labelStyle,
-    this.valueStyle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: labelStyle,
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 4),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            return SizedBox(
-              width: constraints.maxWidth,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.center,
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  style: valueStyle?.copyWith(fontSize: 16.5),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-}

@@ -17,31 +17,48 @@ class MonthNavigatorRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final titleStyle = theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.2,
+          color: theme.colorScheme.onSurface,
+        ) ??
+        TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.2,
+          color: theme.colorScheme.onSurface,
+        );
+
+    Widget navButton({required IconData icon, required VoidCallback onPressed}) {
+      return IconButton(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 22),
+        style: IconButton.styleFrom(
+          foregroundColor: theme.colorScheme.onSurfaceVariant,
+          visualDensity: VisualDensity.compact,
+          minimumSize: const Size(36, 36),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      );
+    }
+
     return Row(
       children: [
-        IconButton(
-          onPressed: onPrev,
-          icon: const Icon(Icons.arrow_left),
-          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-        ),
+        navButton(icon: Icons.chevron_left_rounded, onPressed: onPrev),
         Expanded(
           child: Text(
             DateFormat('MMMM yyyy').format(currentMonth),
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: titleStyle,
           ),
         ),
-        IconButton(
-          onPressed: onNext,
-          icon: const Icon(Icons.arrow_right),
-          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-        ),
+        navButton(icon: Icons.chevron_right_rounded, onPressed: onNext),
         if (trailing != null) ...[
-          const SizedBox(width: 4),
+          const SizedBox(width: 2),
           trailing!,
         ],
       ],

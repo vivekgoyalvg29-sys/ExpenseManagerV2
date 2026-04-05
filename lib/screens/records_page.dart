@@ -16,7 +16,6 @@ import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/month_summary.dart';
-import '../widgets/mini_progress_bar.dart';
 import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
 import 'add_transaction_page.dart';
@@ -808,10 +807,6 @@ class _RecordsPageState extends State<RecordsPage> {
               leftLabel: isIncomeVsExpense ? 'Income' : 'Budget',
               middleLabel: 'Expense',
               rightLabel: isIncomeVsExpense ? 'Net' : 'Remaining',
-            ),
-            MiniProgressBar(
-              expense: middleValue,
-              reference: leftValue,
             ),
             Expanded(
               child: SectionTile(

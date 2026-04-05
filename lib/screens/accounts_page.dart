@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/data_store.dart';
 import '../services/data_service.dart';
 import '../services/icon_storage_service.dart';
+import '../widgets/grouped_list_section.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
@@ -261,11 +262,14 @@ class _AccountsPageState extends State<AccountsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final expenseAccounts = DataStore.accounts.where((a) => a['type'] == 'expense').toList();
     final incomeAccounts = DataStore.accounts.where((a) => a['type'] == 'income').toList();
+    final total = DataStore.accounts.length;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: theme.scaffoldBackgroundColor,
       floatingActionButton: selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
@@ -295,85 +299,130 @@ class _AccountsPageState extends State<AccountsPage> {
           children: [
             SectionTile(
               margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-              child: const SizedBox(
-                height: 58,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('Accounts', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Accounts',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.2,
+                      color: cs.onSurface,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  Text(
+                    total == 0 ? 'Track cash, bank, and cards' : '$total ${total == 1 ? 'account' : 'accounts'}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant.withValues(alpha: 0.88),
+                      height: 1.25,
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(
-              child: SectionTile(
-                child: ListView(
-                  children: [
-            _AccountSection(
-              title: 'Expense Accounts',
-              items: expenseAccounts,
-              selectionMode: selectionMode,
-              selectedIndexes: selectedIndexes,
-              fullList: DataStore.accounts,
-              onChanged: (index, checked) => setState(
-                  () => checked ? selectedIndexes.add(index) : selectedIndexes.remove(index)),
-              onLongPress: (index) => setState(() {
-                selectionMode = true;
-                selectedIndexes.add(index);
-              }),
-              onTap: (acc, index) {
-                if (selectionMode) {
-                  setState(() => selectedIndexes.contains(index)
-                      ? selectedIndexes.remove(index)
-                      : selectedIndexes.add(index));
-                } else {
-                  showAddAccountDialog(account: acc);
-                }
-              },
-              onToggleFavorite: (acc) async {
-                final current = acc['is_favorite'] == true;
-                await DataService.setAccountFavorite(
-                  id: acc['id'] as int,
-                  type: (acc['type'] ?? 'expense').toString(),
-                  isFavorite: !current,
-                );
-                await loadAccounts();
-              },
-            ),
-            _AccountSection(
-              title: 'Income Accounts',
-              items: incomeAccounts,
-              selectionMode: selectionMode,
-              selectedIndexes: selectedIndexes,
-              fullList: DataStore.accounts,
-              onChanged: (index, checked) => setState(
-                  () => checked ? selectedIndexes.add(index) : selectedIndexes.remove(index)),
-              onLongPress: (index) => setState(() {
-                selectionMode = true;
-                selectedIndexes.add(index);
-              }),
-              onTap: (acc, index) {
-                if (selectionMode) {
-                  setState(() => selectedIndexes.contains(index)
-                      ? selectedIndexes.remove(index)
-                      : selectedIndexes.add(index));
-                } else {
-                  showAddAccountDialog(account: acc);
-                }
-              },
-              onToggleFavorite: (acc) async {
-                final current = acc['is_favorite'] == true;
-                await DataService.setAccountFavorite(
-                  id: acc['id'] as int,
-                  type: (acc['type'] ?? 'expense').toString(),
-                  isFavorite: !current,
-                );
-                await loadAccounts();
-              },
-            ),
+              child: ListView(
+                padding: const EdgeInsets.only(bottom: 88),
+                children: [
+                  if (total == 0)
+                    SectionTile(
+                      margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.account_balance_wallet_outlined,
+                            size: 44,
+                            color: cs.onSurfaceVariant.withValues(alpha: 0.55),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'No accounts yet',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Tap + to add expense or income accounts.',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant.withValues(alpha: 0.85),
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else ...[
+                    _AccountSection(
+                      title: 'Expense accounts',
+                      items: expenseAccounts,
+                      selectionMode: selectionMode,
+                      selectedIndexes: selectedIndexes,
+                      fullList: DataStore.accounts,
+                      onChanged: (index, checked) => setState(
+                          () => checked ? selectedIndexes.add(index) : selectedIndexes.remove(index)),
+                      onLongPress: (index) => setState(() {
+                        selectionMode = true;
+                        selectedIndexes.add(index);
+                      }),
+                      onTap: (acc, index) {
+                        if (selectionMode) {
+                          setState(() => selectedIndexes.contains(index)
+                              ? selectedIndexes.remove(index)
+                              : selectedIndexes.add(index));
+                        } else {
+                          showAddAccountDialog(account: acc);
+                        }
+                      },
+                      onToggleFavorite: (acc) async {
+                        final current = acc['is_favorite'] == true;
+                        await DataService.setAccountFavorite(
+                          id: acc['id'] as int,
+                          type: (acc['type'] ?? 'expense').toString(),
+                          isFavorite: !current,
+                        );
+                        await loadAccounts();
+                      },
+                    ),
+                    _AccountSection(
+                      title: 'Income accounts',
+                      items: incomeAccounts,
+                      selectionMode: selectionMode,
+                      selectedIndexes: selectedIndexes,
+                      fullList: DataStore.accounts,
+                      onChanged: (index, checked) => setState(
+                          () => checked ? selectedIndexes.add(index) : selectedIndexes.remove(index)),
+                      onLongPress: (index) => setState(() {
+                        selectionMode = true;
+                        selectedIndexes.add(index);
+                      }),
+                      onTap: (acc, index) {
+                        if (selectionMode) {
+                          setState(() => selectedIndexes.contains(index)
+                              ? selectedIndexes.remove(index)
+                              : selectedIndexes.add(index));
+                        } else {
+                          showAddAccountDialog(account: acc);
+                        }
+                      },
+                      onToggleFavorite: (acc) async {
+                        final current = acc['is_favorite'] == true;
+                        await DataService.setAccountFavorite(
+                          id: acc['id'] as int,
+                          type: (acc['type'] ?? 'expense').toString(),
+                          isFavorite: !current,
+                        );
+                        await loadAccounts();
+                      },
+                    ),
                   ],
-                ),
+                ],
               ),
             ),
           ],
@@ -408,42 +457,61 @@ class _AccountSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ExpansionTile(
-      title: Text(
-        title,
-        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-      ),
-      initiallyExpanded: true,
-      children: items.map((acc) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final dividerIndent = selectionMode ? 52.0 : 60.0;
+
+    return GroupedListSection(
+      title: title,
+      itemCount: items.length,
+      dividerIndent: dividerIndent,
+      emptyHint: 'No accounts in this group. Tap + to add.',
+      itemBuilder: (context, i) {
+        final acc = items[i];
         final index = fullList.indexOf(acc);
         return ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          visualDensity: VisualDensity.compact,
           leading: selectionMode
               ? Checkbox(
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   value: selectedIndexes.contains(index),
                   onChanged: (v) => onChanged(index, v == true),
                 )
-              : AppPageIcon(
-                  icon: iconFromCodePoint(acc['icon'], fallback: Icons.account_balance_wallet),
-                  imagePath: acc['icon_path']?.toString(),
+              : GroupedListIconWell(
+                  child: AppPageIcon(
+                    embedded: true,
+                    icon: iconFromCodePoint(acc['icon'], fallback: Icons.account_balance_wallet),
+                    imagePath: acc['icon_path']?.toString(),
+                    size: 22,
+                    boxSize: 28,
+                  ),
                 ),
           title: Text(
             acc['name'] ?? '',
-            style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w400),
+            style: theme.textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w500,
+              fontSize: 15.5,
+              color: cs.onSurface,
+            ),
           ),
           trailing: IconButton(
             tooltip: 'Favorite',
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
             onPressed: onToggleFavorite == null ? null : () => onToggleFavorite!(acc),
             icon: Icon(
-              (acc['is_favorite'] == true) ? Icons.star : Icons.star_border,
+              (acc['is_favorite'] == true) ? Icons.star_rounded : Icons.star_outline_rounded,
               color: (acc['is_favorite'] == true)
-                  ? Theme.of(context).colorScheme.onSurface
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
+                  ? cs.primary
+                  : cs.onSurfaceVariant.withValues(alpha: 0.65),
             ),
           ),
           onLongPress: () => onLongPress(index),
           onTap: () => onTap(acc, index),
         );
-      }).toList(),
+      },
     );
   }
 }

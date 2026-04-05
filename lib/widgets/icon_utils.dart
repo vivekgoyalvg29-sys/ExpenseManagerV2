@@ -99,12 +99,16 @@ class AppPageIcon extends StatelessWidget {
   final double size;
   final double boxSize;
 
+  /// No outer colored tile — use inside a parent well (e.g. [GroupedListIconWell]).
+  final bool embedded;
+
   const AppPageIcon({
     super.key,
     this.icon,
     this.imagePath,
     this.size = 18,
     this.boxSize = 36,
+    this.embedded = false,
   });
 
   @override
@@ -115,6 +119,43 @@ class AppPageIcon extends StatelessWidget {
         imagePath != null && imagePath!.isNotEmpty && File(imagePath!).existsSync();
     final hasImage = hasAssetImage || hasFileImage;
 
+    final cs = Theme.of(context).colorScheme;
+    final iconTint = embedded ? cs.primary : const Color(0xFF1D4ED8);
+    final fallbackTint = embedded ? cs.onSurfaceVariant : const Color(0xFF1D4ED8);
+
+    final child = hasImage
+        ? (hasAssetImage
+            ? SvgPicture.asset(
+                imagePath!,
+                fit: BoxFit.cover,
+                width: boxSize,
+                height: boxSize,
+              )
+            : Image.file(
+                File(imagePath!),
+                fit: BoxFit.cover,
+                width: boxSize,
+                height: boxSize,
+                errorBuilder: (_, __, ___) => Icon(
+                  icon ?? Icons.image_outlined,
+                  size: size,
+                  color: fallbackTint,
+                ),
+              ))
+        : Icon(
+            icon ?? Icons.category,
+            size: size,
+            color: iconTint,
+          );
+
+    if (embedded) {
+      return SizedBox(
+        width: boxSize,
+        height: boxSize,
+        child: Center(child: child),
+      );
+    }
+
     return Container(
       width: boxSize,
       height: boxSize,
@@ -124,30 +165,7 @@ class AppPageIcon extends StatelessWidget {
       ),
       alignment: Alignment.center,
       clipBehavior: Clip.antiAlias,
-      child: hasImage
-          ? (hasAssetImage
-              ? SvgPicture.asset(
-                  imagePath!,
-                  fit: BoxFit.cover,
-                  width: boxSize,
-                  height: boxSize,
-                )
-              : Image.file(
-                  File(imagePath!),
-                  fit: BoxFit.cover,
-                  width: boxSize,
-                  height: boxSize,
-                  errorBuilder: (_, __, ___) => Icon(
-                    icon ?? Icons.image_outlined,
-                    size: size,
-                    color: const Color(0xFF1D4ED8),
-                  ),
-                ))
-          : Icon(
-              icon ?? Icons.category,
-              size: size,
-              color: const Color(0xFF1D4ED8),
-            ),
+      child: child,
     );
   }
 }

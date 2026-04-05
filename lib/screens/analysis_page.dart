@@ -10,7 +10,6 @@ import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
 import '../widgets/aggregation_bar_chart.dart';
 import '../widgets/month_summary.dart';
-import '../widgets/mini_progress_bar.dart';
 import '../widgets/page_content_layout.dart';
 import '../widgets/segmented_toggle.dart';
 import '../widgets/section_tile.dart';
@@ -1150,10 +1149,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 onPressed: _showAnalysisOptions,
                 tooltip: 'Analysis options',
               ),
-            ),
-            MiniProgressBar(
-              expense: expense,
-              reference: leftValue,
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),

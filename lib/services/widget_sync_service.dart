@@ -292,7 +292,7 @@ class WidgetSyncService {
           budgets: budgets,
           now: now,
         );
-    final paceLabel = paceVisible ? (paceIsHigh ? 'High' : 'Controlled') : '';
+    final paceLabel = paceVisible ? (paceIsHigh ? 'High' : 'Ok') : '';
 
     final calendarDay =
         (now.year == year && now.month == month) ? now.day : 1;

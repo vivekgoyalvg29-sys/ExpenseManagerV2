@@ -9,7 +9,7 @@ class MonthSectionCard extends StatelessWidget {
   final VoidCallback onNext;
   final Widget child;
   final Widget? monthTrailing;
-  final double contentHeight;
+
   /// Shown in a very light line under the month row (e.g. aggregation mode).
   final String? aggregationSubtitle;
 
@@ -20,7 +20,6 @@ class MonthSectionCard extends StatelessWidget {
     required this.onNext,
     required this.child,
     this.monthTrailing,
-    this.contentHeight = 58,
     this.aggregationSubtitle,
   });
 
@@ -31,6 +30,7 @@ class MonthSectionCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             MonthNavigatorRow(
               currentMonth: currentMonth,
@@ -52,15 +52,12 @@ class MonthSectionCard extends StatelessWidget {
                       color: Theme.of(context)
                           .colorScheme
                           .onSurfaceVariant
-                          .withValues(alpha: 0.5),
+                          .withValues(alpha: 0.55),
                     ),
               ),
             ],
-            const SizedBox(height: 8),
-            SizedBox(
-              height: contentHeight,
-              child: Center(child: child),
-            ),
+            const SizedBox(height: 10),
+            child,
           ],
         ),
       ),
