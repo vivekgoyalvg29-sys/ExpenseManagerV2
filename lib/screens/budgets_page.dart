@@ -28,6 +28,10 @@ class _BudgetsPageState extends State<BudgetsPage> {
   static const _budgetChartGroupByKey = 'budget.chartGroupBy';
 
   DateTime currentMonth = DateTime.now();
+  /// Month bar selection (calendar month 1–12) when chart is grouped by month.
+  int? selectedChartBucket;
+  /// Header month before a Till-month bar drill-down; restored on clear.
+  DateTime? _monthBeforeChartBucket;
   List<Map<String, dynamic>> budgets = [];
   Set<int> selectedIndexes = {};
   bool selectionMode = false;
@@ -82,6 +86,13 @@ class _BudgetsPageState extends State<BudgetsPage> {
     setState(() {
       budgets = data;
       DataStore.categories = categories;
+      if (selectedChartBucket != null && !_chartDataContainsBucket(selectedChartBucket)) {
+        selectedChartBucket = null;
+        if (_monthBeforeChartBucket != null) {
+          currentMonth = _monthBeforeChartBucket!;
+          _monthBeforeChartBucket = null;
+        }
+      }
     });
     await WidgetSyncService.syncFromStoredConfiguration();
   }
@@ -209,6 +220,22 @@ class _BudgetsPageState extends State<BudgetsPage> {
     });
   }
 
+  void _clearBudgetChartBucketSelection() {
+    selectedChartBucket = null;
+    if (_monthBeforeChartBucket != null) {
+      currentMonth = _monthBeforeChartBucket!;
+      _monthBeforeChartBucket = null;
+    }
+  }
+
+  bool get _budgetMonthBarsActive =>
+      _isCategoryAggregatedView && _effectiveChartGroupBy == BudgetChartGroupBy.month;
+
+  bool _chartDataContainsBucket(int? bucket) {
+    if (bucket == null) return true;
+    return _budgetChartData().any((item) => item.bucket == bucket);
+  }
+
   Future<void> deleteSelected() async {
     for (final index in selectedIndexes) {
       final id = filteredBudgets[index]['id'];
@@ -218,10 +245,8 @@ class _BudgetsPageState extends State<BudgetsPage> {
     loadBudgets();
   }
 
-  List<Map<String, dynamic>> get filteredBudgets {
-    final current = budgets.where(_isBudgetInRange)
-        .toList();
-    current.sort((a, b) {
+  void _sortBudgetList(List<Map<String, dynamic>> list) {
+    list.sort((a, b) {
       if (budgetAggregation != BudgetAggregation.selectedMonth) {
         final aYear = (a['year'] as num?)?.toInt() ?? 0;
         final bYear = (b['year'] as num?)?.toInt() ?? 0;
@@ -238,27 +263,30 @@ class _BudgetsPageState extends State<BudgetsPage> {
       }
       return (a['category'] as String).compareTo(b['category'] as String);
     });
+  }
+
+  List<Map<String, dynamic>> get filteredBudgets {
+    final current = budgets.where(_isBudgetInRange).toList();
+    _sortBudgetList(current);
     return current;
   }
 
-  bool get _isCategoryAggregatedView => budgetAggregation != BudgetAggregation.selectedMonth;
-
-  BudgetChartGroupBy get _effectiveChartGroupBy {
-    if (budgetAggregation == BudgetAggregation.selectedMonth) {
-      return BudgetChartGroupBy.category;
+  /// Source rows for the bottom list (Year + month bar = that month only).
+  Iterable<Map<String, dynamic>> get _budgetsForListSource {
+    if (!_budgetMonthBarsActive || selectedChartBucket == null) {
+      return filteredBudgets;
     }
-    return budgetChartGroupBy;
+    if (budgetAggregation == BudgetAggregation.cumulativeYear) {
+      return filteredBudgets.where(
+        (b) => ((b['month'] as num?)?.toInt() ?? 0) == selectedChartBucket,
+      );
+    }
+    return filteredBudgets;
   }
 
-  static String _monthChartLabel(int month) {
-    return DateFormat.MMM().format(DateTime(2020, month));
-  }
-
-  List<Map<String, dynamic>> get displayBudgets {
-    if (!_isCategoryAggregatedView) return filteredBudgets;
-
+  List<Map<String, dynamic>> _aggregateBudgetsByCategory(Iterable<Map<String, dynamic>> source) {
     final grouped = <String, double>{};
-    for (final budget in filteredBudgets) {
+    for (final budget in source) {
       final category = (budget['category'] as String?)?.trim() ?? '';
       if (category.isEmpty) continue;
       grouped[category] = (grouped[category] ?? 0) + (budget['amount'] as num).toDouble();
@@ -281,6 +309,39 @@ class _BudgetsPageState extends State<BudgetsPage> {
     });
 
     return rows;
+  }
+
+  bool get _isCategoryAggregatedView => budgetAggregation != BudgetAggregation.selectedMonth;
+
+  BudgetChartGroupBy get _effectiveChartGroupBy {
+    if (budgetAggregation == BudgetAggregation.selectedMonth) {
+      return BudgetChartGroupBy.category;
+    }
+    return budgetChartGroupBy;
+  }
+
+  static String _monthChartLabel(int month) {
+    return DateFormat.MMM().format(DateTime(2020, month));
+  }
+
+  List<Map<String, dynamic>> get displayBudgetsForList {
+    if (!_isCategoryAggregatedView) {
+      final rows = List<Map<String, dynamic>>.from(_budgetsForListSource);
+      _sortBudgetList(rows);
+      return rows;
+    }
+    return _aggregateBudgetsByCategory(_budgetsForListSource);
+  }
+
+  double get _totalBudgetForSummary {
+    if (!_isCategoryAggregatedView) {
+      return filteredBudgets.fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
+    }
+    final forTotal = budgetAggregation == BudgetAggregation.cumulativeYear && selectedChartBucket != null
+        ? filteredBudgets
+        : _budgetsForListSource;
+    return _aggregateBudgetsByCategory(forTotal)
+        .fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
   }
 
   bool _isBudgetInRange(Map<String, dynamic> budget) {
@@ -367,6 +428,8 @@ class _BudgetsPageState extends State<BudgetsPage> {
             Future<void> apply(VoidCallback updateParent) async {
               await _applyBudgetPreferenceChange(() {
                 updateParent();
+                selectedChartBucket = null;
+                _monthBeforeChartBucket = null;
                 setModalState(() {});
               });
             }
@@ -457,8 +520,8 @@ class _BudgetsPageState extends State<BudgetsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleBudgets = displayBudgets;
-    final totalBudget = visibleBudgets.fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
+    final visibleBudgets = displayBudgetsForList;
+    final totalBudget = _totalBudgetForSummary;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
@@ -495,10 +558,18 @@ class _BudgetsPageState extends State<BudgetsPage> {
               currentMonth: currentMonth,
               aggregationSubtitle: _budgetAggregationSubtitle(),
               onPrev: () {
-                setState(() => currentMonth = DateTime(currentMonth.year, currentMonth.month - 1));
+                setState(() {
+                  selectedChartBucket = null;
+                  _monthBeforeChartBucket = null;
+                  currentMonth = DateTime(currentMonth.year, currentMonth.month - 1);
+                });
               },
               onNext: () {
-                setState(() => currentMonth = DateTime(currentMonth.year, currentMonth.month + 1));
+                setState(() {
+                  selectedChartBucket = null;
+                  _monthBeforeChartBucket = null;
+                  currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
+                });
               },
               monthTrailing: IconButton(
                 visualDensity: VisualDensity.compact,
@@ -551,6 +622,49 @@ class _BudgetsPageState extends State<BudgetsPage> {
               child: AggregationBarChart(
                 data: _budgetChartData(),
                 emptyMessage: 'No budget data available for this aggregation.',
+                selectedBucket: _budgetMonthBarsActive ? selectedChartBucket : null,
+                onBarTap: _budgetMonthBarsActive
+                    ? (item) async {
+                        final tappedBucket = item.bucket;
+                        final nextBucket =
+                            selectedChartBucket == tappedBucket ? null : tappedBucket;
+                        if (budgetAggregation == BudgetAggregation.cumulativeToSelectedMonth) {
+                          if (nextBucket != null) {
+                            _monthBeforeChartBucket ??=
+                                DateTime(currentMonth.year, currentMonth.month);
+                            setState(() {
+                              currentMonth = DateTime(currentMonth.year, nextBucket, 1);
+                              selectedChartBucket = nextBucket;
+                            });
+                          } else {
+                            setState(() {
+                              selectedChartBucket = null;
+                              if (_monthBeforeChartBucket != null) {
+                                currentMonth = _monthBeforeChartBucket!;
+                                _monthBeforeChartBucket = null;
+                              }
+                            });
+                          }
+                        } else {
+                          setState(() => selectedChartBucket = nextBucket);
+                        }
+                        await loadBudgets();
+                      }
+                    : null,
+                trailing: _budgetMonthBarsActive && selectedChartBucket != null
+                    ? IconButton(
+                        onPressed: () async {
+                          setState(_clearBudgetChartBucketSelection);
+                          await loadBudgets();
+                        },
+                        icon: const Icon(Icons.close_rounded, size: 16),
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        splashRadius: 14,
+                        tooltip: 'Clear filter',
+                      )
+                    : null,
                 labelBuilder: _effectiveChartGroupBy == BudgetChartGroupBy.category
                     ? (context, item) {
                         final category = _categoryDetails(item.label);
