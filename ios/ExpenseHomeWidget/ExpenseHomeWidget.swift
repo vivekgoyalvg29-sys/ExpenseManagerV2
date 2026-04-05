@@ -12,7 +12,6 @@ struct ExpenseEntry: TimelineEntry {
   let paceLabel: String
   let paceIsHigh: Bool
   let barProgress: Double
-  let gaugeProgress: Double
   let modeShort: String
 }
 
@@ -41,7 +40,6 @@ struct Provider: TimelineProvider {
       paceLabel: "High",
       paceIsHigh: true,
       barProgress: 0.85,
-      gaugeProgress: 0.85,
       modeShort: "Month"
     )
   }
@@ -57,7 +55,6 @@ struct Provider: TimelineProvider {
     let paceLabel = ud?.string(forKey: "widget_pace_label") ?? ""
     let paceIsHigh = intFromDefaults(ud, key: "widget_pace_is_high", default: 0) == 1
     let barThousandths = intFromDefaults(ud, key: "widget_bar_progress_thousandths", default: 0)
-    let gaugeThousandths = intFromDefaults(ud, key: "widget_gauge_progress_thousandths", default: barThousandths)
     let modeShort = ud?.string(forKey: "widget_mode_short") ?? ""
 
     return ExpenseEntry(
@@ -69,7 +66,6 @@ struct Provider: TimelineProvider {
       paceLabel: paceLabel,
       paceIsHigh: paceIsHigh,
       barProgress: Double(barThousandths) / 1000.0,
-      gaugeProgress: Double(gaugeThousandths) / 1000.0,
       modeShort: modeShort
     )
   }
@@ -87,48 +83,6 @@ struct Provider: TimelineProvider {
     if let n = obj as? NSNumber { return n.intValue }
     if let i = obj as? Int { return i }
     return d
-  }
-}
-
-// MARK: - Gauge (solid stroke only — avoids WidgetKit issues with AngularGradient on arcs)
-
-private struct SemicircleGauge: View {
-  var progress: CGFloat
-
-  var body: some View {
-    GeometryReader { geo in
-      ZStack {
-        ArcPath(progress: 1.0)
-          .stroke(Color.black.opacity(0.14), style: StrokeStyle(lineWidth: 4, lineCap: .round))
-        ArcPath(progress: progress)
-          .stroke(gaugeStrokeColor(progress: progress), style: StrokeStyle(lineWidth: 4, lineCap: .round))
-      }
-      .frame(width: geo.size.width, height: geo.size.height)
-    }
-  }
-
-  private func gaugeStrokeColor(progress: CGFloat) -> Color {
-    let t = CGFloat(min(max(Double(progress), 0), 1))
-    let r = 0.98 + (0.13 - 0.98) * t
-    let g = 0.45 + (0.77 - 0.45) * t
-    let b = 0.09 + (0.37 - 0.09) * t
-    return Color(red: r, green: g, blue: b)
-  }
-}
-
-private struct ArcPath: Shape {
-  var progress: CGFloat
-
-  func path(in rect: CGRect) -> Path {
-    var p = Path()
-    guard rect.width > 1, rect.height > 1 else { return p }
-    let c = CGPoint(x: rect.midX, y: rect.maxY * 0.92)
-    let r = min(rect.width, rect.height) * 0.38
-    let prog = min(max(Double(progress), 0), 1)
-    let start = Angle.degrees(180)
-    let end = Angle.degrees(180 + 180 * prog)
-    p.addArc(center: c, radius: r, startAngle: start, endAngle: end, clockwise: false)
-    return p
   }
 }
 
@@ -173,11 +127,8 @@ struct ExpenseHomeWidgetEntryView: View {
   var entry: Provider.Entry
 
   var body: some View {
-    VStack(spacing: 0) {
-      SemicircleGauge(progress: CGFloat(entry.gaugeProgress))
-        .frame(height: family == .systemSmall ? 28 : 34)
-
-      HStack(alignment: .top) {
+    VStack(alignment: .leading, spacing: 0) {
+      HStack(alignment: .top, spacing: 8) {
         ZStack {
           RoundedRectangle(cornerRadius: 12, style: .continuous)
             .fill(
@@ -197,33 +148,40 @@ struct ExpenseHomeWidgetEntryView: View {
             .padding(.top, 3)
         }
 
-        Spacer(minLength: 4)
+        Text(entry.cardPeriodTitle)
+          .font(.system(size: family == .systemSmall ? 13 : 14, weight: .heavy))
+          .foregroundColor(Color(white: 0.07))
+          .lineLimit(1)
+          .minimumScaleFactor(0.75)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: .infinity)
 
-        if entry.paceVisible && !entry.paceLabel.isEmpty {
-          VStack(alignment: .trailing, spacing: 2) {
-            Image(systemName: entry.paceIsHigh ? "arrow.up.right" : "checkmark.circle")
-              .font(.system(size: 14, weight: .semibold))
-              .foregroundColor(Color(red: 0.09, green: 0.50, blue: 0.24))
-            Text(entry.paceLabel)
-              .font(.system(size: 11, weight: .heavy))
-              .foregroundColor(Color(red: 0.09, green: 0.50, blue: 0.24))
+        Group {
+          if entry.paceVisible && !entry.paceLabel.isEmpty {
+            VStack(alignment: .trailing, spacing: 2) {
+              Image(systemName: entry.paceIsHigh ? "arrow.up.right" : "checkmark.circle")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(Color(red: 0.09, green: 0.50, blue: 0.24))
+              Text(entry.paceLabel)
+                .font(.system(size: 11, weight: .heavy))
+                .foregroundColor(Color(red: 0.09, green: 0.50, blue: 0.24))
+            }
+            .frame(minWidth: 44, alignment: .trailing)
+          } else {
+            // Keeps the period title optically centered vs. the calendar tile on the left.
+            Color.clear
+              .frame(width: 40, height: 40)
           }
         }
       }
       .padding(.top, 2)
-
-      Text(entry.cardPeriodTitle)
-        .font(.system(size: family == .systemSmall ? 13 : 14, weight: .heavy))
-        .foregroundColor(Color(white: 0.07))
-        .lineLimit(1)
-        .minimumScaleFactor(0.75)
-        .padding(.top, 4)
 
       if !entry.modeShort.isEmpty {
         Text(entry.modeShort)
           .font(.system(size: 9, weight: .regular))
           .foregroundColor(Color.black.opacity(0.45))
           .lineLimit(1)
+          .padding(.top, 4)
       }
 
       Text(entry.expenseDisplay)

@@ -34,11 +34,11 @@ class SectionTile extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(
-              alpha: theme.brightness == Brightness.dark ? 0.22 : 0.05,
+              alpha: theme.brightness == Brightness.dark ? 0.18 : 0.04,
             ),
-            blurRadius: 16,
-            spreadRadius: -4,
-            offset: const Offset(0, 6),
+            blurRadius: 12,
+            spreadRadius: -3,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
