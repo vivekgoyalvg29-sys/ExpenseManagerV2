@@ -38,49 +38,65 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
         val modeShort = readString(prefs, "widget_mode_short", "")
 
         appWidgetIds.forEach { widgetId ->
-            val views = RemoteViews(context.packageName, R.layout.expense_home_widget)
+            try {
+                val views = RemoteViews(context.packageName, R.layout.expense_home_widget)
 
-            views.setTextViewText(R.id.widget_period, periodTitle)
-            views.setTextViewText(R.id.widget_expense, expenseDisplay)
-            views.setTextViewText(R.id.widget_calendar_day, calendarDay.toString())
-            views.setTextViewText(R.id.widget_mode_hint, modeShort)
+                views.setTextViewText(R.id.widget_period, periodTitle)
+                views.setTextViewText(R.id.widget_expense, expenseDisplay)
+                views.setTextViewText(R.id.widget_calendar_day, calendarDay.toString())
+                views.setTextViewText(R.id.widget_mode_hint, modeShort)
 
-            if (paceVisible && paceLabel.isNotEmpty()) {
-                views.setViewVisibility(R.id.widget_pace, View.VISIBLE)
-                val decorated = if (paceIsHigh) "↑ $paceLabel" else "✓ $paceLabel"
-                views.setTextViewText(R.id.widget_pace, decorated)
-            } else {
-                views.setViewVisibility(R.id.widget_pace, View.GONE)
+                if (paceVisible && paceLabel.isNotEmpty()) {
+                    views.setViewVisibility(R.id.widget_pace, View.VISIBLE)
+                    val decorated = if (paceIsHigh) "↑ $paceLabel" else "✓ $paceLabel"
+                    views.setTextViewText(R.id.widget_pace, decorated)
+                } else {
+                    views.setViewVisibility(R.id.widget_pace, View.GONE)
+                }
+
+                views.setProgressBar(R.id.widget_bar, 1000, barProgress, false)
+
+                val gaugeRatio = gaugeProgress / 1000f
+                val w = (160 * context.resources.displayMetrics.density).toInt().coerceAtLeast(120)
+                val h = (40 * context.resources.displayMetrics.density).toInt().coerceAtLeast(32)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try {
+                        views.setViewVisibility(R.id.widget_gauge, View.VISIBLE)
+                        views.setViewVisibility(R.id.widget_gauge_fallback, View.GONE)
+                        views.setImageViewBitmap(R.id.widget_gauge, buildGaugeBitmap(w, h, gaugeRatio))
+                    } catch (_: Exception) {
+                        views.setViewVisibility(R.id.widget_gauge, View.GONE)
+                        views.setViewVisibility(R.id.widget_gauge_fallback, View.VISIBLE)
+                        views.setProgressBar(R.id.widget_gauge_fallback, 1000, gaugeProgress, false)
+                    }
+                } else {
+                    views.setViewVisibility(R.id.widget_gauge, View.GONE)
+                    views.setViewVisibility(R.id.widget_gauge_fallback, View.VISIBLE)
+                    views.setProgressBar(R.id.widget_gauge_fallback, 1000, gaugeProgress, false)
+                }
+
+                val intent = Intent(context, MainActivity::class.java).apply {
+                    action = Intent.ACTION_MAIN
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                val pendingIntent = PendingIntent.getActivity(
+                    context,
+                    widgetId,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+                views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
+
+                appWidgetManager.updateAppWidget(widgetId, views)
+            } catch (_: Exception) {
+                val fallback = RemoteViews(context.packageName, R.layout.expense_home_widget)
+                fallback.setTextViewText(R.id.widget_period, "—")
+                fallback.setTextViewText(R.id.widget_expense, expenseDisplay)
+                fallback.setViewVisibility(R.id.widget_pace, View.GONE)
+                fallback.setViewVisibility(R.id.widget_gauge, View.GONE)
+                fallback.setViewVisibility(R.id.widget_gauge_fallback, View.GONE)
+                appWidgetManager.updateAppWidget(widgetId, fallback)
             }
-
-            views.setProgressBar(R.id.widget_bar, 1000, barProgress, false)
-
-            val gaugeRatio = gaugeProgress / 1000f
-            val w = (160 * context.resources.displayMetrics.density).toInt().coerceAtLeast(120)
-            val h = (40 * context.resources.displayMetrics.density).toInt().coerceAtLeast(32)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                views.setViewVisibility(R.id.widget_gauge, View.VISIBLE)
-                views.setViewVisibility(R.id.widget_gauge_fallback, View.GONE)
-                views.setImageViewBitmap(R.id.widget_gauge, buildGaugeBitmap(w, h, gaugeRatio))
-            } else {
-                views.setViewVisibility(R.id.widget_gauge, View.GONE)
-                views.setViewVisibility(R.id.widget_gauge_fallback, View.VISIBLE)
-                views.setProgressBar(R.id.widget_gauge_fallback, 1000, gaugeProgress, false)
-            }
-
-            val intent = Intent(context, MainActivity::class.java).apply {
-                action = Intent.ACTION_MAIN
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            val pendingIntent = PendingIntent.getActivity(
-                context,
-                widgetId,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
-
-            appWidgetManager.updateAppWidget(widgetId, views)
         }
     }
 
@@ -99,7 +115,7 @@ class ExpenseHomeWidgetProvider : AppWidgetProvider() {
             is Double -> raw
             is Float -> raw.toDouble()
             is Int -> raw.toDouble()
-            is Long -> java.lang.Double.longBitsToDouble(raw)
+            is Long -> if (isDoubleBits) java.lang.Double.longBitsToDouble(raw) else raw.toDouble()
             is String -> raw.toDoubleOrNull() ?: default
             else -> default
         }

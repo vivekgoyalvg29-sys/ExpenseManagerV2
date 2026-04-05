@@ -501,15 +501,26 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
                     ),
                   ),
                 ),
-                IconButton(
-                  icon: Icon(
-                    Icons.add_circle_outline,
-                    color: theme.colorScheme.primary,
-                  ),
-                  tooltip: 'Add profile',
+                TextButton.icon(
                   onPressed: () {
                     setState(() => _expandAddOptions = !_expandAddOptions);
                   },
+                  icon: Icon(
+                    Icons.add_circle_outline,
+                    size: 20,
+                    color: theme.colorScheme.primary,
+                  ),
+                  label: Text(
+                    'Create profile',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close, size: 20),
@@ -721,6 +732,9 @@ class _DefaultProfileCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   phone,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: cs.onSurfaceVariant,
                       ),

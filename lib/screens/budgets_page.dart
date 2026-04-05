@@ -341,39 +341,27 @@ class _BudgetsPageState extends State<BudgetsPage> {
                 const _MenuSectionHeader('Aggregation'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Align(
-                    alignment: Alignment.center,
-                    child: SegmentedToggle<BudgetAggregation>(
-                      axis: SegmentedToggleAxis.vertical,
-                      shrinkWidth: true,
-                      verticalCellHeight: 32,
-                      options: const [
-                        SegmentedToggleOption(value: BudgetAggregation.selectedMonth, label: 'Month'),
-                        SegmentedToggleOption(value: BudgetAggregation.cumulativeToSelectedMonth, label: 'Till month'),
-                        SegmentedToggleOption(value: BudgetAggregation.cumulativeYear, label: 'Year'),
-                      ],
-                      selectedValue: budgetAggregation,
-                      onChanged: (value) => apply(() => budgetAggregation = value),
-                    ),
+                  child: SegmentedToggle<BudgetAggregation>(
+                    options: const [
+                      SegmentedToggleOption(value: BudgetAggregation.selectedMonth, label: 'Month'),
+                      SegmentedToggleOption(value: BudgetAggregation.cumulativeToSelectedMonth, label: 'Till month'),
+                      SegmentedToggleOption(value: BudgetAggregation.cumulativeYear, label: 'Year'),
+                    ],
+                    selectedValue: budgetAggregation,
+                    onChanged: (value) => apply(() => budgetAggregation = value),
                   ),
                 ),
                 const Divider(height: 1),
                 const _MenuSectionHeader('Sort'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Align(
-                    alignment: Alignment.center,
-                    child: SegmentedToggle<BudgetSortOrder>(
-                      axis: SegmentedToggleAxis.vertical,
-                      shrinkWidth: true,
-                      verticalCellHeight: 32,
-                      options: const [
-                        SegmentedToggleOption(value: BudgetSortOrder.amount, label: 'Amount'),
-                        SegmentedToggleOption(value: BudgetSortOrder.alphabetical, label: 'A-Z'),
-                      ],
-                      selectedValue: sortOrder,
-                      onChanged: (value) => apply(() => sortOrder = value),
-                    ),
+                  child: SegmentedToggle<BudgetSortOrder>(
+                    options: const [
+                      SegmentedToggleOption(value: BudgetSortOrder.amount, label: 'Amount'),
+                      SegmentedToggleOption(value: BudgetSortOrder.alphabetical, label: 'A-Z'),
+                    ],
+                    selectedValue: sortOrder,
+                    onChanged: (value) => apply(() => sortOrder = value),
                   ),
                 ),
                 const Divider(height: 1),

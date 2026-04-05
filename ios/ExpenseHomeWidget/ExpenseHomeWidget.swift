@@ -51,7 +51,7 @@ struct Provider: TimelineProvider {
 
     let cardPeriodTitle = ud?.string(forKey: "widget_card_period_title") ?? "—"
     let expenseDisplay = ud?.string(forKey: "widget_expense_display")
-      ?? "₹\(Int(ud?.double(forKey: "expense") ?? 0))"
+      ?? fallbackExpenseString(ud: ud)
     let calendarDay = intFromDefaults(ud, key: "widget_calendar_day", default: 1)
     let paceVisible = intFromDefaults(ud, key: "widget_pace_visible", default: 0) == 1
     let paceLabel = ud?.string(forKey: "widget_pace_label") ?? ""
@@ -74,6 +74,14 @@ struct Provider: TimelineProvider {
     )
   }
 
+  private func fallbackExpenseString(ud: UserDefaults?) -> String {
+    guard let ud else { return "₹0" }
+    if let n = ud.object(forKey: "expense") as? NSNumber {
+      return "₹\(Int(n.doubleValue.rounded()))"
+    }
+    return "₹0"
+  }
+
   private func intFromDefaults(_ ud: UserDefaults?, key: String, default d: Int) -> Int {
     guard let obj = ud?.object(forKey: key) else { return d }
     if let n = obj as? NSNumber { return n.intValue }
@@ -82,7 +90,7 @@ struct Provider: TimelineProvider {
   }
 }
 
-// MARK: - Gauge
+// MARK: - Gauge (solid stroke only — avoids WidgetKit issues with AngularGradient on arcs)
 
 private struct SemicircleGauge: View {
   var progress: CGFloat
@@ -91,18 +99,20 @@ private struct SemicircleGauge: View {
     GeometryReader { geo in
       ZStack {
         ArcPath(progress: 1.0)
-          .stroke(Color.black.opacity(0.12), style: StrokeStyle(lineWidth: 5, lineCap: .round))
-
+          .stroke(Color.black.opacity(0.14), style: StrokeStyle(lineWidth: 4, lineCap: .round))
         ArcPath(progress: progress)
-          .stroke(
-            AngularGradient(
-              colors: [Color(red: 0.98, green: 0.45, blue: 0.09), Color(red: 0.92, green: 0.70, blue: 0.03), Color(red: 0.13, green: 0.77, blue: 0.37)],
-              center: .center
-            ),
-            style: StrokeStyle(lineWidth: 5, lineCap: .round)
-          )
+          .stroke(gaugeStrokeColor(progress: progress), style: StrokeStyle(lineWidth: 4, lineCap: .round))
       }
+      .frame(width: geo.size.width, height: geo.size.height)
     }
+  }
+
+  private func gaugeStrokeColor(progress: CGFloat) -> Color {
+    let t = CGFloat(min(max(Double(progress), 0), 1))
+    let r = 0.98 + (0.13 - 0.98) * t
+    let g = 0.45 + (0.77 - 0.45) * t
+    let b = 0.09 + (0.37 - 0.09) * t
+    return Color(red: r, green: g, blue: b)
   }
 }
 
@@ -111,111 +121,140 @@ private struct ArcPath: Shape {
 
   func path(in rect: CGRect) -> Path {
     var p = Path()
+    guard rect.width > 1, rect.height > 1 else { return p }
     let c = CGPoint(x: rect.midX, y: rect.maxY * 0.92)
     let r = min(rect.width, rect.height) * 0.38
+    let prog = min(max(Double(progress), 0), 1)
     let start = Angle.degrees(180)
-    let end = Angle.degrees(180 + 180 * Double(progress.clamped(to: 0...1)))
+    let end = Angle.degrees(180 + 180 * prog)
     p.addArc(center: c, radius: r, startAngle: start, endAngle: end, clockwise: false)
     return p
   }
 }
 
-private extension Comparable {
-  func clamped(to range: ClosedRange<Self>) -> Self {
-    min(max(self, range.lowerBound), range.upperBound)
+// MARK: - Linear bar (no `let` in ViewBuilder; avoids widget load failures)
+
+private struct WidgetLinearBar: View {
+  var progress: Double
+
+  var body: some View {
+    GeometryReader { geometry in
+      ZStack(alignment: .leading) {
+        Capsule()
+          .fill(Color.black.opacity(0.08))
+          .frame(width: max(geometry.size.width, 1), height: 5)
+        Capsule()
+          .fill(Color(red: 0.13, green: 0.77, blue: 0.37))
+          .frame(
+            width: max(geometry.size.width, 1) * CGFloat(min(max(progress, 0), 1)),
+            height: 5
+          )
+        if min(max(progress, 0), 1) > 0.02 {
+          Circle()
+            .fill(Color.white)
+            .frame(width: 9, height: 9)
+            .overlay(Circle().stroke(Color(red: 0.13, green: 0.77, blue: 0.37), lineWidth: 2))
+            .offset(
+              x: max(geometry.size.width, 1) * CGFloat(min(max(progress, 0), 1)) - 4.5,
+              y: 0
+            )
+        }
+      }
+      .frame(width: max(geometry.size.width, 1), height: 12, alignment: .leading)
+    }
+    .frame(height: 12)
   }
 }
 
 // MARK: - Main view
 
 struct ExpenseHomeWidgetEntryView: View {
+  @Environment(\.widgetFamily) private var family
   var entry: Provider.Entry
 
   var body: some View {
-    ZStack {
-      RoundedRectangle(cornerRadius: 20, style: .continuous)
-        .fill(Color.white)
-        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
+    VStack(spacing: 0) {
+      SemicircleGauge(progress: CGFloat(entry.gaugeProgress))
+        .frame(height: family == .systemSmall ? 28 : 34)
 
-      VStack(spacing: 0) {
-        SemicircleGauge(progress: CGFloat(entry.gaugeProgress))
-          .frame(height: 36)
-
-        HStack(alignment: .top) {
-          ZStack {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-              .fill(
-                LinearGradient(
-                  colors: [Color(red: 0.37, green: 0.92, blue: 0.83), Color(red: 0.05, green: 0.58, blue: 0.53)],
-                  startPoint: .top,
-                  endPoint: .bottom
-                )
+      HStack(alignment: .top) {
+        ZStack {
+          RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(
+              LinearGradient(
+                colors: [
+                  Color(red: 0.37, green: 0.92, blue: 0.83),
+                  Color(red: 0.05, green: 0.58, blue: 0.53),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
               )
-              .frame(width: 44, height: 44)
-            Text("\(entry.calendarDay)")
-              .font(.system(size: 16, weight: .heavy))
-              .foregroundColor(.white)
-              .padding(.top, 4)
-          }
-
-          Spacer(minLength: 4)
-
-          if entry.paceVisible && !entry.paceLabel.isEmpty {
-            VStack(alignment: .trailing, spacing: 2) {
-              Image(systemName: entry.paceIsHigh ? "arrow.up.right" : "checkmark.circle")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(Color(red: 0.09, green: 0.50, blue: 0.24))
-              Text(entry.paceLabel)
-                .font(.system(size: 12, weight: .heavy))
-                .foregroundColor(Color(red: 0.09, green: 0.50, blue: 0.24))
-            }
-          }
-        }
-        .padding(.top, 2)
-
-        Text(entry.cardPeriodTitle)
-          .font(.system(size: 15, weight: .heavy))
-          .foregroundColor(Color(white: 0.07))
-          .padding(.top, 4)
-
-        if !entry.modeShort.isEmpty {
-          Text(entry.modeShort)
-            .font(.system(size: 10, weight: .regular))
-            .foregroundColor(Color.black.opacity(0.45))
+            )
+            .frame(width: 40, height: 40)
+          Text("\(entry.calendarDay)")
+            .font(.system(size: family == .systemSmall ? 14 : 15, weight: .heavy))
+            .foregroundColor(.white)
+            .padding(.top, 3)
         }
 
-        Text(entry.expenseDisplay)
-          .font(.system(size: 22, weight: .heavy))
-          .foregroundColor(Color(red: 0.86, green: 0.15, blue: 0.15))
-          .minimumScaleFactor(0.5)
-          .lineLimit(1)
-          .padding(.top, 2)
-          .padding(.bottom, 6)
+        Spacer(minLength: 4)
 
-        GeometryReader { g in
-          let w = g.size.width
-          let t = CGFloat(entry.barProgress.clamped(to: 0...1))
-          ZStack(alignment: .leading) {
-            Capsule()
-              .fill(Color.black.opacity(0.08))
-              .frame(height: 5)
-            Capsule()
-              .fill(Color(red: 0.13, green: 0.77, blue: 0.37))
-              .frame(width: max(0, w * t), height: 5)
-            if t > 0.001 {
-              Circle()
-                .fill(Color.white)
-                .frame(width: 10, height: 10)
-                .overlay(Circle().stroke(Color(red: 0.13, green: 0.77, blue: 0.37), lineWidth: 2))
-                .offset(x: (w * t) - 5, y: 0)
-            }
+        if entry.paceVisible && !entry.paceLabel.isEmpty {
+          VStack(alignment: .trailing, spacing: 2) {
+            Image(systemName: entry.paceIsHigh ? "arrow.up.right" : "checkmark.circle")
+              .font(.system(size: 14, weight: .semibold))
+              .foregroundColor(Color(red: 0.09, green: 0.50, blue: 0.24))
+            Text(entry.paceLabel)
+              .font(.system(size: 11, weight: .heavy))
+              .foregroundColor(Color(red: 0.09, green: 0.50, blue: 0.24))
           }
         }
-        .frame(height: 12)
       }
-      .padding(12)
+      .padding(.top, 2)
+
+      Text(entry.cardPeriodTitle)
+        .font(.system(size: family == .systemSmall ? 13 : 14, weight: .heavy))
+        .foregroundColor(Color(white: 0.07))
+        .lineLimit(1)
+        .minimumScaleFactor(0.75)
+        .padding(.top, 4)
+
+      if !entry.modeShort.isEmpty {
+        Text(entry.modeShort)
+          .font(.system(size: 9, weight: .regular))
+          .foregroundColor(Color.black.opacity(0.45))
+          .lineLimit(1)
+      }
+
+      Text(entry.expenseDisplay)
+        .font(.system(size: family == .systemSmall ? 18 : 20, weight: .heavy))
+        .foregroundColor(Color(red: 0.86, green: 0.15, blue: 0.15))
+        .minimumScaleFactor(0.5)
+        .lineLimit(1)
+        .padding(.top, 2)
+        .padding(.bottom, 6)
+
+      WidgetLinearBar(progress: entry.barProgress)
     }
-    .padding(6)
+    .padding(10)
+  }
+}
+
+/// iOS 17+ requires a widget container background or the system shows "Could not load widget".
+private struct WidgetEntryContainer: View {
+  var entry: ExpenseEntry
+
+  var body: some View {
+    if #available(iOSApplicationExtension 17.0, *) {
+      ExpenseHomeWidgetEntryView(entry: entry)
+        .containerBackground(for: .widget) {
+          Color.white
+        }
+    } else {
+      ExpenseHomeWidgetEntryView(entry: entry)
+        .padding(4)
+        .background(Color.white)
+    }
   }
 }
 
@@ -224,7 +263,7 @@ struct ExpenseHomeWidget: Widget {
 
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: Provider()) { entry in
-      ExpenseHomeWidgetEntryView(entry: entry)
+      WidgetEntryContainer(entry: entry)
     }
     .configurationDisplayName("Expense summary")
     .description("Shows expenses for the period you configure in Analysis, with optional budget pace.")
