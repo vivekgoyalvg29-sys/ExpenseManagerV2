@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -43,10 +44,6 @@ void main() async {
     await DataStore.initialize();
   } catch (_) {}
 
-  try {
-    await WidgetSyncService.syncFromStoredConfiguration();
-  } catch (_) {}
-
   VisualSettings visualSettings;
   try {
     visualSettings = await VisualSettings.load();
@@ -55,6 +52,13 @@ void main() async {
   }
 
   runApp(FinTrackApp(controller: VisualSettingsController(visualSettings)));
+
+  // Avoid blocking first frame on a full transaction read + widget I/O.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(
+      WidgetSyncService.syncFromStoredConfiguration().catchError((_, __) {}),
+    );
+  });
 }
 
 class FinTrackApp extends StatefulWidget {

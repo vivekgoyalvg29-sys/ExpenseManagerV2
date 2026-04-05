@@ -93,8 +93,6 @@ class FirestoreService {
     final snap = await query.get();
     final accountById = await _accountNameByLocalId();
     final categoryById = await _categoryNameByLocalId();
-    final accountIdByName = await _accountLocalIdByName();
-    final categoryIdByName = await _categoryLocalIdByName();
 
     final results = <Map<String, dynamic>>[];
     for (final doc in snap.docs) {
@@ -108,41 +106,25 @@ class FirestoreService {
       final categoryId = (data['categoryId'] as num?)?.toInt();
       final accountId = (data['accountId'] as num?)?.toInt();
 
-      final resolvedCategoryId = categoryId ??
-          categoryIdByName[_norm('$type::$originalTitle')];
-      final resolvedAccountId = accountId ??
-          accountIdByName[_norm('$type::$originalAccount')];
-
-      final resolvedCategoryName =
-          resolvedCategoryId != null ? categoryById[resolvedCategoryId] : null;
-      final resolvedAccountName =
-          resolvedAccountId != null ? accountById[resolvedAccountId] : null;
-
-      final canonicalTitle = resolvedCategoryName ?? originalTitle;
-      final canonicalAccount = resolvedAccountName ?? originalAccount;
-
-      if (resolvedCategoryId != null ||
-          resolvedAccountId != null ||
-          canonicalTitle != originalTitle ||
-          canonicalAccount != originalAccount) {
-        await doc.reference.update({
-          if (resolvedCategoryId != null) 'categoryId': resolvedCategoryId,
-          if (resolvedAccountId != null) 'accountId': resolvedAccountId,
-          if (canonicalTitle != originalTitle) 'title': canonicalTitle,
-          if (canonicalAccount != originalAccount) 'account': canonicalAccount,
-        });
-      }
+      // Read-only display: prefer current category/account name when IDs exist (e.g. after rename cascade).
+      // No write-back / migration on read.
+      final displayTitle = categoryId != null
+          ? (categoryById[categoryId] ?? originalTitle)
+          : originalTitle;
+      final displayAccount = accountId != null
+          ? (accountById[accountId] ?? originalAccount)
+          : originalAccount;
 
       results.add({
         'id': localId,
-        'title': canonicalTitle,
+        'title': displayTitle,
         'amount': data['amount'] ?? 0.0,
         'date': data['date'] ?? DateTime.now().toIso8601String(),
         'type': type,
-        'account': canonicalAccount,
+        'account': displayAccount,
         'comment': data['comment'] ?? '',
-        'categoryId': resolvedCategoryId,
-        'accountId': resolvedAccountId,
+        'categoryId': categoryId,
+        'accountId': accountId,
       });
     }
     return results;
