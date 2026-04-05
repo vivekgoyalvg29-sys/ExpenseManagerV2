@@ -124,6 +124,113 @@ class WidgetSyncService {
     return 'Month';
   }
 
+  static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  /// Budget amount for a single calendar month (0 if none).
+  static double _budgetForMonth(
+    List<Map<String, dynamic>> budgets,
+    int year,
+    int month,
+  ) {
+    return budgets
+        .where((b) {
+          final y = (b['year'] as num?)?.toInt() ?? 0;
+          final m = (b['month'] as num?)?.toInt() ?? 0;
+          return y == year && m == month;
+        })
+        .fold<double>(0.0, (s, b) => s + (b['amount'] as num).toDouble());
+  }
+
+  /// Sum expenses in [mode] window on [year], on or before [cutoff] (date only).
+  static double _expenseThroughCutoff(
+    List<Map<String, dynamic>> tx,
+    String mode,
+    int year,
+    int anchorMonth,
+    DateTime cutoff,
+  ) {
+    final c = _dateOnly(cutoff);
+    return tx.where((t) {
+      if (t['type'] != 'expense') return false;
+      final d = DateTime.parse(t['date'] as String);
+      if (!_dateInWindow(d, mode, year, anchorMonth)) return false;
+      return !_dateOnly(d).isAfter(c);
+    }).fold<double>(0.0, (sum, t) => sum + (t['amount'] as num).toDouble());
+  }
+
+  /// Linear budget allowed through [cutoff] for months 1..[anchorMonth] in [year].
+  static double _allowedBudgetCumulativeThrough(
+    List<Map<String, dynamic>> budgets,
+    int year,
+    int anchorMonth,
+    DateTime cutoff,
+  ) {
+    double sum = 0;
+    final c = _dateOnly(cutoff);
+    for (var m = 1; m <= anchorMonth; m++) {
+      final b = _budgetForMonth(budgets, year, m);
+      if (b <= 0) continue;
+      final first = DateTime(year, m, 1);
+      final last = DateTime(year, m + 1, 0);
+      if (c.isBefore(first)) break;
+      if (!c.isAfter(last)) {
+        final dim = last.day;
+        sum += b * c.day / dim;
+        break;
+      }
+      sum += b;
+    }
+    return sum;
+  }
+
+  /// Pace: spending vs linear budget-to-date. Bar/gauge still use [expense]/[budget] totals.
+  static bool _paceIsHigh({
+    required String mode,
+    required int year,
+    required int month,
+    required double budget,
+    required double expense,
+    required List<Map<String, dynamic>> tx,
+    required List<Map<String, dynamic>> budgets,
+    required DateTime now,
+  }) {
+    if (budget <= 0) return false;
+
+    final today = _dateOnly(now);
+
+    if (mode == selectedMonth) {
+      final last = DateTime(year, month + 1, 0);
+      if (year > now.year || (year == now.year && month > now.month)) {
+        return false;
+      }
+      final cutoff = (year < now.year || (year == now.year && month < now.month))
+          ? last
+          : (today.isAfter(last) ? last : today);
+      final dim = last.day;
+      final allowed = budget * cutoff.day / dim;
+      final spent = _expenseThroughCutoff(tx, mode, year, month, cutoff);
+      return spent > allowed;
+    }
+
+    final anchorMonth = mode == cumulativeYear ? 12 : month;
+    final lastWindow = DateTime(year, anchorMonth + 1, 0);
+
+    if (now.year < year) return false;
+    if (now.year > year) {
+      return expense > budget;
+    }
+
+    final cutoff = today.isAfter(lastWindow) ? lastWindow : today;
+    final allowed = _allowedBudgetCumulativeThrough(
+      budgets,
+      year,
+      anchorMonth,
+      cutoff,
+    );
+    final spent = _expenseThroughCutoff(tx, mode, year, anchorMonth, cutoff);
+    return spent > allowed;
+  }
+
   static Future<void> sync({
     required String mode,
     required int month,
@@ -165,6 +272,8 @@ class WidgetSyncService {
     final allMonthsHaveBudget =
         _everyWindowMonthHasBudget(budgets, year, windowMonths);
 
+    final now = DateTime.now();
+
     final reference = isIncomeMode ? income : budget;
     final barRatio = reference > 0 && expense.isFinite
         ? (expense / reference).clamp(0.0, 1.0)
@@ -172,10 +281,19 @@ class WidgetSyncService {
     final thousandths = (barRatio * 1000).round().clamp(0, 1000);
 
     final paceVisible = !isIncomeMode && allMonthsHaveBudget;
-    final paceIsHigh = paceVisible && expense > budget;
+    final paceIsHigh = paceVisible &&
+        _paceIsHigh(
+          mode: mode,
+          year: year,
+          month: month,
+          budget: budget,
+          expense: expense,
+          tx: tx,
+          budgets: budgets,
+          now: now,
+        );
     final paceLabel = paceVisible ? (paceIsHigh ? 'High' : 'Controlled') : '';
 
-    final now = DateTime.now();
     final calendarDay =
         (now.year == year && now.month == month) ? now.day : 1;
 

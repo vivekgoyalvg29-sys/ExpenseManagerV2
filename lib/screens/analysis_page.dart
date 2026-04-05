@@ -16,6 +16,7 @@ import '../widgets/segmented_toggle.dart';
 import '../widgets/section_tile.dart';
 import '../widgets/side_overlay_sheet.dart';
 import '../widgets/income_expense_pie_chart.dart';
+import '../widgets/income_mode_radial_chart.dart';
 import 'add_transaction_page.dart';
 
 enum AnalysisMode {
@@ -188,13 +189,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
       final totalIncomeAggregation = groupedIncome.values.fold<double>(0.0, (sum, v) => sum + v);
       final totalExpenseAggregation = groupedExpense.values.fold<double>(0.0, (sum, v) => sum + v);
 
-      final result = <Map<String, dynamic>>[];
+      if (selectedPieSlice == IncomeExpensePieSlice.budget) {
+        if (mounted) {
+          setState(() {
+            analysisData = [];
+          });
+        }
+      } else {
+        final result = <Map<String, dynamic>>[];
 
-      final showIncome = selectedPieSlice == null || selectedPieSlice == IncomeExpensePieSlice.income;
-      final showExpense = selectedPieSlice == null || selectedPieSlice == IncomeExpensePieSlice.expense;
+        final showIncome = selectedPieSlice == null || selectedPieSlice == IncomeExpensePieSlice.income;
+        final showExpense = selectedPieSlice == null || selectedPieSlice == IncomeExpensePieSlice.expense;
 
-      if (showIncome) {
-        if (selectedPieSlice == IncomeExpensePieSlice.income) {
+        if (showIncome) {
+          if (selectedPieSlice == IncomeExpensePieSlice.income) {
           final incomeDetails = incomeTx
               .where((tx) => _incomeKeyForTransaction(tx).isNotEmpty)
               .toList()
@@ -230,97 +238,98 @@ class _AnalysisPageState extends State<AnalysisPage> {
               'txDate': tx['date'],
             });
           }
-        } else {
-          for (final entry in groupedIncome.entries) {
+          } else {
+            for (final entry in groupedIncome.entries) {
+              if (entry.value <= 0) continue;
+              final percentage = totalIncomeAggregation == 0
+                  ? 0
+                  : (((entry.value / totalIncomeAggregation) * 100).clamp(0, 999)).round();
+              result.add({
+                'rowType': 'income',
+                'label': entry.key,
+                'spent': 0.0,
+                'income': entry.value,
+                'budget': 0.0,
+                'net': entry.value,
+                'percentage': percentage,
+                'totalIncomeAggregation': totalIncomeAggregation,
+                'totalExpenseAggregation': totalExpenseAggregation,
+                'latestDate': latestIncomeDates[entry.key],
+              });
+            }
+          }
+        }
+
+        if (showExpense) {
+          for (final entry in groupedExpense.entries) {
             if (entry.value <= 0) continue;
-            final percentage = totalIncomeAggregation == 0
+            final percentage = totalExpenseAggregation == 0
                 ? 0
-                : (((entry.value / totalIncomeAggregation) * 100).clamp(0, 999)).round();
+                : (((entry.value / totalExpenseAggregation) * 100).clamp(0, 999)).round();
             result.add({
-              'rowType': 'income',
+              'rowType': 'expense',
               'label': entry.key,
-              'spent': 0.0,
-              'income': entry.value,
+              'spent': entry.value,
+              'income': 0.0,
               'budget': 0.0,
-              'net': entry.value,
+              'net': -entry.value,
               'percentage': percentage,
               'totalIncomeAggregation': totalIncomeAggregation,
               'totalExpenseAggregation': totalExpenseAggregation,
-              'latestDate': latestIncomeDates[entry.key],
+              'latestDate': latestExpenseDates[entry.key],
             });
           }
         }
+
+        // Sorting rules:
+        // - When a pie slice is selected: sort by that side's amount desc (menu sorting ignored).
+        // - When no slice is selected: use existing menu sorting (based on analysisSortField).
+        result.sort((a, b) {
+          final aRow = a['rowType'] as String;
+          final bRow = b['rowType'] as String;
+
+          if (selectedPieSlice == IncomeExpensePieSlice.income) {
+            final cmp = (b['income'] as num).compareTo(a['income'] as num);
+            return cmp != 0 ? cmp : (a['label'] as String).compareTo(b['label'] as String);
+          }
+          if (selectedPieSlice == IncomeExpensePieSlice.expense) {
+            final cmp = (b['spent'] as num).compareTo(a['spent'] as num);
+            return cmp != 0 ? cmp : (a['label'] as String).compareTo(b['label'] as String);
+          }
+
+          num aPrimary;
+          num bPrimary;
+          if (analysisSortField == AnalysisSortField.budget) {
+            // In income mode, "Budget" label in menu corresponds to Income sorting.
+            aPrimary = aRow == 'income' ? (a['income'] as num) : 0;
+            bPrimary = bRow == 'income' ? (b['income'] as num) : 0;
+          } else {
+            // "Expense" label in menu.
+            aPrimary = aRow == 'expense' ? (a['spent'] as num) : 0;
+            bPrimary = bRow == 'expense' ? (b['spent'] as num) : 0;
+          }
+
+          final amountCompare = bPrimary.compareTo(aPrimary);
+          if (amountCompare != 0) return amountCompare;
+
+          final secondaryCompare = (b['spent'] as num).compareTo(a['spent'] as num);
+          if (secondaryCompare != 0) return secondaryCompare;
+
+          final aDate = a['latestDate'] as DateTime?;
+          final bDate = b['latestDate'] as DateTime?;
+          if (aDate != null && bDate != null) {
+            final dateCompare = bDate.compareTo(aDate);
+            if (dateCompare != 0) return dateCompare;
+          }
+
+          return (a['label'] as String).compareTo(b['label'] as String);
+        });
+
+        if (!mounted) return;
+        setState(() {
+          analysisData = result;
+        });
       }
-
-      if (showExpense) {
-        for (final entry in groupedExpense.entries) {
-          if (entry.value <= 0) continue;
-          final percentage = totalExpenseAggregation == 0
-              ? 0
-              : (((entry.value / totalExpenseAggregation) * 100).clamp(0, 999)).round();
-          result.add({
-            'rowType': 'expense',
-            'label': entry.key,
-            'spent': entry.value,
-            'income': 0.0,
-            'budget': 0.0,
-            'net': -entry.value,
-            'percentage': percentage,
-            'totalIncomeAggregation': totalIncomeAggregation,
-            'totalExpenseAggregation': totalExpenseAggregation,
-            'latestDate': latestExpenseDates[entry.key],
-          });
-        }
-      }
-
-      // Sorting rules:
-      // - When a pie slice is selected: sort by that side's amount desc (menu sorting ignored).
-      // - When no slice is selected: use existing menu sorting (based on analysisSortField).
-      result.sort((a, b) {
-        final aRow = a['rowType'] as String;
-        final bRow = b['rowType'] as String;
-
-        if (selectedPieSlice == IncomeExpensePieSlice.income) {
-          final cmp = (b['income'] as num).compareTo(a['income'] as num);
-          return cmp != 0 ? cmp : (a['label'] as String).compareTo(b['label'] as String);
-        }
-        if (selectedPieSlice == IncomeExpensePieSlice.expense) {
-          final cmp = (b['spent'] as num).compareTo(a['spent'] as num);
-          return cmp != 0 ? cmp : (a['label'] as String).compareTo(b['label'] as String);
-        }
-
-        num aPrimary;
-        num bPrimary;
-        if (analysisSortField == AnalysisSortField.budget) {
-          // In income mode, "Budget" label in menu corresponds to Income sorting.
-          aPrimary = aRow == 'income' ? (a['income'] as num) : 0;
-          bPrimary = bRow == 'income' ? (b['income'] as num) : 0;
-        } else {
-          // "Expense" label in menu.
-          aPrimary = aRow == 'expense' ? (a['spent'] as num) : 0;
-          bPrimary = bRow == 'expense' ? (b['spent'] as num) : 0;
-        }
-
-        final amountCompare = bPrimary.compareTo(aPrimary);
-        if (amountCompare != 0) return amountCompare;
-
-        final secondaryCompare = (b['spent'] as num).compareTo(a['spent'] as num);
-        if (secondaryCompare != 0) return secondaryCompare;
-
-        final aDate = a['latestDate'] as DateTime?;
-        final bDate = b['latestDate'] as DateTime?;
-        if (aDate != null && bDate != null) {
-          final dateCompare = bDate.compareTo(aDate);
-          if (dateCompare != 0) return dateCompare;
-        }
-
-        return (a['label'] as String).compareTo(b['label'] as String);
-      });
-
-      if (!mounted) return;
-      setState(() {
-        analysisData = result;
-      });
     } else {
       // Budget mode uses the bar-chart time bucket selection to filter the bottom list.
       final filteredExpenses = _filteredTransactionsOfTypeForBottom('expense');
@@ -654,6 +663,68 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
     final sorted = map.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     return sorted.take(5).map((e) => _BreakdownRow(e.key, e.value)).toList();
+  }
+
+  /// Top categories by budget amount for the active analysis window (income-mode side panel).
+  List<_BreakdownRow> _topFiveBudgetByCategory() {
+    final map = <String, double>{};
+    for (final b in budgets.where(_isBudgetInActiveRange)) {
+      final category = (b['category'] as String?)?.trim() ?? '';
+      if (category.isEmpty) continue;
+      map[category] = (map[category] ?? 0) + (b['amount'] as num).toDouble();
+    }
+    final sorted = map.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(5).map((e) => _BreakdownRow(e.key, e.value)).toList();
+  }
+
+  List<_BreakdownRow> _incomeModeSidePanelRows() {
+    switch (selectedPieSlice) {
+      case IncomeExpensePieSlice.budget:
+        return _topFiveBudgetByCategory();
+      case IncomeExpensePieSlice.expense:
+        return _topFiveExpenseBreakdown();
+      case IncomeExpensePieSlice.income:
+        return _topFiveIncomeBreakdown();
+      case null:
+        return _topFiveExpenseBreakdown();
+    }
+  }
+
+  String _incomeModeSidePanelTitle() {
+    switch (selectedPieSlice) {
+      case IncomeExpensePieSlice.budget:
+        return 'Top budget (category)';
+      case IncomeExpensePieSlice.expense:
+        return 'Top expense';
+      case IncomeExpensePieSlice.income:
+        return 'Top income';
+      case null:
+        return 'Top expense';
+    }
+  }
+
+  String _incomeModeSidePanelRowType() {
+    switch (selectedPieSlice) {
+      case IncomeExpensePieSlice.budget:
+      case IncomeExpensePieSlice.expense:
+      case null:
+        return 'expense';
+      case IncomeExpensePieSlice.income:
+        return 'income';
+    }
+  }
+
+  Color _incomeModeSidePanelAmountColor(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    switch (selectedPieSlice) {
+      case IncomeExpensePieSlice.budget:
+        return Color.lerp(scheme.primary, Colors.white, 0.25) ?? scheme.primary;
+      case IncomeExpensePieSlice.income:
+        return const Color(0xFF22C55E).withValues(alpha: 0.88);
+      case IncomeExpensePieSlice.expense:
+      case null:
+        return const Color(0xFFEF4444).withValues(alpha: 0.85);
+    }
   }
 
   LinearGradient _progressGradient(double ratio) {
@@ -1089,25 +1160,21 @@ class _AnalysisPageState extends State<AnalysisPage> {
               child: _isIncomeVsExpense
                   ? Builder(
                       builder: (context) {
-                        final top5 = selectedPieSlice == IncomeExpensePieSlice.expense
-                            ? _topFiveExpenseBreakdown()
-                            : selectedPieSlice == IncomeExpensePieSlice.income
-                                ? _topFiveIncomeBreakdown()
-                                : <_BreakdownRow>[];
+                        final top5 = _incomeModeSidePanelRows();
+                        final showSide = top5.isNotEmpty;
                         return SizedBox(
-                          height: 220,
+                          height: 228,
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               Expanded(
-                                flex: selectedPieSlice != null && top5.isNotEmpty ? 5 : 1,
-                                child: IncomeExpensePieChart(
+                                flex: showSide ? 5 : 1,
+                                child: IncomeModeRadialChart(
                                   incomeTotal: income,
+                                  budgetTotal: budgetTotal,
                                   expenseTotal: expense,
                                   selectedSlice: selectedPieSlice,
-                                  chartHeight: selectedPieSlice != null ? 200 : 210,
-                                  incomeColor: const Color(0xFF16A34A),
-                                  expenseColor: const Color(0xFFDC2626),
+                                  chartHeight: 218,
                                   onSliceTap: (slice) async {
                                     setState(() {
                                       selectedPieSlice = selectedPieSlice == slice ? null : slice;
@@ -1124,15 +1191,15 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                       : null,
                                 ),
                               ),
-                              if (selectedPieSlice != null && top5.isNotEmpty) ...[
-                                const SizedBox(width: 12),
+                              if (showSide) ...[
+                                const SizedBox(width: 10),
                                 Expanded(
                                   flex: 5,
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        selectedPieSlice == IncomeExpensePieSlice.expense ? 'Top expense' : 'Top income',
+                                        _incomeModeSidePanelTitle(),
                                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
                                               fontWeight: FontWeight.w700,
                                             ),
@@ -1145,8 +1212,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                           separatorBuilder: (_, __) => const SizedBox(height: 6),
                                           itemBuilder: (context, index) {
                                             final row = top5[index];
-                                            final rowType =
-                                                selectedPieSlice == IncomeExpensePieSlice.expense ? 'expense' : 'income';
+                                            final rowType = _incomeModeSidePanelRowType();
                                             final entry = _entryForLabel(row.label, rowType: rowType);
                                             return Row(
                                               children: [
@@ -1173,9 +1239,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                 ),
                                                 Text(
                                                   formatIndianCurrency(row.amount),
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                     fontWeight: FontWeight.w700,
                                                     fontSize: 12,
+                                                    color: _incomeModeSidePanelAmountColor(context),
                                                   ),
                                                 ),
                                               ],
@@ -1253,7 +1320,19 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                 padding: EdgeInsets.all(24),
                                 child: CircularProgressIndicator(),
                               )
-                            : Text(_emptyStateMessage()),
+                            : Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 24),
+                                child: Text(
+                                  _isIncomeVsExpense &&
+                                          selectedPieSlice == IncomeExpensePieSlice.budget
+                                      ? 'Switch to budget mode for budget analysis.'
+                                      : _emptyStateMessage(),
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ),
+                                ),
+                              ),
                       )
                     : ListView.builder(
                         padding: EdgeInsets.zero,
