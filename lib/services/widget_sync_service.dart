@@ -9,6 +9,8 @@ import 'visual_settings.dart';
 /// (Android App Widget + iOS WidgetKit), not in-app UI.
 class WidgetSyncService {
   static const String androidWidgetProvider = 'ExpenseHomeWidgetProvider';
+  static const String androidWidgetCompactProvider =
+      'ExpenseHomeWidgetCompactProvider';
   static const String iOSWidgetName = 'ExpenseHomeWidget';
 
   static const String _modeKey = 'widget_mode';
@@ -106,7 +108,7 @@ class WidgetSyncService {
   static String _cardPeriodTitle(String mode, int year, int month) {
     final yy = (year % 100).toString().padLeft(2, '0');
     if (mode == selectedMonth) {
-      return '${DateFormat('MMM').format(DateTime(year, month))}-$yy';
+      return '${DateFormat('MMMM').format(DateTime(year, month))}-$yy';
     }
     if (mode == cumulativeToSelectedMonth) {
       final start = DateFormat('MMM').format(DateTime(year, 1));
@@ -242,6 +244,9 @@ class WidgetSyncService {
     await HomeWidget.updateWidget(
       androidName: androidWidgetProvider,
       iOSName: iOSWidgetName,
+    );
+    await HomeWidget.updateWidget(
+      androidName: androidWidgetCompactProvider,
     );
   }
 

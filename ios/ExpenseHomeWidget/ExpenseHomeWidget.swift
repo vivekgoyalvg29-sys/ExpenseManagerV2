@@ -34,7 +34,7 @@ struct Provider: TimelineProvider {
   private func sampleEntry() -> ExpenseEntry {
     ExpenseEntry(
       date: Date(),
-      cardPeriodTitle: "Apr-26",
+      cardPeriodTitle: "April-26",
       expenseDisplay: "₹94,664",
       calendarDay: 26,
       paceVisible: true,
