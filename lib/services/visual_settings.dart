@@ -244,7 +244,7 @@ class FinTrackTheme {
       popupMenuTheme: const PopupMenuThemeData(),
       appBarTheme: AppBarTheme(
         backgroundColor:
-            isDark ? const Color(0xFF160E0B) : (Color.lerp(primary, Colors.white, 0.34) ?? primary),
+            isDark ? const Color(0xFF160E0B) : (Color.lerp(primary, Colors.white, 0.20) ?? primary),
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
