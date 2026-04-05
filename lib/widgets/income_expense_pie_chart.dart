@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 enum IncomeExpensePieSlice {
   income,
+  budget,
   expense,
 }
 
