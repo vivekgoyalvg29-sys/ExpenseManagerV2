@@ -97,10 +97,12 @@
                         android:textStyle="bold"
                         android:visibility="gone" />
 
-                    <View
+                    <!-- ImageView: plain View is not reliably inflateable in RemoteViews. -->
+                    <ImageView
                         android:id="@+id/widget_trailing_balance"
                         android:layout_width="48dp"
                         android:layout_height="48dp"
+                        android:contentDescription="@null"
                         android:visibility="gone" />
                 </LinearLayout>
 
