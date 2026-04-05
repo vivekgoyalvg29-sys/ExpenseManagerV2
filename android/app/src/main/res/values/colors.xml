@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FFFFFF</color>
-    <color name="widget_pace_green">#16A34A</color>
+    <!-- FinTrack light theme (see lib/services/visual_settings.dart FinTrackTheme) -->
+    <color name="widget_theme_primary">#FFE88363</color>
+    <color name="widget_theme_secondary">#FFF2A287</color>
+    <color name="widget_theme_surface">#FFFFF2EC</color>
+    <color name="widget_theme_surface_soft">#FFFFF8F4</color>
+    <color name="widget_theme_on_surface">#FF2A1A14</color>
+    <color name="widget_theme_on_surface_muted">#FF7A5A4D</color>
+    <color name="widget_theme_track">#66E9D2C8</color>
+    <color name="widget_pace_green">#FF15803D</color>
 </resources>
