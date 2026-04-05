@@ -3,26 +3,36 @@
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="6dp">
+    android:paddingStart="4dp"
+    android:paddingTop="6dp"
+    android:paddingEnd="4dp"
+    android:paddingBottom="8dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@drawable/widget_card_bg"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:elevation="5dp"
         android:orientation="vertical"
-        android:paddingStart="12dp"
-        android:paddingTop="10dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="10dp">
+        android:paddingStart="4dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="14dp">
 
+        <!-- Gradient arc peeks above the card edge -->
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="34dp">
+            android:layout_height="30dp"
+            android:layout_marginTop="-6dp"
+            android:clipChildren="false">
 
             <ImageView
                 android:id="@+id/widget_gauge"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="48dp"
+                android:layout_gravity="top|center_horizontal"
                 android:contentDescription="@null"
                 android:scaleType="fitCenter" />
 
@@ -30,7 +40,7 @@
                 android:id="@+id/widget_gauge_fallback"
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
-                android:layout_height="6dp"
+                android:layout_height="5dp"
                 android:layout_gravity="bottom"
                 android:max="1000"
                 android:progress="0"
@@ -41,90 +51,98 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="-2dp"
+            android:clipChildren="false"
             android:gravity="top"
-            android:orientation="horizontal">
+            android:minHeight="56dp"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="2dp">
 
             <FrameLayout
-                android:layout_width="44dp"
-                android:layout_height="44dp">
-
-                <ImageView
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:contentDescription="@null"
-                    android:scaleType="fitXY"
-                    android:src="@drawable/widget_calendar_bg" />
+                android:layout_width="54dp"
+                android:layout_height="54dp"
+                android:layout_marginStart="-2dp"
+                android:layout_marginTop="-8dp"
+                android:background="@drawable/widget_calendar_bg">
 
                 <TextView
                     android:id="@+id/widget_calendar_day"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:background="@drawable/widget_calendar_day_inner"
                     android:gravity="center"
-                    android:paddingTop="4dp"
-                    android:text="1"
-                    android:textColor="#FFFFFF"
-                    android:textSize="15sp"
+                    android:minWidth="32dp"
+                    android:minHeight="28dp"
+                    android:paddingHorizontal="4dp"
+                    android:paddingVertical="2dp"
+                    android:text="5"
+                    android:textColor="#FF374151"
+                    android:textSize="16sp"
                     android:textStyle="bold" />
             </FrameLayout>
 
-            <!-- RemoteViews cannot inflate plain <View>; use an empty LinearLayout as spacer. -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="10dp"
                 android:layout_weight="1"
-                android:orientation="horizontal" />
+                android:gravity="start"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/widget_period"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:text="April-26"
+                    android:textColor="#FF111111"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/widget_expense"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="₹0"
+                    android:textColor="#FFDC2626"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/widget_pace"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="High"
-                android:textColor="#15803D"
+                android:layout_gravity="top"
+                android:layout_marginTop="2dp"
+                android:text="↑ High"
+                android:textColor="#FF16A34A"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/widget_period"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:paddingTop="2dp"
-            android:text="Apr-26"
-            android:textColor="#111111"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widget_mode_hint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:alpha="0.55"
-            android:gravity="center"
-            android:text="Month"
-            android:textColor="#333333"
-            android:textSize="10sp" />
-
-        <TextView
-            android:id="@+id/widget_expense"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:paddingTop="2dp"
-            android:paddingBottom="6dp"
-            android:text="₹0"
-            android:textColor="#DC2626"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-
         <ProgressBar
             android:id="@+id/widget_bar"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
-            android:layout_height="5dp"
+            android:layout_height="8dp"
+            android:layout_marginStart="14dp"
+            android:layout_marginEnd="14dp"
+            android:layout_marginTop="6dp"
+            android:indeterminate="false"
             android:max="1000"
+            android:maxHeight="8dp"
+            android:minHeight="8dp"
             android:progress="0"
-            android:progressTint="#22C55E" />
+            android:progressDrawable="@drawable/widget_expense_progress" />
     </LinearLayout>
 </FrameLayout>

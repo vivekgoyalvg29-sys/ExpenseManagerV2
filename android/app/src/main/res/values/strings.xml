@@ -2,4 +2,6 @@
 <resources>
     <string name="app_name">Kharcha Book</string>
     <string name="app_description">Personal expense manager and budget tracker</string>
+    <string name="home_widget_label_full">Kharcha overview</string>
+    <string name="home_widget_label_compact">Kharcha month &amp; expense</string>
 </resources>
