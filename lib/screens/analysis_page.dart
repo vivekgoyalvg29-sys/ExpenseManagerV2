@@ -714,39 +714,27 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 const _MenuSectionHeader('Aggregation'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Align(
-                    alignment: Alignment.center,
-                    child: SegmentedToggle<AnalysisMode>(
-                      axis: SegmentedToggleAxis.vertical,
-                      shrinkWidth: true,
-                      verticalCellHeight: 32,
-                      options: const [
-                        SegmentedToggleOption(value: AnalysisMode.selectedMonth, label: 'Month'),
-                        SegmentedToggleOption(value: AnalysisMode.cumulativeToSelectedMonth, label: 'Till month'),
-                        SegmentedToggleOption(value: AnalysisMode.cumulativeYear, label: 'Year'),
-                      ],
-                      selectedValue: analysisMode,
-                      onChanged: (value) => applyChanges(() => analysisMode = value),
-                    ),
+                  child: SegmentedToggle<AnalysisMode>(
+                    options: const [
+                      SegmentedToggleOption(value: AnalysisMode.selectedMonth, label: 'Month'),
+                      SegmentedToggleOption(value: AnalysisMode.cumulativeToSelectedMonth, label: 'Till month'),
+                      SegmentedToggleOption(value: AnalysisMode.cumulativeYear, label: 'Year'),
+                    ],
+                    selectedValue: analysisMode,
+                    onChanged: (value) => applyChanges(() => analysisMode = value),
                   ),
                 ),
                 const Divider(height: 1),
                 const _MenuSectionHeader('Type'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Align(
-                    alignment: Alignment.center,
-                    child: SegmentedToggle<AnalysisType>(
-                      axis: SegmentedToggleAxis.vertical,
-                      shrinkWidth: true,
-                      verticalCellHeight: 32,
-                      options: const [
-                        SegmentedToggleOption(value: AnalysisType.category, label: 'Category'),
-                        SegmentedToggleOption(value: AnalysisType.account, label: 'Account'),
-                      ],
-                      selectedValue: analysisType,
-                      onChanged: (value) => applyChanges(() => analysisType = value),
-                    ),
+                  child: SegmentedToggle<AnalysisType>(
+                    options: const [
+                      SegmentedToggleOption(value: AnalysisType.category, label: 'Category'),
+                      SegmentedToggleOption(value: AnalysisType.account, label: 'Account'),
+                    ],
+                    selectedValue: analysisType,
+                    onChanged: (value) => applyChanges(() => analysisType = value),
                   ),
                 ),
                 const Divider(height: 1),
@@ -754,41 +742,29 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 const _MenuSectionHeader('Main analysis'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Align(
-                    alignment: Alignment.center,
-                    child: SegmentedToggle<AnalysisSortField>(
-                      axis: SegmentedToggleAxis.vertical,
-                      shrinkWidth: true,
-                      verticalCellHeight: 32,
-                      options: [
-                        SegmentedToggleOption(value: AnalysisSortField.budget, label: _isIncomeVsExpense ? 'Income' : 'Budget'),
-                        const SegmentedToggleOption(value: AnalysisSortField.expense, label: 'Expense'),
-                      ],
-                      selectedValue: analysisSortField,
-                      onChanged: (value) => applyChanges(() => analysisSortField = value),
-                    ),
+                  child: SegmentedToggle<AnalysisSortField>(
+                    options: [
+                      SegmentedToggleOption(value: AnalysisSortField.budget, label: _isIncomeVsExpense ? 'Income' : 'Budget'),
+                      const SegmentedToggleOption(value: AnalysisSortField.expense, label: 'Expense'),
+                    ],
+                    selectedValue: analysisSortField,
+                    onChanged: (value) => applyChanges(() => analysisSortField = value),
                   ),
                 ),
                 const _MenuSectionHeader('Sub menu'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Align(
-                    alignment: Alignment.center,
-                    child: SegmentedToggle<TransactionSortOrder>(
-                      axis: SegmentedToggleAxis.vertical,
-                      shrinkWidth: true,
-                      verticalCellHeight: 32,
-                      options: const [
-                        SegmentedToggleOption(value: TransactionSortOrder.newestFirst, label: 'Newest'),
-                        SegmentedToggleOption(value: TransactionSortOrder.oldestFirst, label: 'Oldest'),
-                      ],
-                      selectedValue: transactionSortOrder,
-                      onChanged: (value) async {
-                        setState(() => transactionSortOrder = value);
-                        setModalState(() {});
-                        await _persistPreferences();
-                      },
-                    ),
+                  child: SegmentedToggle<TransactionSortOrder>(
+                    options: const [
+                      SegmentedToggleOption(value: TransactionSortOrder.newestFirst, label: 'Newest'),
+                      SegmentedToggleOption(value: TransactionSortOrder.oldestFirst, label: 'Oldest'),
+                    ],
+                    selectedValue: transactionSortOrder,
+                    onChanged: (value) async {
+                      setState(() => transactionSortOrder = value);
+                      setModalState(() {});
+                      await _persistPreferences();
+                    },
                   ),
                 ),
                 const Divider(height: 1),
