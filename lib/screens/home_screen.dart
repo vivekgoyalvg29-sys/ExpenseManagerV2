@@ -19,6 +19,7 @@ import '../screens/profile_screen.dart';
 import '../services/excel_transfer_service.dart';
 import '../services/visual_settings.dart';
 import '../services/widget_sync_service.dart';
+import '../widgets/budget_income_mode_toggle.dart';
 import '../widgets/segmented_toggle.dart';
 import '../widgets/section_tile.dart';
 import '../widgets/side_overlay_sheet.dart';
@@ -272,11 +273,26 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _setComparisonMode(ComparisonMode mode) async {
     final controller = _visualSettingsController(context);
     if (controller.value.comparisonMode == mode) return;
+    final previous = controller.value.comparisonMode;
+    final previousIndex = currentIndex;
     await controller.updateSettings(controller.value.copyWith(comparisonMode: mode));
     unawaited(WidgetSyncService.syncFromStoredConfiguration());
     if (!mounted) return;
     setState(() {
-      currentIndex = 0;
+      if (previous == ComparisonMode.budgetVsExpense &&
+          mode == ComparisonMode.incomeVsExpense) {
+        // Budget tab (index 2) is removed; keep other tabs aligned.
+        if (previousIndex == 2) {
+          currentIndex = 1;
+        } else if (previousIndex > 2) {
+          currentIndex = previousIndex - 1;
+        }
+      } else if (previous == ComparisonMode.incomeVsExpense &&
+          mode == ComparisonMode.budgetVsExpense) {
+        if (previousIndex >= 2) {
+          currentIndex = previousIndex + 1;
+        }
+      }
       _refreshVersion++;
     });
   }
@@ -1628,47 +1644,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     menuTile(icon: Icons.restart_alt_outlined, title: 'Reset app', onTap: () => handleSelection('reset_app')),
                   ],
                   const Divider(height: 1, thickness: 1),
-                  const _MenuSectionHeader('Mode'),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
-                    child: Column(
-                      children: [
-                        ListTile(
-                          dense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                          title: const Text(
-                            'Budget vs Expense',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
-                          ),
-                          trailing: settings.comparisonMode == ComparisonMode.budgetVsExpense
-                              ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary, size: 20)
-                              : null,
-                          onTap: () async {
-                            await _setComparisonMode(ComparisonMode.budgetVsExpense);
-                            if (!drawerContext.mounted) return;
-                            Navigator.of(drawerContext).pop();
-                          },
-                        ),
-                        ListTile(
-                          dense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                          title: const Text(
-                            'Income vs Expense',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
-                          ),
-                          trailing: settings.comparisonMode == ComparisonMode.incomeVsExpense
-                              ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary, size: 20)
-                              : null,
-                          onTap: () async {
-                            await _setComparisonMode(ComparisonMode.incomeVsExpense);
-                            if (!drawerContext.mounted) return;
-                            Navigator.of(drawerContext).pop();
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1, thickness: 1),
                   const _MenuSectionHeader('Visuals', compact: true),
                   ExpansionTile(
                     title: Text(
@@ -1748,17 +1723,25 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
+        toolbarHeight: 88,
         leading: IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () => _openAppMenu(controller.value), tooltip: 'Open menu'),
-        title: Row(
+        title: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               'Kharcha Book',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
+                    fontSize: 20,
                   ),
+            ),
+            const SizedBox(height: 6),
+            BudgetIncomeModeToggle(
+              mode: controller.value.comparisonMode,
+              onChanged: (m) => unawaited(_setComparisonMode(m)),
             ),
           ],
         ),
