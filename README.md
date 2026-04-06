@@ -38,3 +38,5 @@ Notes:
 - `flutter build appbundle` creates an `.aab` file (for Play Store upload).
 - `flutter build apk` creates an installable `.apk` file.
 - ......
+
+Documentation note: README received a minor one-line update.
