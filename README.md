@@ -32,7 +32,7 @@ Output file:
 
 ```text
 build/app/outputs/flutter-apk/app-release.apk
-```
+```.
 
 Notes:
 - `flutter build appbundle` creates an `.aab` file (for Play Store upload).
