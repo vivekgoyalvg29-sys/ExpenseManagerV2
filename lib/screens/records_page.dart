@@ -97,11 +97,15 @@ class _RecordsPageState extends State<RecordsPage> {
   }
 
   IconData _categoryIcon(String categoryName) {
-    final category = DataStore.categories.cast<Map<String, dynamic>?>().firstWhere(
+    final category = _categoryDetails(categoryName);
+    return iconFromCodePoint(category?["icon"], fallback: Icons.category);
+  }
+
+  Map<String, dynamic>? _categoryDetails(String categoryName) {
+    return DataStore.categories.cast<Map<String, dynamic>?>().firstWhere(
           (c) => c?["name"] == categoryName,
           orElse: () => null,
         );
-    return iconFromCodePoint(category?["icon"], fallback: Icons.category);
   }
 
   Future<void> _openQrScannerFlow() async {
@@ -655,9 +659,9 @@ class _RecordsPageState extends State<RecordsPage> {
                   heroTag: 'addRecordFab',
                   child: const Icon(Icons.add),
                   onPressed: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => AddTransactionPage()),
+                    final result = await showDialog<Map<String, dynamic>>(
+                      context: context,
+                      builder: (_) => const AddTransactionPage(),
                     );
 
                     if (result != null) {
@@ -719,9 +723,9 @@ class _RecordsPageState extends State<RecordsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               if (showDateHeader) ...[
-                                if (index > 0) const SizedBox(height: 8),
+                                if (index > 0) const SizedBox(height: 14),
                                 Padding(
-                                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                                  padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
                                   child: Text(
                                     DateFormat('MMM d, EEEE').format(date),
                                     style: const TextStyle(
@@ -734,10 +738,8 @@ class _RecordsPageState extends State<RecordsPage> {
                                 const Divider(height: 1, thickness: 1),
                               ],
                               ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 3,
-                                ),
+                                visualDensity: VisualDensity.compact,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
                                 leading: selectionMode
                                     ? Checkbox(
                                         value: selectedIndexes.contains(index),
@@ -751,7 +753,12 @@ class _RecordsPageState extends State<RecordsPage> {
                                           });
                                         },
                                       )
-                                    : AppPageIcon(icon: _categoryIcon(tx["title"])),
+                                    : AppPageIcon(
+                                        icon: _categoryIcon(tx["title"]),
+                                        imagePath: _categoryDetails(
+                                          tx["title"].toString(),
+                                        )?['icon_path']?.toString(),
+                                      ),
                                 title: Text(
                                   tx["title"],
                                   style: const TextStyle(
@@ -765,7 +772,10 @@ class _RecordsPageState extends State<RecordsPage> {
                                         padding: const EdgeInsets.only(top: 4),
                                         child: Text(
                                           comment,
-                                          style: const TextStyle(fontSize: 13),
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF7C8794),
+                                          ),
                                         ),
                                       ),
                                 trailing: Text(
@@ -794,13 +804,9 @@ class _RecordsPageState extends State<RecordsPage> {
                                     return;
                                   }
 
-                                  final result = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => AddTransactionPage(
-                                        existingTransaction: tx,
-                                      ),
-                                    ),
+                                  final result = await showDialog<Map<String, dynamic>>(
+                                    context: context,
+                                    builder: (_) => AddTransactionPage(existingTransaction: tx),
                                   );
 
                                   if (result != null) {
@@ -821,7 +827,7 @@ class _RecordsPageState extends State<RecordsPage> {
                               if (index < filteredTransactions.length - 1)
                                 const Padding(
                                   padding: EdgeInsets.only(left: 88),
-                                  child: Divider(height: 1),
+                                  child: Divider(height: 1, color: Color(0xFFE6EAF0)),
                                 ),
                             ],
                           );

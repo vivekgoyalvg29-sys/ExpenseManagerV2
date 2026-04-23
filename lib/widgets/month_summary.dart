@@ -9,6 +9,7 @@ class MonthSummary extends StatelessWidget {
   final double budget;
   final double expense;
   final Widget? trailing;
+  final Widget? monthTrailing;
 
   const MonthSummary({
     super.key,
@@ -18,6 +19,7 @@ class MonthSummary extends StatelessWidget {
     required this.budget,
     required this.expense,
     this.trailing,
+    this.monthTrailing,
   });
 
   @override
@@ -39,6 +41,7 @@ class MonthSummary extends StatelessWidget {
       currentMonth: currentMonth,
       onPrev: onPrev,
       onNext: onNext,
+      monthTrailing: monthTrailing,
       child: Row(
         children: [
           Expanded(
@@ -49,6 +52,7 @@ class MonthSummary extends StatelessWidget {
               valueStyle: valueStyle?.copyWith(color: Colors.green[700]),
             ),
           ),
+          Container(width: 1, height: 36, color: const Color(0xFFE3E7EE)),
           Expanded(
             child: _SummaryMetric(
               label: 'Expense',
@@ -57,6 +61,7 @@ class MonthSummary extends StatelessWidget {
               valueStyle: valueStyle?.copyWith(color: Colors.red[700]),
             ),
           ),
+          Container(width: 1, height: 36, color: const Color(0xFFE3E7EE)),
           Expanded(
             child: _SummaryMetric(
               label: 'Remaining',

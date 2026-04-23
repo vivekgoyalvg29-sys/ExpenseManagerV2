@@ -137,10 +137,11 @@ class _BudgetsPageState extends State<BudgetsPage> {
     final totalBudget = filteredBudgets.fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
     final summaryLabelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
           color: const Color(0xFF52606D),
-          fontWeight: FontWeight.w600,
-        );
-    final summaryValueStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.w700,
+          fontSize: 12,
+        );
+    final summaryValueStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold,
           fontSize: 18,
         );
 
@@ -180,20 +181,28 @@ class _BudgetsPageState extends State<BudgetsPage> {
               monthTrailing: PopupMenuButton<BudgetSortOrder>(
                 icon: const Icon(Icons.more_vert, size: 20),
                 tooltip: 'Budget options',
+                constraints: const BoxConstraints(minWidth: 120),
+                padding: const EdgeInsets.all(4),
                 onSelected: _onSortSelected,
                 itemBuilder: (_) => [
                   const PopupMenuItem<BudgetSortOrder>(
                     enabled: false,
+                    height: 30,
+                    padding: EdgeInsets.symmetric(horizontal: 12),
                     child: Text('Sort', style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                   CheckedPopupMenuItem<BudgetSortOrder>(
                     value: BudgetSortOrder.amount,
                     checked: sortOrder == BudgetSortOrder.amount,
+                    height: 34,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: const Text('Amount'),
                   ),
                   CheckedPopupMenuItem<BudgetSortOrder>(
                     value: BudgetSortOrder.alphabetical,
                     checked: sortOrder == BudgetSortOrder.alphabetical,
+                    height: 34,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: const Text('Alphabetical'),
                   ),
                 ],
@@ -201,18 +210,22 @@ class _BudgetsPageState extends State<BudgetsPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _BudgetSummaryStat(
-                    label: 'Categories',
-                    value: '${filteredBudgets.length}',
-                    labelStyle: summaryLabelStyle,
-                    valueStyle: summaryValueStyle,
+                  Expanded(
+                    child: _BudgetSummaryStat(
+                      label: 'Categories',
+                      value: '${filteredBudgets.length}',
+                      labelStyle: summaryLabelStyle,
+                      valueStyle: summaryValueStyle,
+                    ),
                   ),
-                  Container(width: 1, height: 40, color: const Color(0xFFE3E7EE)),
-                  _BudgetSummaryStat(
-                    label: 'Total Budget',
-                    value: formatIndianCurrency(totalBudget),
-                    labelStyle: summaryLabelStyle,
-                    valueStyle: summaryValueStyle,
+                  Container(width: 1, height: 36, color: const Color(0xFFE3E7EE)),
+                  Expanded(
+                    child: _BudgetSummaryStat(
+                      label: 'Total Budget',
+                      value: formatIndianCurrency(totalBudget),
+                      labelStyle: summaryLabelStyle,
+                      valueStyle: summaryValueStyle,
+                    ),
                   ),
                 ],
               ),
@@ -234,8 +247,9 @@ class _BudgetsPageState extends State<BudgetsPage> {
                           final category = _categoryDetails(budget['category'] as String);
 
                           return ListTile(
+                            visualDensity: VisualDensity.compact,
                             minVerticalPadding: 6,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                             leading: selectionMode
                                 ? Checkbox(
                                     value: selectedIndexes.contains(index),
@@ -254,13 +268,13 @@ class _BudgetsPageState extends State<BudgetsPage> {
                                     budget['category'] as String,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
                                   '${formatIndianCurrency(amount)} ($percentage%)',
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                                  style: const TextStyle(fontWeight: FontWeight.w400, fontSize: 13.5),
                                 ),
                               ],
                             ),
@@ -313,14 +327,30 @@ class _BudgetSummaryStat extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: labelStyle, textAlign: TextAlign.center),
-        const SizedBox(height: 6),
         Text(
-          value,
-          style: valueStyle,
+          label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          style: labelStyle,
           textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return SizedBox(
+              width: constraints.maxWidth,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  style: valueStyle?.copyWith(fontSize: 16.5),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          },
         ),
       ],
     );

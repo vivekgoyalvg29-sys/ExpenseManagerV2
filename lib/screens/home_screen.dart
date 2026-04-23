@@ -8,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/data_store.dart';
+import '../services/app_localizations.dart';
 import '../services/database_service.dart';
 import '../services/excel_transfer_service.dart';
 import '../services/visual_settings.dart';
@@ -110,14 +111,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<_NavItem> get _navItems {
     final items = <_NavItem>[
-      _NavItem(label: 'Records', icon: Icons.list, builder: _recordsBuilder),
-      _NavItem(label: 'Analysis', icon: Icons.pie_chart, builder: _analysisBuilder),
-      _NavItem(label: 'Budgets', icon: Icons.account_balance, builder: _budgetsBuilder),
-      _NavItem(label: 'Accounts', icon: Icons.account_balance_wallet, builder: _accountsBuilder),
-      _NavItem(label: 'Categories', icon: Icons.category, builder: _categoriesBuilder),
+      _NavItem(label: context.tr('Records'), icon: Icons.list, builder: _recordsBuilder),
+      _NavItem(label: context.tr('Analysis'), icon: Icons.pie_chart, builder: _analysisBuilder),
+      _NavItem(label: context.tr('Budget'), icon: Icons.account_balance, builder: _budgetsBuilder),
+      _NavItem(label: context.tr('Accounts'), icon: Icons.account_balance_wallet, builder: _accountsBuilder),
+      _NavItem(label: context.tr('Categories'), icon: Icons.category, builder: _categoriesBuilder),
     ];
     if (DataStore.isSmsTabVisible) {
-      items.add(_NavItem(label: 'SMSs', icon: Icons.sms, builder: _smsBuilder));
+      items.add(_NavItem(label: context.tr('SMSs'), icon: Icons.sms, builder: _smsBuilder));
     }
     return items;
   }
@@ -205,7 +206,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openVisualSettings() async {
     final controller = _visualSettingsController(context);
     final settings = controller.value;
-    String fontKey = settings.fontKey;
+    final hasSelectedFont = VisualSettings.fontOptions.any(
+      (option) => option.key == settings.fontKey,
+    );
+    String fontKey = hasSelectedFont ? settings.fontKey : VisualSettings.defaults.fontKey;
     double textScale = settings.textScale;
 
     await showDialog<void>(
@@ -277,6 +281,157 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openThemeSettings() async {
+    final controller = _visualSettingsController(context);
+    ThemeMode mode = controller.value.themeMode;
+    final applied = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Theme'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: ThemeMode.values
+                .map(
+                  (value) => RadioListTile<ThemeMode>(
+                    value: value,
+                    groupValue: mode,
+                    title: Text(value.name[0].toUpperCase() + value.name.substring(1)),
+                    onChanged: (changed) {
+                      if (changed == null) return;
+                      setState(() => mode = changed);
+                    },
+                  ),
+                )
+                .toList(),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Apply')),
+          ],
+        ),
+      ),
+    );
+    if (applied == true) {
+      await controller.updateSettings(controller.value.copyWith(themeMode: mode));
+    }
+  }
+
+  Future<void> _openLanguageSettings() async {
+    final controller = _visualSettingsController(context);
+    String selected = controller.value.localeCode;
+    final applied = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Language'),
+          content: SizedBox(
+            width: 320,
+            child: ListView(
+              shrinkWrap: true,
+              children: AppLocalizations.languageLabels.entries
+                  .map((entry) => RadioListTile<String>(
+                        value: entry.key,
+                        groupValue: selected,
+                        title: Text(entry.value),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => selected = value);
+                        },
+                      ))
+                  .toList(),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Apply')),
+          ],
+        ),
+      ),
+    );
+    if (applied == true) {
+      await controller.updateSettings(controller.value.copyWith(localeCode: selected));
+    }
+  }
+
+  Future<void> _openSearchPopup() async {
+    final tx = await DatabaseService.getTransactions();
+    if (!mounted) return;
+    final controller = TextEditingController();
+    List<Map<String, dynamic>> matches = [];
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => Dialog(
+          child: SizedBox(
+            width: 520,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text('Search Transactions', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 16),
+                        onPressed: () => Navigator.pop(dialogContext),
+                      ),
+                    ],
+                  ),
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search),
+                      hintText: 'Search comment or amount',
+                    ),
+                    onChanged: (value) {
+                      final needle = value.trim().toLowerCase();
+                      setDialogState(() {
+                        if (needle.isEmpty) {
+                          matches = [];
+                        } else {
+                          matches = tx.where((item) {
+                            final comment = (item['comment'] ?? '').toString().toLowerCase();
+                            final amount = (item['amount'] ?? '').toString().toLowerCase();
+                            return comment.contains(needle) || amount.contains(needle);
+                          }).toList();
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 260,
+                    child: matches.isEmpty
+                        ? const Center(child: Text('No matching transactions'))
+                        : ListView.separated(
+                            itemCount: matches.length,
+                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final item = matches[index];
+                              return ListTile(
+                                dense: true,
+                                title: Text(item['title']?.toString() ?? ''),
+                                subtitle: Text('${item['comment'] ?? ''} • ${item['date'] ?? ''}'),
+                                trailing: Text('${item['amount'] ?? ''}'),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    controller.dispose();
   }
 
   VisualSettingsController _visualSettingsController(BuildContext context) => VisualSettingsScope.of(context);
@@ -379,6 +534,12 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'customize_visuals':
         await _openVisualSettings();
         return;
+      case 'theme':
+        await _openThemeSettings();
+        return;
+      case 'language':
+        await _openLanguageSettings();
+        return;
       case 'open_sms':
         await _showSmsTab();
         return;
@@ -417,7 +578,8 @@ class _HomeScreenState extends State<HomeScreen> {
           required VoidCallback onTap,
         }) {
           return ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
             leading: Icon(icon),
             title: Text(title),
             subtitle: subtitle == null ? null : Text(subtitle),
@@ -434,14 +596,14 @@ class _HomeScreenState extends State<HomeScreen> {
         return ListView(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
               child: Row(
                 children: [
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('FinTrack', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                        Text('FinTrack', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
                         Text(_appVersion, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF52606D))),
                         if (displayName.isNotEmpty) ...[
@@ -472,7 +634,15 @@ class _HomeScreenState extends State<HomeScreen> {
             tile(icon: Icons.restart_alt_outlined, title: 'Reset app', onTap: () => handleSelection('reset_app')),
             const Divider(height: 1, thickness: 1),
             const _MenuSectionHeader('Visuals & SMSs'),
-            tile(icon: Icons.palette_outlined, title: 'Customize visuals', subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}%', onTap: () => handleSelection('customize_visuals')),
+            ExpansionTile(
+              title: const Text('Appearance'),
+              leading: const Icon(Icons.palette_outlined),
+              children: [
+                tile(icon: Icons.dark_mode_outlined, title: 'Theme', subtitle: settings.themeMode.name, onTap: () => handleSelection('theme')),
+                tile(icon: Icons.font_download_outlined, title: 'Font', subtitle: '${settings.fontLabel} • ${(settings.textScale * 100).round()}%', onTap: () => handleSelection('customize_visuals')),
+                tile(icon: Icons.language_outlined, title: 'Language', subtitle: AppLocalizations.languageLabels[settings.localeCode] ?? 'English', onTap: () => handleSelection('language')),
+              ],
+            ),
             tile(icon: Icons.sms_outlined, title: 'Open SMSs', subtitle: DataStore.isSmsTabVisible ? 'Already enabled' : 'Add SMS tab', onTap: () => handleSelection('open_sms')),
           ],
         );
@@ -490,8 +660,21 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: const Color(0xFFF3F5F9),
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () => _openAppMenu(controller.value), tooltip: 'Open menu'),
-        title: const Text('FinTrack', textAlign: TextAlign.center),
-        actions: const [SizedBox(width: kToolbarHeight)],
+        title: Text(
+          'FinTrack',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+        actions: [
+          IconButton(
+            onPressed: _openSearchPopup,
+            icon: const Icon(Icons.search, color: Colors.white),
+            tooltip: 'Search',
+          ),
+        ],
       ),
       body: _buildCurrentPage(),
       bottomNavigationBar: SafeArea(
@@ -531,7 +714,7 @@ class _MenuSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 2),
       child: Text(
         title,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700, color: const Color(0xFF52606D)),

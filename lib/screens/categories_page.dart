@@ -4,6 +4,7 @@ import '../services/data_store.dart';
 import '../services/database_service.dart';
 import '../services/icon_storage_service.dart';
 import '../widgets/icon_utils.dart';
+import '../widgets/page_content_layout.dart';
 import '../widgets/section_tile.dart';
 
 class CategoriesPage extends StatefulWidget {
@@ -32,6 +33,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
         'type': c['type'].toString(),
         'icon': c['icon'],
         'icon_path': c['icon_path']?.toString(),
+        'is_favorite': (c['is_favorite'] as num?)?.toInt() == 1,
       }).toList();
     });
   }
@@ -195,9 +197,26 @@ class _CategoriesPageState extends State<CategoriesPage> {
               child: const Icon(Icons.add),
               onPressed: () => showAddCategoryDialog(),
             ),
-      body: SectionTile(
-        child: ListView(
+      body: PageContentLayout(
+        child: Column(
           children: [
+            SectionTile(
+              margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+              child: const SizedBox(
+                height: 58,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    child: Text('Categories', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: SectionTile(
+                child: ListView(
+                  children: [
             _CategorySection(
               title: 'Expense Categories',
               items: expenseCategories,
@@ -218,6 +237,15 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 } else {
                   showAddCategoryDialog(category: cat);
                 }
+              },
+              onToggleFavorite: (cat) async {
+                final current = cat['is_favorite'] == true;
+                await DatabaseService.setCategoryFavorite(
+                  id: cat['id'] as int,
+                  type: (cat['type'] ?? 'expense').toString(),
+                  isFavorite: !current,
+                );
+                await loadCategories();
               },
             ),
             _CategorySection(
@@ -241,6 +269,19 @@ class _CategoriesPageState extends State<CategoriesPage> {
                   showAddCategoryDialog(category: cat);
                 }
               },
+              onToggleFavorite: (cat) async {
+                final current = cat['is_favorite'] == true;
+                await DatabaseService.setCategoryFavorite(
+                  id: cat['id'] as int,
+                  type: (cat['type'] ?? 'expense').toString(),
+                  isFavorite: !current,
+                );
+                await loadCategories();
+              },
+            ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -258,6 +299,7 @@ class _CategorySection extends StatelessWidget {
   final void Function(int index, bool checked) onChanged;
   final void Function(int index) onLongPress;
   final void Function(Map<String, dynamic> item, int index) onTap;
+  final Future<void> Function(Map<String, dynamic> item)? onToggleFavorite;
 
   const _CategorySection({
     required this.title,
@@ -268,12 +310,16 @@ class _CategorySection extends StatelessWidget {
     required this.onChanged,
     required this.onLongPress,
     required this.onTap,
+    this.onToggleFavorite,
   });
 
   @override
   Widget build(BuildContext context) {
     return ExpansionTile(
-      title: Text(title),
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+      ),
       initiallyExpanded: true,
       children: items.map((cat) {
         final index = fullList.indexOf(cat);
@@ -287,7 +333,18 @@ class _CategorySection extends StatelessWidget {
                   icon: iconFromCodePoint(cat['icon'], fallback: Icons.category),
                   imagePath: cat['icon_path']?.toString(),
                 ),
-          title: Text(cat['name'] ?? ''),
+          title: Text(
+            cat['name'] ?? '',
+            style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w400),
+          ),
+          trailing: IconButton(
+            tooltip: 'Favorite',
+            onPressed: onToggleFavorite == null ? null : () => onToggleFavorite!(cat),
+            icon: Icon(
+              (cat['is_favorite'] == true) ? Icons.star : Icons.star_border,
+              color: (cat['is_favorite'] == true) ? Colors.black : Colors.black54,
+            ),
+          ),
           onLongPress: () => onLongPress(index),
           onTap: () => onTap(cat, index),
         );

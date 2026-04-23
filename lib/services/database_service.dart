@@ -16,7 +16,7 @@ class DatabaseService {
 
     return openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: (db, version) async {
         await db.execute('''
         CREATE TABLE transactions(
@@ -36,7 +36,8 @@ class DatabaseService {
           name TEXT,
           type TEXT,
           icon INTEGER,
-          icon_path TEXT
+          icon_path TEXT,
+          is_favorite INTEGER DEFAULT 0
         )
         ''');
 
@@ -46,7 +47,8 @@ class DatabaseService {
           name TEXT,
           type TEXT,
           icon INTEGER,
-          icon_path TEXT
+          icon_path TEXT,
+          is_favorite INTEGER DEFAULT 0
         )
         ''');
 
@@ -74,6 +76,10 @@ class DatabaseService {
         if (oldVersion < 5) {
           await _ensureColumn(db, 'accounts', 'icon_path TEXT');
           await _ensureColumn(db, 'categories', 'icon_path TEXT');
+        }
+        if (oldVersion < 6) {
+          await _ensureColumn(db, 'accounts', 'is_favorite INTEGER DEFAULT 0');
+          await _ensureColumn(db, 'categories', 'is_favorite INTEGER DEFAULT 0');
         }
       },
     );
@@ -106,6 +112,29 @@ class DatabaseService {
     return db.query('transactions', orderBy: 'date DESC');
   }
 
+  static Future<List<String>> getExistingComments() async {
+    final db = await database;
+    final rows = await db.query(
+      'transactions',
+      columns: ['comment'],
+      orderBy: 'id DESC',
+    );
+
+    final seen = <String>{};
+    final comments = <String>[];
+
+    for (final row in rows) {
+      final comment = (row['comment'] ?? '').toString().trim();
+      if (comment.isEmpty) continue;
+      final key = comment.toLowerCase();
+      if (seen.contains(key)) continue;
+      seen.add(key);
+      comments.add(comment);
+    }
+
+    return comments;
+  }
+
   static Future<void> deleteTransaction(int id) async {
     final db = await database;
     await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
@@ -135,6 +164,7 @@ class DatabaseService {
       'type': type,
       'icon': icon,
       'icon_path': iconPath,
+      'is_favorite': 0,
     });
   }
 
@@ -170,7 +200,70 @@ class DatabaseService {
       'type': type,
       'icon': icon,
       'icon_path': iconPath,
+      'is_favorite': 0,
     });
+  }
+
+  static Future<void> setAccountFavorite({
+    required int id,
+    required String type,
+    required bool isFavorite,
+  }) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      if (isFavorite) {
+        await txn.update('accounts', {'is_favorite': 0}, where: 'type = ?', whereArgs: [type]);
+      }
+      await txn.update(
+        'accounts',
+        {'is_favorite': isFavorite ? 1 : 0},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    });
+  }
+
+  static Future<void> setCategoryFavorite({
+    required int id,
+    required String type,
+    required bool isFavorite,
+  }) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      if (isFavorite) {
+        await txn.update('categories', {'is_favorite': 0}, where: 'type = ?', whereArgs: [type]);
+      }
+      await txn.update(
+        'categories',
+        {'is_favorite': isFavorite ? 1 : 0},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    });
+  }
+
+  static Future<String?> getFavoriteAccountName(String type) async {
+    final db = await database;
+    final rows = await db.query(
+      'accounts',
+      where: 'type = ? AND is_favorite = 1',
+      whereArgs: [type],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['name']?.toString();
+  }
+
+  static Future<String?> getFavoriteCategoryName(String type) async {
+    final db = await database;
+    final rows = await db.query(
+      'categories',
+      where: 'type = ? AND is_favorite = 1',
+      whereArgs: [type],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['name']?.toString();
   }
 
   static Future<List<Map<String, dynamic>>> getCategories() async {

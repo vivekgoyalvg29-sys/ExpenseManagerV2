@@ -260,8 +260,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final base = _progressColor(ratio);
     return LinearGradient(
       colors: [
-        Color.lerp(Colors.white, base, 0.45) ?? base,
         base,
+        Color.lerp(Colors.white, base, 0.45) ?? base,
       ],
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
@@ -291,7 +291,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             return ListView(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 12, 8),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
                   child: Row(
                     children: [
                       Expanded(
@@ -675,7 +675,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
               },
               budget: budgetTotal,
               expense: expense,
-              trailing: IconButton(
+              monthTrailing: IconButton(
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
@@ -713,7 +713,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           return InkWell(
                             onTap: () => _showRelatedTransactions(data),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -737,13 +737,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
                                             fontWeight: FontWeight.w700,
-                                            fontSize: 14,
+                                            fontSize: 15.5,
                                           ),
                                         ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 6),
                                   // Progress bar with overlaid text + % at end
                                   if (analysisType == AnalysisType.category) ...[
                                     Row(
@@ -754,20 +754,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                             children: [
                                               // Background bar
                                               Container(
-                                                height: 22,
+                                                height: 16,
                                                 decoration: BoxDecoration(
                                                   color: Colors.grey[200],
-                                                  borderRadius: BorderRadius.circular(6),
+                                                  borderRadius: BorderRadius.circular(999),
                                                 ),
                                               ),
                                               // Filled bar
                                               FractionallySizedBox(
                                                 widthFactor: progress.clamp(0.0, 1.0),
                                                 child: Container(
-                                                  height: 22,
+                                                  height: 16,
                                                   decoration: BoxDecoration(
                                                     gradient: _progressGradient(ratio),
-                                                    borderRadius: BorderRadius.circular(6),
+                                                    borderRadius: BorderRadius.circular(999),
                                                   ),
                                                 ),
                                               ),
@@ -779,7 +779,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                                   maxLines: 1,
                                                   overflow: TextOverflow.ellipsis,
                                                   style: const TextStyle(
-                                                    fontSize: 11,
+                                                    fontSize: 10,
                                                     fontWeight: FontWeight.w700,
                                                     color: Colors.white,
                                                     shadows: [
@@ -845,7 +845,7 @@ class _MenuSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 2),
       child: Text(
         title,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
