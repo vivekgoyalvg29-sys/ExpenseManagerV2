@@ -8,15 +8,15 @@ import '../screens/analysis_page.dart' show AnalysisMode;
   switch (mode) {
     case AnalysisMode.selectedMonth:
       final start = DateTime(currentMonth.year, currentMonth.month, 1);
-      final end = DateTime(currentMonth.year, currentMonth.month + 1, 0);
+      final end = DateTime(currentMonth.year, currentMonth.month + 1, 0, 23, 59, 59, 999);
       return (start, end);
     case AnalysisMode.cumulativeToSelectedMonth:
       final start = DateTime(currentMonth.year, 1, 1);
-      final end = DateTime(currentMonth.year, currentMonth.month + 1, 0);
+      final end = DateTime(currentMonth.year, currentMonth.month + 1, 0, 23, 59, 59, 999);
       return (start, end);
     case AnalysisMode.cumulativeYear:
       final start = DateTime(currentMonth.year, 1, 1);
-      final end = DateTime(currentMonth.year, 12, 31);
+      final end = DateTime(currentMonth.year, 12, 31, 23, 59, 59, 999);
       return (start, end);
   }
 }

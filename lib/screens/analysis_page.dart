@@ -179,13 +179,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
     switch (analysisMode) {
       case AnalysisMode.selectedMonth:
         startDate = DateTime(currentMonth.year, currentMonth.month, 1);
-        endDate = DateTime(currentMonth.year, currentMonth.month + 1, 0);
+        endDate = DateTime(currentMonth.year, currentMonth.month + 1, 0, 23, 59, 59, 999);
       case AnalysisMode.cumulativeToSelectedMonth:
         startDate = DateTime(currentMonth.year, 1, 1);
-        endDate = DateTime(currentMonth.year, currentMonth.month + 1, 0);
+        endDate = DateTime(currentMonth.year, currentMonth.month + 1, 0, 23, 59, 59, 999);
       case AnalysisMode.cumulativeYear:
         startDate = DateTime(currentMonth.year, 1, 1);
-        endDate = DateTime(currentMonth.year, 12, 31);
+        endDate = DateTime(currentMonth.year, 12, 31, 23, 59, 59, 999);
     }
     if (mounted) {
       setState(() => _isAnalysisLoading = true);
