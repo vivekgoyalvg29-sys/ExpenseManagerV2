@@ -1,18 +1,30 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/account_subscription_service.dart';
 import '../services/data_store.dart';
 import '../services/data_service.dart';
+import '../services/entitlement_service.dart';
+import '../widgets/smart_budget_copy_sheet.dart';
+import 'pro_purchase_flow.dart';
 import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
+import '../widgets/aggregation_section_header.dart';
 import '../widgets/aggregation_bar_chart.dart';
+import '../widgets/budget_month_pie_chart.dart';
+import 'add_transaction_page.dart';
+import 'categories_page.dart';
 import '../widgets/month_section_card.dart';
+import '../widgets/month_options_menu_button.dart';
 import '../widgets/page_content_layout.dart';
 import '../widgets/segmented_toggle.dart';
 import '../widgets/section_tile.dart';
 import '../widgets/side_overlay_sheet.dart';
+import '../widgets/home_tab_scope.dart';
 
 class BudgetsPage extends StatefulWidget {
   const BudgetsPage({super.key});
@@ -33,8 +45,10 @@ class _BudgetsPageState extends State<BudgetsPage> {
   /// Header month before a Till-month bar drill-down; restored on clear.
   DateTime? _monthBeforeChartBucket;
   List<Map<String, dynamic>> budgets = [];
-  Set<int> selectedIndexes = {};
+  List<Map<String, dynamic>> _transactions = [];
+  Set<int> selectedBudgetIds = {};
   bool selectionMode = false;
+  UserTier _userTier = UserTier.free;
   BudgetAggregation budgetAggregation = BudgetAggregation.selectedMonth;
   BudgetSortOrder sortOrder = BudgetSortOrder.amount;
   bool showPercentage = true;
@@ -42,7 +56,37 @@ class _BudgetsPageState extends State<BudgetsPage> {
   @override
   void initState() {
     super.initState();
+    DataStore.transactionMutationGeneration.addListener(_onBookDataMutation);
+    DataStore.profileSwitchGeneration.addListener(_onProfileSwitch);
     _restorePreferences();
+    _loadUserTier();
+  }
+
+  void _onBookDataMutation() {
+    if (mounted) loadBudgets();
+  }
+
+  void _onProfileSwitch() {
+    if (!mounted) return;
+    final n = DateTime.now();
+    setState(() {
+      currentMonth = DateTime(n.year, n.month);
+      selectedChartBucket = null;
+      _monthBeforeChartBucket = null;
+    });
+    loadBudgets();
+  }
+
+  @override
+  void dispose() {
+    DataStore.transactionMutationGeneration.removeListener(_onBookDataMutation);
+    DataStore.profileSwitchGeneration.removeListener(_onProfileSwitch);
+    super.dispose();
+  }
+
+  Future<void> _loadUserTier() async {
+    final t = await EntitlementService.getCurrentTier();
+    if (mounted) setState(() => _userTier = t);
   }
 
   Future<void> _restorePreferences() async {
@@ -55,6 +99,13 @@ class _BudgetsPageState extends State<BudgetsPage> {
         chartGroupIdx >= 0 &&
         chartGroupIdx < BudgetChartGroupBy.values.length) {
       budgetChartGroupBy = BudgetChartGroupBy.values[chartGroupIdx];
+    }
+    final tier = await EntitlementService.getCurrentTier();
+    if (tier != UserTier.pro &&
+        (budgetAggregation == BudgetAggregation.cumulativeToSelectedMonth ||
+            budgetAggregation == BudgetAggregation.cumulativeYear)) {
+      budgetAggregation = BudgetAggregation.selectedMonth;
+      await prefs.setInt(_budgetAggregationKey, budgetAggregation.index);
     }
     if (!mounted) return;
     setState(() {});
@@ -80,12 +131,289 @@ class _BudgetsPageState extends State<BudgetsPage> {
     }
   }
 
+  (DateTime, DateTime) _budgetTransactionQueryRange() {
+    switch (budgetAggregation) {
+      case BudgetAggregation.selectedMonth:
+        return (
+          DateTime(currentMonth.year, currentMonth.month, 1),
+          DateTime(currentMonth.year, currentMonth.month + 1, 0),
+        );
+      case BudgetAggregation.cumulativeToSelectedMonth:
+        return (
+          DateTime(currentMonth.year, 1, 1),
+          DateTime(currentMonth.year, currentMonth.month + 1, 0),
+        );
+      case BudgetAggregation.cumulativeYear:
+        return (
+          DateTime(currentMonth.year, 1, 1),
+          DateTime(currentMonth.year, 12, 31),
+        );
+    }
+  }
+
+  bool _isTransactionInBudgetChartBucket(DateTime date) {
+    if (selectedChartBucket == null) return true;
+    switch (budgetAggregation) {
+      case BudgetAggregation.selectedMonth:
+        return true;
+      case BudgetAggregation.cumulativeToSelectedMonth:
+        return date.year == currentMonth.year && date.month <= selectedChartBucket!;
+      case BudgetAggregation.cumulativeYear:
+        return date.year == currentMonth.year && date.month == selectedChartBucket;
+    }
+  }
+
+  /// Expense transactions for [category] matching aggregation + chart bucket; [restrictToMonth] for per-row month view.
+  List<Map<String, dynamic>> _expenseTransactionsForCategory(
+    String category, {
+    int? restrictToMonth,
+  }) {
+    final c = category.trim();
+    final out = <Map<String, dynamic>>[];
+    for (final t in _transactions) {
+      if (t['type'] != 'expense') continue;
+      if ((t['title'] as String?)?.trim() != c) continue;
+      final d = DateTime.parse(t['date'] as String);
+      if (!_isTransactionInBudgetChartBucket(d)) continue;
+      if (restrictToMonth != null &&
+          (d.year != currentMonth.year || d.month != restrictToMonth)) {
+        continue;
+      }
+      out.add(t);
+    }
+    out.sort((a, b) {
+      final da = DateTime.parse(a['date'] as String);
+      final db = DateTime.parse(b['date'] as String);
+      return db.compareTo(da);
+    });
+    return out;
+  }
+
+  Future<void> _editTransaction(Map<String, dynamic> transaction) async {
+    if (DataStore.viewerReadOnly) {
+      DataStore.showViewerReadOnlyNotice(context);
+      return;
+    }
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => AddTransactionPage(
+        existingTransaction: transaction,
+        modalStyle: true,
+      ),
+    );
+
+    if (result == null) return;
+
+    await DataService.updateTransaction(
+      transaction['id'] as int,
+      result['title'] as String,
+      result['amount'] as double,
+      result['date'] as DateTime,
+      result['type'] as String,
+      (result['account'] ?? '').toString(),
+      (result['comment'] ?? '').toString(),
+    );
+
+    if (!mounted) return;
+    await loadBudgets();
+  }
+
+  void _showRelatedExpenseTransactions({
+    required String category,
+    int? restrictToMonth,
+  }) {
+    final grouped = _expenseTransactionsForCategory(
+      category,
+      restrictToMonth: restrictToMonth,
+    );
+    final dateFormat = DateFormat('dd MMM yyyy');
+    final entry = _categoryDetails(category);
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (bottomSheetContext) {
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.68,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        category,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${grouped.length} transactions • Newest first',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: grouped.isEmpty
+                      ? const Center(child: Text('No related transactions found.'))
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          itemCount: grouped.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final transaction = grouped[index];
+                            final amount = (transaction['amount'] as num).toDouble();
+                            final date = DateTime.parse(transaction['date'] as String);
+                            final comment = (transaction['comment'] as String? ?? '').trim();
+                            final subtitle = (transaction['account'] as String?)?.trim() ?? '';
+
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () async {
+                                  Navigator.of(bottomSheetContext).pop();
+                                  await _editTransaction(transaction);
+                                  if (mounted) {
+                                    _showRelatedExpenseTransactions(
+                                      category: category,
+                                      restrictToMonth: restrictToMonth,
+                                    );
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.35),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      AppPageIcon(
+                                        icon: iconFromCodePoint(
+                                          entry?['icon'],
+                                          fallback: Icons.category,
+                                        ),
+                                        imagePath: entry?['icon_path']?.toString(),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              subtitle.isEmpty ? category : subtitle,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(fontWeight: FontWeight.w600),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              dateFormat.format(date),
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                              ),
+                                            ),
+                                            if (comment.isNotEmpty) ...[
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                comment,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant
+                                                      .withValues(alpha: 0.85),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            formatIndianCurrency(amount),
+                                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Tap to edit',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _onBudgetMonthBarTapped(AggregationBarData item) async {
+    final tappedBucket = item.bucket;
+    final nextBucket = selectedChartBucket == tappedBucket ? null : tappedBucket;
+    if (budgetAggregation == BudgetAggregation.cumulativeToSelectedMonth) {
+      if (nextBucket != null) {
+        _monthBeforeChartBucket ??= DateTime(currentMonth.year, currentMonth.month);
+        setState(() {
+          currentMonth = DateTime(currentMonth.year, nextBucket, 1);
+          selectedChartBucket = nextBucket;
+        });
+      } else {
+        setState(() {
+          selectedChartBucket = null;
+          if (_monthBeforeChartBucket != null) {
+            currentMonth = _monthBeforeChartBucket!;
+            _monthBeforeChartBucket = null;
+          }
+        });
+      }
+    } else {
+      setState(() => selectedChartBucket = nextBucket);
+    }
+    await loadBudgets();
+  }
+
   Future<void> loadBudgets() async {
     final data = await DataService.getBudgets();
     final categories = await DataService.getCategories();
+    final range = _budgetTransactionQueryRange();
+    final tx = await DataService.getTransactions(startDate: range.$1, endDate: range.$2);
     setState(() {
       budgets = data;
-      DataStore.categories = categories;
+      _transactions = tx;
+      DataStore.replaceCategories(categories);
       if (selectedChartBucket != null && !_chartDataContainsBucket(selectedChartBucket)) {
         selectedChartBucket = null;
         if (_monthBeforeChartBucket != null) {
@@ -97,7 +425,56 @@ class _BudgetsPageState extends State<BudgetsPage> {
     await WidgetSyncService.syncFromStoredConfiguration();
   }
 
-  void showAddBudgetDialog({Map<String, dynamic>? budget}) {
+  Future<void> showAddBudgetDialog({Map<String, dynamic>? budget}) async {
+    final allCategories = await DataService.getCategories();
+    final hasExpenseCategory = allCategories.any((c) => c['type'] == 'expense');
+    if (!hasExpenseCategory) {
+      if (!mounted) return;
+      final pageContext = context;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('No categories'),
+          content: const Text('Add an expense category first.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                final scope = HomeTabScope.maybeOf(pageContext);
+                if (scope != null) {
+                  scope.openCategoriesTab();
+                } else {
+                  unawaited(
+                    Navigator.of(pageContext).push<void>(
+                      MaterialPageRoute<void>(builder: (_) => const CategoriesPage()),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Categories'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                final scope = HomeTabScope.maybeOf(pageContext);
+                if (scope != null) {
+                  await scope.runInitializeDefaultsForActiveProfile();
+                }
+                if (pageContext.mounted) loadBudgets();
+              },
+              child: const Text('Add defaults'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
     // Capture the page context so we can show a SnackBar from inside the dialog.
     final pageContext = context;
     String? selectedCategory = budget?['category'];
@@ -215,7 +592,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
 
   void clearSelection() {
     setState(() {
-      selectedIndexes.clear();
+      selectedBudgetIds.clear();
       selectionMode = false;
     });
   }
@@ -237,8 +614,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
   }
 
   Future<void> deleteSelected() async {
-    for (final index in selectedIndexes) {
-      final id = filteredBudgets[index]['id'];
+    for (final id in selectedBudgetIds) {
       await DataService.deleteBudget(id);
     }
     clearSelection();
@@ -271,10 +647,16 @@ class _BudgetsPageState extends State<BudgetsPage> {
     return current;
   }
 
-  /// Source rows for the bottom list (Year + month bar = that month only).
+  /// Source rows for the bottom list (month bar selected = that calendar month only).
   Iterable<Map<String, dynamic>> get _budgetsForListSource {
     if (!_budgetMonthBarsActive || selectedChartBucket == null) {
       return filteredBudgets;
+    }
+    if (budgetAggregation == BudgetAggregation.cumulativeToSelectedMonth) {
+      final cap = selectedChartBucket!;
+      return filteredBudgets.where(
+        (b) => ((b['month'] as num?)?.toInt() ?? 0) <= cap,
+      );
     }
     if (budgetAggregation == BudgetAggregation.cumulativeYear) {
       return filteredBudgets.where(
@@ -317,7 +699,8 @@ class _BudgetsPageState extends State<BudgetsPage> {
     if (budgetAggregation == BudgetAggregation.selectedMonth) {
       return BudgetChartGroupBy.category;
     }
-    return budgetChartGroupBy;
+    // Till month & Year: always month-wise bars for drill-down (regression fix).
+    return BudgetChartGroupBy.month;
   }
 
   static String _monthChartLabel(int month) {
@@ -333,14 +716,12 @@ class _BudgetsPageState extends State<BudgetsPage> {
     return _aggregateBudgetsByCategory(_budgetsForListSource);
   }
 
+  /// Full-range total for the summary card (unchanged when a month bar is selected).
   double get _totalBudgetForSummary {
     if (!_isCategoryAggregatedView) {
       return filteredBudgets.fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
     }
-    final forTotal = budgetAggregation == BudgetAggregation.cumulativeYear && selectedChartBucket != null
-        ? filteredBudgets
-        : _budgetsForListSource;
-    return _aggregateBudgetsByCategory(forTotal)
+    return _aggregateBudgetsByCategory(filteredBudgets)
         .fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
   }
 
@@ -418,13 +799,43 @@ class _BudgetsPageState extends State<BudgetsPage> {
     await _persistPreferences();
   }
 
-  void _showBudgetOptions() {
+  Future<void> _trySetBudgetAggregation(
+    BudgetAggregation value,
+    BuildContext pageContext,
+    StateSetter setModalState,
+    Future<void> Function(VoidCallback) apply,
+  ) async {
+    final needsPro = value == BudgetAggregation.cumulativeToSelectedMonth ||
+        value == BudgetAggregation.cumulativeYear;
+    if (needsPro) {
+      if (await EntitlementService.getCurrentTier() != UserTier.pro) {
+        final ok = await ensureSignedInThenProComparisonAndPurchase(pageContext);
+        if (!mounted || !pageContext.mounted) return;
+        if (ok) {
+          await AccountSubscriptionService.syncEntitlementFromFirestore();
+        }
+        if (!mounted || !pageContext.mounted) return;
+        if (await EntitlementService.getCurrentTier() != UserTier.pro) {
+          setModalState(() {});
+          return;
+        }
+        await _loadUserTier();
+        setModalState(() {});
+      }
+    }
+    await apply(() => budgetAggregation = value);
+  }
+
+  Future<void> _showBudgetOptions() async {
+    await _loadUserTier();
+    if (!mounted) return;
+    final pageContext = context;
     showSideOverlaySheet<void>(
       context: context,
       direction: SideOverlayDirection.right,
       builder: (drawerContext) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
+          builder: (modalContext, setModalState) {
             Future<void> apply(VoidCallback updateParent) async {
               await _applyBudgetPreferenceChange(() {
                 updateParent();
@@ -443,7 +854,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                       Expanded(
                         child: Text(
                           'Budget options',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                          style: Theme.of(modalContext).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                         ),
                       ),
                       IconButton(
@@ -455,7 +866,33 @@ class _BudgetsPageState extends State<BudgetsPage> {
                   ),
                 ),
                 const Divider(height: 1),
-                const _MenuSectionHeader('Aggregation'),
+                ListTile(
+                  leading: const Icon(Icons.copy_all_outlined),
+                  title: Text(
+                    _userTier == UserTier.pro ? 'Copy budget' : 'Copy budget (Pro)',
+                  ),
+                  onTap: () async {
+                    Navigator.of(drawerContext).pop();
+                    await Future<void>.delayed(Duration.zero);
+                    if (!mounted) return;
+                    if (_userTier != UserTier.pro) {
+                      await ensureSignedInThenProComparisonAndPurchase(pageContext);
+                      if (!mounted) return;
+                      await _loadUserTier();
+                      if (_userTier != UserTier.pro) return;
+                    }
+                    if (DataStore.viewerReadOnly) {
+                      DataStore.showViewerReadOnlyNotice(pageContext);
+                      return;
+                    }
+                    await showSmartBudgetCopyDialog(
+                      context: pageContext,
+                      onCopied: loadBudgets,
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                AggregationSectionHeader(showProBadge: _userTier != UserTier.pro),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: SegmentedToggle<BudgetAggregation>(
@@ -465,24 +902,10 @@ class _BudgetsPageState extends State<BudgetsPage> {
                       SegmentedToggleOption(value: BudgetAggregation.cumulativeYear, label: 'Year'),
                     ],
                     selectedValue: budgetAggregation,
-                    onChanged: (value) => apply(() => budgetAggregation = value),
+                    onChanged: (value) =>
+                        _trySetBudgetAggregation(value, pageContext, setModalState, apply),
                   ),
                 ),
-                if (budgetAggregation != BudgetAggregation.selectedMonth) ...[
-                  const Divider(height: 1),
-                  const _MenuSectionHeader('Chart'),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: SegmentedToggle<BudgetChartGroupBy>(
-                      options: const [
-                        SegmentedToggleOption(value: BudgetChartGroupBy.month, label: 'Month'),
-                        SegmentedToggleOption(value: BudgetChartGroupBy.category, label: 'Category'),
-                      ],
-                      selectedValue: budgetChartGroupBy,
-                      onChanged: (value) => apply(() => budgetChartGroupBy = value),
-                    ),
-                  ),
-                ],
                 const Divider(height: 1),
                 const _MenuSectionHeader('Sort'),
                 Padding(
@@ -518,16 +941,70 @@ class _BudgetsPageState extends State<BudgetsPage> {
         .firstWhere((c) => c?['name'] == categoryName, orElse: () => null);
   }
 
+  /// Rank 0 = largest share of [totalBudget]; used for red / yellow / green tiers.
+  Map<int, int> _shareRankByRowIndex(List<Map<String, dynamic>> rows, double totalBudget) {
+    if (rows.isEmpty || totalBudget <= 0) return {};
+    final n = rows.length;
+    final order = List<int>.generate(n, (i) => i);
+    order.sort((a, b) {
+      final aa = (rows[a]['amount'] as num).toDouble() / totalBudget;
+      final ba = (rows[b]['amount'] as num).toDouble() / totalBudget;
+      final c = ba.compareTo(aa);
+      if (c != 0) return c;
+      return a.compareTo(b);
+    });
+    return {for (var r = 0; r < order.length; r++) order[r]: r};
+  }
+
+  Color _budgetShareTierBase(int rank) {
+    if (rank < 5) return const Color(0xFFEF4444);
+    if (rank < 10) return const Color(0xFFF59E0B);
+    return const Color(0xFF22C55E);
+  }
+
+  LinearGradient _budgetShareTierGradient(int rank) {
+    final base = _budgetShareTierBase(rank);
+    return LinearGradient(
+      colors: [
+        base,
+        Color.lerp(Colors.white, base, 0.45) ?? base,
+      ],
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+    );
+  }
+
+  TextStyle _budgetBarOverlayStyle(BuildContext context, double widthFactor) {
+    final theme = Theme.of(context);
+    final onFill = widthFactor > 0.14;
+    return TextStyle(
+      fontSize: 10,
+      fontWeight: FontWeight.w700,
+      color: onFill ? Colors.white : theme.colorScheme.onSurface,
+      shadows: onFill
+          ? const [
+              Shadow(color: Colors.black54, blurRadius: 3),
+              Shadow(color: Colors.black26, blurRadius: 1),
+            ]
+          : [
+              Shadow(color: theme.colorScheme.surface, blurRadius: 2),
+            ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final visibleBudgets = displayBudgetsForList;
     final totalBudget = _totalBudgetForSummary;
+    final shareRank = _shareRankByRowIndex(visibleBudgets, totalBudget);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: selectionMode
+      floatingActionButton: DataStore.viewerReadOnly
+          ? null
+          : selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -543,13 +1020,15 @@ class _BudgetsPageState extends State<BudgetsPage> {
                   heroTag: 'deleteSelectedBudgets',
                   onPressed: deleteSelected,
                   icon: const Icon(Icons.delete),
-                  label: Text('Delete (${selectedIndexes.length})'),
+                  label: Text('Delete (${selectedBudgetIds.length})'),
                 ),
               ],
             )
           : FloatingActionButton(
               child: const Icon(Icons.add),
-              onPressed: () => showAddBudgetDialog(),
+              onPressed: () {
+                unawaited(showAddBudgetDialog());
+              },
             ),
       body: PageContentLayout(
         child: Column(
@@ -557,6 +1036,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
             MonthSectionCard(
               currentMonth: currentMonth,
               aggregationSubtitle: _budgetAggregationSubtitle(),
+              useInnerPanelTint: true,
               onPrev: () {
                 setState(() {
                   selectedChartBucket = null;
@@ -571,11 +1051,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                   currentMonth = DateTime(currentMonth.year, currentMonth.month + 1);
                 });
               },
-              monthTrailing: IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(Icons.more_vert, size: 20),
+              monthTrailing: MonthOptionsMenuButton(
                 onPressed: _showBudgetOptions,
                 tooltip: 'Budget options',
               ),
@@ -619,63 +1095,84 @@ class _BudgetsPageState extends State<BudgetsPage> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-              child: AggregationBarChart(
-                data: _budgetChartData(),
-                emptyMessage: 'No budget data available for this aggregation.',
-                selectedBucket: _budgetMonthBarsActive ? selectedChartBucket : null,
-                onBarTap: _budgetMonthBarsActive
-                    ? (item) async {
-                        final tappedBucket = item.bucket;
-                        final nextBucket =
-                            selectedChartBucket == tappedBucket ? null : tappedBucket;
-                        if (budgetAggregation == BudgetAggregation.cumulativeToSelectedMonth) {
-                          if (nextBucket != null) {
-                            _monthBeforeChartBucket ??=
-                                DateTime(currentMonth.year, currentMonth.month);
-                            setState(() {
-                              currentMonth = DateTime(currentMonth.year, nextBucket, 1);
-                              selectedChartBucket = nextBucket;
-                            });
-                          } else {
-                            setState(() {
-                              selectedChartBucket = null;
-                              if (_monthBeforeChartBucket != null) {
-                                currentMonth = _monthBeforeChartBucket!;
-                                _monthBeforeChartBucket = null;
-                              }
-                            });
-                          }
-                        } else {
-                          setState(() => selectedChartBucket = nextBucket);
-                        }
-                        await loadBudgets();
-                      }
-                    : null,
-                trailing: _budgetMonthBarsActive && selectedChartBucket != null
-                    ? IconButton(
-                        onPressed: () async {
-                          setState(_clearBudgetChartBucketSelection);
-                          await loadBudgets();
+              child: Builder(
+                builder: (context) {
+                  final chartSeries = _budgetChartData();
+                  final chartHint = _budgetMonthBarsActive
+                      ? 'Tap a month to filter the list below.'
+                      : (_effectiveChartGroupBy == BudgetChartGroupBy.category
+                          ? 'Budget by category for this month.'
+                          : null);
+                  if (budgetAggregation == BudgetAggregation.selectedMonth) {
+                    return BudgetMonthPieChart(
+                      data: chartSeries,
+                      headerHint: chartHint,
+                    );
+                  }
+                  final csChart = Theme.of(context).colorScheme;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (chartHint != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            chartHint,
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: csChart.onSurfaceVariant,
+                                  height: 1.25,
+                                ),
+                          ),
+                        ),
+                      AggregationBarChart(
+                        data: chartSeries,
+                        emptyMessage: 'No budget data available for this aggregation.',
+                        chartHeight: 220,
+                        selectedBucket: _budgetMonthBarsActive ? selectedChartBucket : null,
+                        onBarTap: _budgetMonthBarsActive
+                            ? (item) => _onBudgetMonthBarTapped(item)
+                            : null,
+                        onLabelTap: _budgetMonthBarsActive
+                            ? (item) => _onBudgetMonthBarTapped(item)
+                            : null,
+                        labelBuilder: (context, item) {
+                          return RotatedBox(
+                            quarterTurns: 3,
+                            child: Text(
+                              item.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: csChart.onSurfaceVariant.withValues(alpha: 0.92),
+                                  ),
+                            ),
+                          );
                         },
-                        icon: const Icon(Icons.close_rounded, size: 16),
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.all(4),
-                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                        splashRadius: 14,
-                        tooltip: 'Clear filter',
-                      )
-                    : null,
-                labelBuilder: _effectiveChartGroupBy == BudgetChartGroupBy.category
-                    ? (context, item) {
-                        final category = _categoryDetails(item.label);
-                        return AppPageIcon(
-                          icon: iconFromCodePoint(category?['icon']),
-                          imagePath: category?['icon_path']?.toString(),
-                          size: 11,
-                          boxSize: 22,
-                        );
-                      }
-                    : null,
+                        trailing: _budgetMonthBarsActive && selectedChartBucket != null
+                            ? IconButton(
+                                onPressed: () async {
+                                  setState(_clearBudgetChartBucketSelection);
+                                  await loadBudgets();
+                                },
+                                icon: const Icon(Icons.close_rounded, size: 16),
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.all(4),
+                                constraints: const BoxConstraints(
+                                  minWidth: 28,
+                                  minHeight: 28,
+                                ),
+                                splashRadius: 14,
+                                tooltip: 'Clear filter',
+                              )
+                            : null,
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
             Expanded(
@@ -685,65 +1182,173 @@ class _BudgetsPageState extends State<BudgetsPage> {
                     : ListView.separated(
                         padding: EdgeInsets.zero,
                         itemCount: visibleBudgets.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        separatorBuilder: (ctx, __) => Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: cs.outlineVariant.withValues(
+                            alpha: Theme.of(ctx).brightness == Brightness.dark ? 0.22 : 0.28,
+                          ),
+                        ),
                         itemBuilder: (context, index) {
                           final budget = visibleBudgets[index];
+                          final rowId = (budget['id'] as int?) ??
+                              Object.hash(
+                                budget['category'],
+                                budget['month'] ?? 0,
+                                index,
+                              );
                           final amount = (budget['amount'] as num).toDouble();
-                          final percentage = totalBudget == 0
-                              ? 0
-                              : (amount / totalBudget * 100).round();
                           final category = _categoryDetails(budget['category'] as String);
-                          return ListTile(
-                            visualDensity: VisualDensity.compact,
-                            minVerticalPadding: 6,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                            leading: selectionMode
-                                ? Checkbox(
-                                    value: selectedIndexes.contains(index),
-                                    onChanged: (v) => setState(() => v == true
-                                        ? selectedIndexes.add(index)
-                                        : selectedIndexes.remove(index)),
-                                  )
-                                : AppPageIcon(
-                                    icon: iconFromCodePoint(category?['icon'], fallback: Icons.category),
-                                    imagePath: category?['icon_path']?.toString(),
-                                  ),
-                            title: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    budget['category'] as String,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  showPercentage
-                                      ? '${formatIndianCurrency(amount)} ($percentage%)'
-                                      : formatIndianCurrency(amount),
-                                  style: const TextStyle(fontWeight: FontWeight.w400, fontSize: 13.5),
-                                ),
-                              ],
-                            ),
-                            subtitle: null,
-                            onLongPress: _isCategoryAggregatedView
+                          final shareVsTotal =
+                              totalBudget <= 0 ? 0.0 : (amount / totalBudget).clamp(0.0, 999.0);
+                          final progress = totalBudget <= 0
+                              ? 0.0
+                              : (amount == 0 ? 0.02 : shareVsTotal.clamp(0.0, 1.0));
+                          final pctOfTotal = (shareVsTotal * 100).isFinite
+                              ? (shareVsTotal * 100).clamp(0, 999).round()
+                              : 0;
+                          final tierRank = shareRank[index] ?? 0;
+
+                          void onRowTap() {
+                            if (DataStore.viewerReadOnly && !selectionMode) {
+                              DataStore.showViewerReadOnlyNotice(context);
+                              return;
+                            }
+                            if (selectionMode) {
+                              setState(() => selectedBudgetIds.contains(rowId)
+                                  ? selectedBudgetIds.remove(rowId)
+                                  : selectedBudgetIds.add(rowId));
+                              return;
+                            }
+                            final cat = budget['category'] as String;
+                            final restrictMonth = _isCategoryAggregatedView
+                                ? null
+                                : ((budget['month'] as num?)?.toInt() ?? currentMonth.month);
+                            _showRelatedExpenseTransactions(
+                              category: cat,
+                              restrictToMonth: restrictMonth,
+                            );
+                          }
+
+                          return InkWell(
+                            onTap: onRowTap,
+                            onLongPress: _isCategoryAggregatedView || DataStore.viewerReadOnly
                                 ? null
                                 : () => setState(() {
                                       selectionMode = true;
-                                      selectedIndexes.add(index);
+                                      selectedBudgetIds.add(rowId);
                                     }),
-                            onTap: () {
-                              if (_isCategoryAggregatedView) return;
-                              if (selectionMode) {
-                                setState(() => selectedIndexes.contains(index)
-                                    ? selectedIndexes.remove(index)
-                                    : selectedIndexes.add(index));
-                              } else {
-                                showAddBudgetDialog(budget: budget);
-                              }
-                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (selectionMode)
+                                    Checkbox(
+                                      value: selectedBudgetIds.contains(rowId),
+                                      onChanged: (v) => setState(() => v == true
+                                          ? selectedBudgetIds.add(rowId)
+                                          : selectedBudgetIds.remove(rowId)),
+                                    )
+                                  else
+                                    AppPageIcon(
+                                      icon: iconFromCodePoint(category?['icon'], fallback: Icons.category),
+                                      imagePath: category?['icon_path']?.toString(),
+                                    ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        Text(
+                                          budget['category'] as String,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Stack(
+                                                alignment: Alignment.centerLeft,
+                                                children: [
+                                                  Container(
+                                                    height: 16,
+                                                    decoration: BoxDecoration(
+                                                      color: Theme.of(context)
+                                                          .colorScheme
+                                                          .surfaceContainerHighest,
+                                                      borderRadius: BorderRadius.circular(999),
+                                                    ),
+                                                  ),
+                                                  FractionallySizedBox(
+                                                    widthFactor: progress.clamp(0.0, 1.0),
+                                                    child: Container(
+                                                      height: 16,
+                                                      decoration: BoxDecoration(
+                                                        gradient: _budgetShareTierGradient(tierRank),
+                                                        borderRadius: BorderRadius.circular(999),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Padding(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                    child: Text(
+                                                      '${formatIndianCurrency(amount)} / ${formatIndianCurrency(totalBudget)}',
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: _budgetBarOverlayStyle(
+                                                        context,
+                                                        progress.clamp(0.0, 1.0),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            if (showPercentage) ...[
+                                              const SizedBox(width: 8),
+                                              SizedBox(
+                                                width: 42,
+                                                child: Text(
+                                                  '$pctOfTotal%',
+                                                  textAlign: TextAlign.right,
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: _budgetShareTierBase(tierRank),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (!_isCategoryAggregatedView &&
+                                      !selectionMode &&
+                                      !DataStore.viewerReadOnly)
+                                    IconButton(
+                                      tooltip: 'Edit budget',
+                                      onPressed: () {
+                                        unawaited(showAddBudgetDialog(budget: budget));
+                                      },
+                                      icon: const Icon(Icons.edit_outlined, size: 20),
+                                      visualDensity: VisualDensity.compact,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 36,
+                                        minHeight: 36,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
                           );
                         },
                       ),

@@ -105,6 +105,19 @@ class VisualSettings {
     await prefs.setString(_localeCodeKey, localeCode);
     await prefs.setString(_comparisonModeKey, comparisonMode.name);
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VisualSettings &&
+          fontKey == other.fontKey &&
+          textScale == other.textScale &&
+          themeMode == other.themeMode &&
+          localeCode == other.localeCode &&
+          comparisonMode == other.comparisonMode;
+
+  @override
+  int get hashCode => Object.hash(fontKey, textScale, themeMode, localeCode, comparisonMode);
 }
 
 enum ComparisonMode {
@@ -254,7 +267,10 @@ class FinTrackTheme {
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        contentTextStyle: scaledTextTheme.bodyMedium?.copyWith(color: Colors.white),
+        backgroundColor: colorScheme.inverseSurface,
+        contentTextStyle: scaledTextTheme.bodyMedium?.copyWith(
+          color: colorScheme.onInverseSurface,
+        ),
       ),
     );
   }
@@ -264,9 +280,14 @@ class FinTrackTheme {
 class VisualSettingsScope extends InheritedWidget {
   final VisualSettingsController controller;
 
+  /// Snapshot of [controller.value] at build time; used so [updateShouldNotify]
+  /// runs when any field (e.g. [comparisonMode]) changes, not only the controller reference.
+  final VisualSettings value;
+
   const VisualSettingsScope({
     super.key,
     required this.controller,
+    required this.value,
     required super.child,
   });
 
@@ -278,6 +299,6 @@ class VisualSettingsScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(VisualSettingsScope oldWidget) {
-    return controller != oldWidget.controller;
+    return controller != oldWidget.controller || value != oldWidget.value;
   }
 }

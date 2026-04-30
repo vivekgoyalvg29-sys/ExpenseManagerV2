@@ -41,6 +41,7 @@ ios/Runner/GeneratedPluginRegistrant.m
 **/google-services.json
 **/GoogleService-Info.plist
 android/app/fintrack.jks
+android/key.properties
 
 # Env / node
 .env

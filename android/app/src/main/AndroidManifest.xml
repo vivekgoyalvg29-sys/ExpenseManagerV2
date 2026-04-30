@@ -1,8 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="vivek.fintrack.app">
+
+    <!-- Force-remove if any library merges this (Play restricts QUERY_ALL_PACKAGES). -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:node="remove" />
+
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Required for daily reminder at the user-chosen time (flutter_local_notifications exact alarm). -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-feature
         android:name="android.hardware.telephony"
         android:required="false" />
@@ -19,10 +30,6 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="upi" />
         </intent>
-        <package android:name="com.google.android.apps.nbu.paisa.user" />
-        <package android:name="com.phonepe.app" />
-        <package android:name="net.one97.paytm" />
-        <package android:name="in.org.npci.upiapp" />
     </queries>
     <application
         android:label="@string/app_name"
@@ -57,6 +64,23 @@
                 <data android:scheme="fintrack" />
             </intent-filter>
         </activity>
+        <!-- Local scheduled notifications (not merged from flutter_local_notifications since v16). -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
+            android:exported="false" />
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false" />
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
         <!-- 🔥 Widget receivers -->
         <receiver
             android:name=".ExpenseHomeWidgetProvider"

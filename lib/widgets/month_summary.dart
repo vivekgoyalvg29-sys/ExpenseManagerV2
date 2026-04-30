@@ -3,6 +3,11 @@ import 'package:flutter/material.dart';
 import '../utils/indian_number_formatter.dart';
 import 'month_section_card.dart';
 
+enum MonthSummaryDensity {
+  comfortable,
+  compact,
+}
+
 class MonthSummary extends StatelessWidget {
   final DateTime currentMonth;
   final VoidCallback onPrev;
@@ -15,6 +20,10 @@ class MonthSummary extends StatelessWidget {
   final String middleLabel;
   final String rightLabel;
   final String? aggregationSubtitle;
+  final MonthSummaryDensity density;
+
+  /// Light panel matching chart cards (Records / Analysis / Budget).
+  final bool useInnerPanelTint;
 
   const MonthSummary({
     super.key,
@@ -29,6 +38,8 @@ class MonthSummary extends StatelessWidget {
     this.middleLabel = 'Expense',
     this.rightLabel = 'Remaining',
     this.aggregationSubtitle,
+    this.density = MonthSummaryDensity.comfortable,
+    this.useInnerPanelTint = true,
   });
 
   @override
@@ -71,14 +82,20 @@ class MonthSummary extends StatelessWidget {
       color: cs.onSurface.withValues(alpha: 0.92),
     );
 
+    final compact = density == MonthSummaryDensity.compact;
+    final gapHero = compact ? 6.0 : 10.0;
+    final gapBeforeProgress = compact ? 7.0 : 12.0;
+
     return MonthSectionCard(
       currentMonth: currentMonth,
       onPrev: onPrev,
       onNext: onNext,
       monthTrailing: monthTrailing,
       aggregationSubtitle: aggregationSubtitle,
+      compact: compact,
+      useInnerPanelTint: useInnerPanelTint,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+        padding: EdgeInsets.fromLTRB(4, 0, 4, compact ? 2 : 4),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -108,7 +125,7 @@ class MonthSummary extends StatelessWidget {
                 if (trailing != null) trailing!,
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: gapHero),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -120,7 +137,7 @@ class MonthSummary extends StatelessWidget {
                     valueStyle: secondaryValueStyle,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: compact ? 8 : 12),
                 Expanded(
                   child: _SecondaryPair(
                     label: middleLabel,
@@ -131,7 +148,7 @@ class MonthSummary extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: gapBeforeProgress),
             _EmbeddedMonthProgress(
               expense: expense,
               reference: budget,
@@ -168,11 +185,15 @@ class _SecondaryPair extends StatelessWidget {
           style: labelStyle,
         ),
         const SizedBox(height: 2),
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: valueStyle,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: valueStyle,
+          ),
         ),
       ],
     );

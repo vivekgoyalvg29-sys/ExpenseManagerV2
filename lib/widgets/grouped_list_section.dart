@@ -11,6 +11,7 @@ class GroupedListSection extends StatelessWidget {
     required this.itemBuilder,
     this.emptyHint,
     this.dividerIndent = 60,
+    this.showTitleRow = true,
   });
 
   final String title;
@@ -18,6 +19,7 @@ class GroupedListSection extends StatelessWidget {
   final Widget Function(BuildContext context, int index) itemBuilder;
   final String? emptyHint;
   final double dividerIndent;
+  final bool showTitleRow;
 
   @override
   Widget build(BuildContext context) {
@@ -30,30 +32,31 @@ class GroupedListSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.15,
-                      color: cs.onSurfaceVariant.withValues(alpha: 0.95),
+          if (showTitleRow)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.15,
+                        color: cs.onSurfaceVariant.withValues(alpha: 0.95),
+                      ),
                     ),
                   ),
-                ),
-                Text(
-                  '$itemCount',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: cs.onSurfaceVariant.withValues(alpha: 0.72),
+                  Text(
+                    '$itemCount',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant.withValues(alpha: 0.72),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           if (itemCount == 0)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -74,7 +77,7 @@ class GroupedListSection extends StatelessWidget {
                   indent: dividerIndent,
                   endIndent: 12,
                   color: cs.outlineVariant.withValues(
-                    alpha: theme.brightness == Brightness.dark ? 0.5 : 0.55,
+                    alpha: theme.brightness == Brightness.dark ? 0.22 : 0.28,
                   ),
                 );
               }

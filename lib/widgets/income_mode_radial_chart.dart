@@ -44,6 +44,58 @@ class IncomeModeRadialChart extends StatelessWidget {
         final available = math.min(constraints.maxWidth, chartHeight);
         final side = available.isFinite ? available : chartHeight;
 
+        final R = side / 2;
+        const kOuterR = _RadialChartPainter._kOuterR;
+        const kMidR = _RadialChartPainter._kMidR;
+        const kInnerR = _RadialChartPainter._kInnerR;
+        const wOuter = _RadialChartPainter._wOuter;
+        const wMid = _RadialChartPainter._wMid;
+        const wInner = _RadialChartPainter._wInner;
+        // Slightly inset from stroke midline so glyphs stay inside the colored ring.
+        final rIncomeLab = R * kOuterR - wOuter / 2 - 2.5;
+        final rBudgetLab = R * kMidR - wMid / 2 - 1.5;
+        final rExpenseLab = R * kInnerR - wInner / 2 - 1.0;
+
+        final labelColor =
+            Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.88);
+        final baseSize = math.min(12.0, side * 0.042);
+        final labelStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontSize: baseSize,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+              height: 1.0,
+              color: labelColor,
+              shadows: [
+                Shadow(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  blurRadius: 3,
+                ),
+                Shadow(
+                  color: Colors.black.withValues(alpha: 0.38),
+                  blurRadius: 2,
+                  offset: const Offset(0, 0.5),
+                ),
+              ],
+            ) ??
+            TextStyle(
+              fontSize: baseSize,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+              height: 1.0,
+              color: labelColor,
+              shadows: [
+                Shadow(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  blurRadius: 3,
+                ),
+                Shadow(
+                  color: Colors.black.withValues(alpha: 0.38),
+                  blurRadius: 2,
+                  offset: const Offset(0, 0.5),
+                ),
+              ],
+            );
+
         return Stack(
           clipBehavior: Clip.none,
           children: [
@@ -60,16 +112,34 @@ class IncomeModeRadialChart extends StatelessWidget {
                 child: SizedBox(
                   width: side,
                   height: side,
-                  child: CustomPaint(
-                    painter: _RadialChartPainter(
-                      incomeTotal: incomeTotal,
-                      budgetTotal: budgetTotal,
-                      expenseTotal: expenseTotal,
-                      selectedSlice: selectedSlice,
-                      incomeColor: incomeColor,
-                      budgetColor: budgetColor,
-                      expenseColor: expenseColor,
-                    ),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      CustomPaint(
+                        size: Size(side, side),
+                        painter: _RadialChartPainter(
+                          incomeTotal: incomeTotal,
+                          budgetTotal: budgetTotal,
+                          expenseTotal: expenseTotal,
+                          selectedSlice: selectedSlice,
+                          incomeColor: incomeColor,
+                          budgetColor: budgetColor,
+                          expenseColor: expenseColor,
+                        ),
+                      ),
+                      if (incomeTotal > 0)
+                        IgnorePointer(
+                          child: CustomPaint(
+                            size: Size(side, side),
+                            painter: _CurvedRingLabelsPainter(
+                              rIncome: rIncomeLab,
+                              rBudget: rBudgetLab,
+                              rExpense: rExpenseLab,
+                              textStyle: labelStyle,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -259,5 +329,87 @@ class _RadialChartPainter extends CustomPainter {
         incomeColor != oldDelegate.incomeColor ||
         budgetColor != oldDelegate.budgetColor ||
         expenseColor != oldDelegate.expenseColor;
+  }
+}
+
+/// Curved labels along each ring; [centerAngle]s are 120° apart so labels do not crowd.
+class _CurvedRingLabelsPainter extends CustomPainter {
+  _CurvedRingLabelsPainter({
+    required this.rIncome,
+    required this.rBudget,
+    required this.rExpense,
+    required this.textStyle,
+  });
+
+  final double rIncome;
+  final double rBudget;
+  final double rExpense;
+  final TextStyle textStyle;
+
+  /// Outer ring — top.
+  static const double _centerIncome = -math.pi / 2;
+
+  /// Middle ring — ~4 o'clock (separated from top & bottom-left).
+  static const double _centerBudget = -math.pi / 2 + 2 * math.pi / 3;
+
+  /// Inner ring — ~8 o'clock.
+  static const double _centerExpense = -math.pi / 2 + 4 * math.pi / 3;
+
+  void _paintStringOnArc(
+    Canvas canvas,
+    Offset center,
+    String text,
+    double radius,
+    double centerAngle,
+  ) {
+    if (radius <= 1 || text.isEmpty) return;
+
+    var totalWidth = 0.0;
+    final painters = <TextPainter>[];
+    for (var i = 0; i < text.length; i++) {
+      final tp = TextPainter(
+        text: TextSpan(text: text[i], style: textStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      painters.add(tp);
+      totalWidth += tp.width;
+    }
+
+    final angularSpan = (totalWidth / radius).clamp(0.35, 2.15);
+    var edgeAngle = centerAngle - angularSpan / 2;
+
+    for (final tp in painters) {
+      final w = tp.width;
+      final h = tp.height;
+      final charAngle = edgeAngle + (w / 2) / radius;
+      edgeAngle += w / radius;
+
+      final x = center.dx + radius * math.cos(charAngle);
+      final y = center.dy + radius * math.sin(charAngle);
+
+      canvas.save();
+      canvas.translate(x, y);
+      // Tangent to circle (CCW), text reads along the arc.
+      canvas.rotate(charAngle + math.pi / 2);
+      tp.paint(canvas, Offset(-w / 2, -h / 2));
+      canvas.restore();
+    }
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+
+    _paintStringOnArc(canvas, center, 'Income', rIncome, _centerIncome);
+    _paintStringOnArc(canvas, center, 'Budget', rBudget, _centerBudget);
+    _paintStringOnArc(canvas, center, 'Expense', rExpense, _centerExpense);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CurvedRingLabelsPainter oldDelegate) {
+    return rIncome != oldDelegate.rIncome ||
+        rBudget != oldDelegate.rBudget ||
+        rExpense != oldDelegate.rExpense ||
+        textStyle != oldDelegate.textStyle;
   }
 }

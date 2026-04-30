@@ -13,6 +13,17 @@ class AggregationBarData {
     required this.value,
     required this.bucket,
   });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AggregationBarData &&
+          label == other.label &&
+          value == other.value &&
+          bucket == other.bucket;
+
+  @override
+  int get hashCode => Object.hash(label, value, bucket);
 }
 
 /// Theme-aware accent for a bar (stable per label + bucket).
@@ -30,38 +41,14 @@ Color aggregationBarAccentColor(BuildContext context, AggregationBarData item) {
   return colors[k];
 }
 
-class _HorizontalGridPainter extends CustomPainter {
-  _HorizontalGridPainter({required this.color, this.segments = 4});
-
-  final Color color;
-  /// Draws horizontal rules at 1/segments, 2/segments, … (not at 0 or full height).
-  final int segments;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0) return;
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1
-      ..isAntiAlias = true;
-    for (var i = 1; i < segments; i++) {
-      final y = size.height * i / segments;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _HorizontalGridPainter oldDelegate) {
-    return oldDelegate.color != color || oldDelegate.segments != segments;
-  }
-}
-
 class AggregationBarChart extends StatelessWidget {
   final List<AggregationBarData> data;
   final String emptyMessage;
   final Widget Function(BuildContext context, AggregationBarData item)? labelBuilder;
   final double chartHeight;
   final ValueChanged<AggregationBarData>? onBarTap;
+  /// Same contract as [onBarTap]; used so month labels can trigger the same selection.
+  final ValueChanged<AggregationBarData>? onLabelTap;
   final int? selectedBucket;
   final Widget? trailing;
 
@@ -70,8 +57,9 @@ class AggregationBarChart extends StatelessWidget {
     required this.data,
     required this.emptyMessage,
     this.labelBuilder,
-    this.chartHeight = 210,
+    this.chartHeight = 200,
     this.onBarTap,
+    this.onLabelTap,
     this.selectedBucket,
     this.trailing,
   });
@@ -139,81 +127,71 @@ class AggregationBarChart extends StatelessWidget {
     final maxValue = data.fold<double>(0, (max, item) => item.value > max ? item.value : max);
     final normalizedMax = maxValue <= 0 ? 1.0 : maxValue;
 
-    final gridColor = cs.outlineVariant.withValues(
-      alpha: theme.brightness == Brightness.dark ? 0.38 : 0.32,
-    );
-
     return Container(
       decoration: _shellDecoration(context),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (trailing != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 2, bottom: 8),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: trailing,
-              ),
-            ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: cs.surfaceContainerHighest.withValues(
-                alpha: theme.brightness == Brightness.dark ? 0.35 : 0.5,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: cs.outline.withValues(alpha: 0.12),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 12, 8, 10),
-              child: SizedBox(
-                height: chartHeight,
-                child: Stack(
-                  clipBehavior: Clip.none,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest.withValues(
+            alpha: theme.brightness == Brightness.dark ? 0.35 : 0.5,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: cs.outline.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 10),
+          child: SizedBox(
+            height: chartHeight,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: _HorizontalGridPainter(
-                          color: gridColor,
-                          segments: 5,
+                    for (final item in data)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: _ChartBar(
+                            value: item.value,
+                            maxValue: normalizedMax,
+                            label: item.label,
+                            labelBuilder: labelBuilder,
+                            item: item,
+                            accent: aggregationBarAccentColor(context, item),
+                            selected: selectedBucket != null && selectedBucket == item.bucket,
+                            onTap: onBarTap == null
+                                ? null
+                                : () {
+                                    HapticFeedback.selectionClick();
+                                    onBarTap!(item);
+                                  },
+                            onLabelTap: onLabelTap == null
+                                ? null
+                                : () {
+                                    HapticFeedback.selectionClick();
+                                    onLabelTap!(item);
+                                  },
+                          ),
                         ),
                       ),
-                    ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        for (final item in data)
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 3),
-                              child: _ChartBar(
-                                value: item.value,
-                                maxValue: normalizedMax,
-                                label: item.label,
-                                labelBuilder: labelBuilder,
-                                item: item,
-                                accent: aggregationBarAccentColor(context, item),
-                                selected: selectedBucket != null && selectedBucket == item.bucket,
-                                onTap: onBarTap == null
-                                    ? null
-                                    : () {
-                                        HapticFeedback.selectionClick();
-                                        onBarTap!(item);
-                                      },
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
                   ],
                 ),
-              ),
+                if (trailing != null)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: trailing,
+                    ),
+                  ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -227,6 +205,7 @@ class _ChartBar extends StatelessWidget {
   final AggregationBarData item;
   final Color accent;
   final VoidCallback? onTap;
+  final VoidCallback? onLabelTap;
   final bool selected;
 
   const _ChartBar({
@@ -237,6 +216,7 @@ class _ChartBar extends StatelessWidget {
     required this.item,
     required this.accent,
     required this.onTap,
+    this.onLabelTap,
     required this.selected,
   });
 
@@ -353,20 +333,32 @@ class _ChartBar extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        if (labelBuilder != null)
-          labelBuilder!(context, item)
-        else
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: cs.onSurfaceVariant.withValues(alpha: 0.92),
-            ),
-          ),
+        Builder(
+          builder: (context) {
+            final child = labelBuilder != null
+                ? labelBuilder!(context, item)
+                : Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant.withValues(alpha: 0.92),
+                    ),
+                  );
+            if (onLabelTap == null) return child;
+            return InkWell(
+              onTap: onLabelTap,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: child,
+              ),
+            );
+          },
+        ),
       ],
     );
   }

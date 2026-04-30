@@ -1,15 +1,22 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/account_subscription_service.dart';
 import '../services/data_store.dart';
 import '../services/data_service.dart';
+import '../services/entitlement_service.dart';
 import '../services/visual_settings.dart';
 import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
 import '../widgets/icon_utils.dart';
+import '../widgets/aggregation_section_header.dart';
 import '../widgets/aggregation_bar_chart.dart';
+import '../widgets/aggregation_smooth_line_chart.dart';
 import '../widgets/month_summary.dart';
+import '../widgets/month_options_menu_button.dart';
 import '../widgets/page_content_layout.dart';
 import '../widgets/segmented_toggle.dart';
 import '../widgets/section_tile.dart';
@@ -17,6 +24,7 @@ import '../widgets/side_overlay_sheet.dart';
 import '../widgets/income_expense_pie_chart.dart';
 import '../widgets/income_mode_radial_chart.dart';
 import 'add_transaction_page.dart';
+import 'pro_purchase_flow.dart';
 
 enum AnalysisMode {
   selectedMonth,
@@ -52,6 +60,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   static const _analysisSortKey = 'analysis.sort';
   static const _analysisMainSortKey = 'analysis.mainSort';
   static const _analysisShowPercentageKey = 'analysis.showPercentage';
+  static const _analysisChartGranularityDayKey = 'analysis.chartGranularityDay';
 
   DateTime currentMonth = DateTime.now();
   AnalysisMode analysisMode = AnalysisMode.selectedMonth;
@@ -65,6 +74,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
   /// Month shown in [MonthSummary] before a non–current-month bar filter was applied (budget mode).
   DateTime? _monthBeforeChartBucket;
 
+  /// Selected month only: day buckets vs 7-day week slices (W1…).
+  bool _chartGranularityDay = true;
+
+  UserTier _optionsSheetTier = UserTier.free;
+
   List<Map<String, dynamic>> analysisData = [];
   List<Map<String, dynamic>> transactions = [];
   List<Map<String, dynamic>> budgets = [];
@@ -76,7 +90,31 @@ class _AnalysisPageState extends State<AnalysisPage> {
   @override
   void initState() {
     super.initState();
+    DataStore.transactionMutationGeneration.addListener(_onBookDataMutation);
+    DataStore.profileSwitchGeneration.addListener(_onProfileSwitch);
     _restorePreferences();
+  }
+
+  void _onBookDataMutation() {
+    if (mounted) loadAnalysis();
+  }
+
+  void _onProfileSwitch() {
+    if (!mounted) return;
+    final n = DateTime.now();
+    setState(() {
+      currentMonth = DateTime(n.year, n.month);
+      selectedChartBucket = null;
+      _monthBeforeChartBucket = null;
+    });
+    loadAnalysis();
+  }
+
+  @override
+  void dispose() {
+    DataStore.transactionMutationGeneration.removeListener(_onBookDataMutation);
+    DataStore.profileSwitchGeneration.removeListener(_onProfileSwitch);
+    super.dispose();
   }
 
   @override
@@ -112,6 +150,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
       prefs.getInt(_analysisSortKey) ?? transactionSortOrder.index
     ];
     showPercentage = prefs.getBool(_analysisShowPercentageKey) ?? showPercentage;
+    _chartGranularityDay = prefs.getBool(_analysisChartGranularityDayKey) ?? _chartGranularityDay;
+    final tier = await EntitlementService.getCurrentTier();
+    if (tier != UserTier.pro &&
+        (analysisMode == AnalysisMode.cumulativeToSelectedMonth ||
+            analysisMode == AnalysisMode.cumulativeYear)) {
+      analysisMode = AnalysisMode.selectedMonth;
+      await prefs.setInt(_analysisModeKey, analysisMode.index);
+    }
     if (!mounted) return;
     setState(() {});
     await loadAnalysis();
@@ -124,6 +170,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     await prefs.setInt(_analysisMainSortKey, analysisSortField.index);
     await prefs.setInt(_analysisSortKey, transactionSortOrder.index);
     await prefs.setBool(_analysisShowPercentageKey, showPercentage);
+    await prefs.setBool(_analysisChartGranularityDayKey, _chartGranularityDay);
   }
 
   Future<void> loadAnalysis() async {
@@ -151,8 +198,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     transactions = tx;
     budgets = budgetData;
-    DataStore.categories = categories;
-    DataStore.accounts = accounts;
+    DataStore.replaceCategories(categories);
+    DataStore.replaceAccounts(accounts);
     if (_isIncomeVsExpense) {
       // Income mode uses pie selection; time bucket (bar) selection must not affect the bottom list.
       selectedChartBucket = null;
@@ -528,8 +575,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
   bool _isDateInSelectedChartBucket(DateTime date) {
     if (selectedChartBucket == null) return true;
     if (analysisMode == AnalysisMode.selectedMonth) {
+      final b = selectedChartBucket!;
+      if (!_chartGranularityDay) {
+        if (b >= 100) {
+          final w = b - 100;
+          final lastDay = DateTime(currentMonth.year, currentMonth.month + 1, 0).day;
+          final startDay = (w - 1) * 7 + 1;
+          final endDay = math.min(w * 7, lastDay);
+          return date.year == currentMonth.year &&
+              date.month == currentMonth.month &&
+              date.day >= startDay &&
+              date.day <= endDay;
+        }
+      }
       return date.day == selectedChartBucket;
     }
+    if (analysisMode == AnalysisMode.cumulativeToSelectedMonth) {
+      return date.year == currentMonth.year && date.month <= selectedChartBucket!;
+    }
+    // cumulativeYear: bar = calendar month; keep that month only in the bottom list.
     return date.month == selectedChartBucket;
   }
 
@@ -593,11 +657,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
         final date = DateTime.parse(transaction['date'] as String);
         grouped[date.day] = (grouped[date.day] ?? 0) + (transaction['amount'] as num).toDouble();
       }
-      final sortedDays = grouped.keys.toList()
-        ..sort();
-      return sortedDays
-          .map((day) => AggregationBarData(label: '$day', value: grouped[day] ?? 0, bucket: day))
-          .toList();
+      if (_chartGranularityDay) {
+        final sortedDays = grouped.keys.toList()..sort();
+        return sortedDays
+            .map((day) => AggregationBarData(label: '$day', value: grouped[day] ?? 0, bucket: day))
+            .toList();
+      }
+      final lastDay = DateTime(currentMonth.year, currentMonth.month + 1, 0).day;
+      final numWeeks = (lastDay + 6) ~/ 7;
+      final out = <AggregationBarData>[];
+      for (var w = 1; w <= numWeeks; w++) {
+        final startDay = (w - 1) * 7 + 1;
+        final endDay = math.min(w * 7, lastDay);
+        var sum = 0.0;
+        for (var d = startDay; d <= endDay; d++) {
+          sum += grouped[d] ?? 0;
+        }
+        out.add(AggregationBarData(label: 'W$w', value: sum, bucket: 100 + w));
+      }
+      return out;
     }
 
     final groupedByMonth = <int, double>{};
@@ -744,13 +822,44 @@ class _AnalysisPageState extends State<AnalysisPage> {
     await loadAnalysis();
   }
 
-  void _showAnalysisOptions() {
+  Future<void> _trySetAnalysisAggregation(
+    AnalysisMode value,
+    BuildContext pageContext,
+    StateSetter setModalState,
+    Future<void> Function(VoidCallback) applyChanges,
+  ) async {
+    final needsPro = value == AnalysisMode.cumulativeToSelectedMonth ||
+        value == AnalysisMode.cumulativeYear;
+    if (needsPro) {
+      if (await EntitlementService.getCurrentTier() != UserTier.pro) {
+        final ok = await ensureSignedInThenProComparisonAndPurchase(pageContext);
+        if (!mounted || !pageContext.mounted) return;
+        if (ok) {
+          await AccountSubscriptionService.syncEntitlementFromFirestore();
+        }
+        if (!mounted || !pageContext.mounted) return;
+        if (await EntitlementService.getCurrentTier() != UserTier.pro) {
+          setModalState(() {});
+          return;
+        }
+        setState(() => _optionsSheetTier = UserTier.pro);
+        setModalState(() {});
+      }
+    }
+    await applyChanges(() => analysisMode = value);
+  }
+
+  Future<void> _showAnalysisOptions() async {
+    final t = await EntitlementService.getCurrentTier();
+    if (!mounted) return;
+    setState(() => _optionsSheetTier = t);
+    final pageContext = context;
     showSideOverlaySheet<void>(
       context: context,
       direction: SideOverlayDirection.right,
       builder: (drawerContext) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
+          builder: (modalContext, setModalState) {
             Future<void> applyChanges(VoidCallback updateParent) async {
               await _applyAnalysisPreferenceChange(() {
                 setState(updateParent);
@@ -767,7 +876,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       Expanded(
                         child: Text(
                           'Analysis options',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          style: Theme.of(modalContext).textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
                         ),
@@ -781,7 +890,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   ),
                 ),
                 const Divider(height: 1),
-                const _MenuSectionHeader('Aggregation'),
+                AggregationSectionHeader(showProBadge: _optionsSheetTier != UserTier.pro),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: SegmentedToggle<AnalysisMode>(
@@ -791,7 +900,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       SegmentedToggleOption(value: AnalysisMode.cumulativeYear, label: 'Year'),
                     ],
                     selectedValue: analysisMode,
-                    onChanged: (value) => applyChanges(() => analysisMode = value),
+                    onChanged: (value) =>
+                        _trySetAnalysisAggregation(value, pageContext, setModalState, applyChanges),
                   ),
                 ),
                 const Divider(height: 1),
@@ -1141,11 +1251,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
               leftLabel: _isIncomeVsExpense ? 'Income' : 'Budget',
               middleLabel: 'Expense',
               rightLabel: _isIncomeVsExpense ? 'Net' : 'Remaining',
-              monthTrailing: IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(Icons.more_vert, size: 20),
+              density: MonthSummaryDensity.compact,
+              monthTrailing: MonthOptionsMenuButton(
                 onPressed: _showAnalysisOptions,
                 tooltip: 'Analysis options',
               ),
@@ -1158,7 +1265,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         final top5 = _incomeModeSidePanelRows();
                         final showSide = top5.isNotEmpty;
                         return SizedBox(
-                          height: 228,
+                          height: 218,
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
@@ -1169,7 +1276,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                   budgetTotal: budgetTotal,
                                   expenseTotal: expense,
                                   selectedSlice: selectedPieSlice,
-                                  chartHeight: 218,
+                                  chartHeight: 200,
                                   onSliceTap: (slice) async {
                                     setState(() {
                                       selectedPieSlice = selectedPieSlice == slice ? null : slice;
@@ -1254,56 +1361,144 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         );
                       },
                     )
-                  : AggregationBarChart(
-                      data: _analysisChartData(),
-                      emptyMessage: 'No expense data available for this aggregation.',
-                      selectedBucket: selectedChartBucket,
-                      onBarTap: (item) async {
-                        final tappedBucket = item.bucket;
-                        final nextBucket = selectedChartBucket == tappedBucket ? null : tappedBucket;
-                        if (analysisMode == AnalysisMode.selectedMonth) {
-                          setState(() {
-                            selectedChartBucket = nextBucket;
-                          });
-                        } else {
-                          if (nextBucket != null) {
-                            _monthBeforeChartBucket ??= DateTime(currentMonth.year, currentMonth.month);
-                            setState(() {
-                              currentMonth = DateTime(currentMonth.year, nextBucket, 1);
-                              selectedChartBucket = nextBucket;
-                            });
-                          } else {
-                            setState(() {
-                              selectedChartBucket = null;
-                              if (_monthBeforeChartBucket != null) {
-                                currentMonth = _monthBeforeChartBucket!;
-                                _monthBeforeChartBucket = null;
-                              }
-                            });
-                          }
-                        }
-                        await loadAnalysis();
-                      },
-                      trailing: selectedChartBucket != null
-                          ? IconButton(
-                              onPressed: () async {
-                                setState(() {
-                                  selectedChartBucket = null;
-                                  if (_monthBeforeChartBucket != null) {
-                                    currentMonth = _monthBeforeChartBucket!;
-                                    _monthBeforeChartBucket = null;
+                  : Builder(
+                      builder: (context) {
+                        final series = _analysisChartData();
+                        final selMonth =
+                            !_isIncomeVsExpense && analysisMode == AnalysisMode.selectedMonth;
+                        final lineChartH = selMonth ? 118.0 : 92.0;
+                        final cs = Theme.of(context).colorScheme;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AggregationSmoothLineChart(
+                              data: series,
+                              emptyMessage: 'No expense data available for this aggregation.',
+                              selectedBucket: selectedChartBucket,
+                              chartHeight: lineChartH,
+                              verticalAxisLabels: !_isIncomeVsExpense,
+                              compactYRange:
+                                  !_isIncomeVsExpense && analysisMode != AnalysisMode.selectedMonth,
+                              plotTopRightOverlay: !_isIncomeVsExpense
+                                  ? (selMonth
+                                      ? Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            SegmentedButton<bool>(
+                                              style: SegmentedButton.styleFrom(
+                                                visualDensity: VisualDensity.compact,
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 4,
+                                                ),
+                                                backgroundColor: cs.surface.withValues(alpha: 0.5),
+                                                foregroundColor:
+                                                    cs.onSurface.withValues(alpha: 0.7),
+                                                selectedForegroundColor: cs.primary,
+                                                selectedBackgroundColor:
+                                                    cs.primaryContainer.withValues(alpha: 0.48),
+                                                side: BorderSide(
+                                                  color: cs.outline.withValues(alpha: 0.2),
+                                                ),
+                                              ),
+                                              segments: const [
+                                                ButtonSegment(value: true, label: Text('Day')),
+                                                ButtonSegment(value: false, label: Text('Week')),
+                                              ],
+                                              selected: {_chartGranularityDay},
+                                              onSelectionChanged: (s) async {
+                                                final v = s.first;
+                                                setState(() {
+                                                  _chartGranularityDay = v;
+                                                  selectedChartBucket = null;
+                                                });
+                                                await _persistPreferences();
+                                                await loadAnalysis();
+                                              },
+                                            ),
+                                            if (selectedChartBucket != null)
+                                              IconButton(
+                                                onPressed: () async {
+                                                  setState(() {
+                                                    selectedChartBucket = null;
+                                                    if (_monthBeforeChartBucket != null) {
+                                                      currentMonth = _monthBeforeChartBucket!;
+                                                      _monthBeforeChartBucket = null;
+                                                    }
+                                                  });
+                                                  await loadAnalysis();
+                                                },
+                                                icon: const Icon(Icons.close_rounded, size: 16),
+                                                visualDensity: VisualDensity.compact,
+                                                padding: const EdgeInsets.all(4),
+                                                constraints: const BoxConstraints(
+                                                  minWidth: 28,
+                                                  minHeight: 28,
+                                                ),
+                                                splashRadius: 14,
+                                                tooltip: 'Clear filter',
+                                              ),
+                                          ],
+                                        )
+                                      : (selectedChartBucket != null
+                                          ? IconButton(
+                                              onPressed: () async {
+                                                setState(() {
+                                                  selectedChartBucket = null;
+                                                  if (_monthBeforeChartBucket != null) {
+                                                    currentMonth = _monthBeforeChartBucket!;
+                                                    _monthBeforeChartBucket = null;
+                                                  }
+                                                });
+                                                await loadAnalysis();
+                                              },
+                                              icon: const Icon(Icons.close_rounded, size: 16),
+                                              visualDensity: VisualDensity.compact,
+                                              padding: const EdgeInsets.all(4),
+                                              constraints: const BoxConstraints(
+                                                minWidth: 28,
+                                                minHeight: 28,
+                                              ),
+                                              splashRadius: 14,
+                                              tooltip: 'Clear filter',
+                                            )
+                                          : null))
+                                  : null,
+                              pointValueLabels: [
+                                for (final x in series) formatIndianCurrency(x.value),
+                              ],
+                              onPointTap: (item) async {
+                                final tappedBucket = item.bucket;
+                                final nextBucket = selectedChartBucket == tappedBucket ? null : tappedBucket;
+                                if (analysisMode == AnalysisMode.selectedMonth) {
+                                  setState(() {
+                                    selectedChartBucket = nextBucket;
+                                  });
+                                } else {
+                                  if (nextBucket != null) {
+                                    _monthBeforeChartBucket ??= DateTime(currentMonth.year, currentMonth.month);
+                                    setState(() {
+                                      currentMonth = DateTime(currentMonth.year, nextBucket, 1);
+                                      selectedChartBucket = nextBucket;
+                                    });
+                                  } else {
+                                    setState(() {
+                                      selectedChartBucket = null;
+                                      if (_monthBeforeChartBucket != null) {
+                                        currentMonth = _monthBeforeChartBucket!;
+                                        _monthBeforeChartBucket = null;
+                                      }
+                                    });
                                   }
-                                });
+                                }
                                 await loadAnalysis();
                               },
-                              icon: const Icon(Icons.close_rounded, size: 16),
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.all(4),
-                              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                              splashRadius: 14,
-                              tooltip: 'Clear filter',
-                            )
-                          : null,
+                            ),
+                          ],
+                        );
+                      },
                     ),
             ),
             Expanded(
@@ -1381,24 +1576,24 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                 : () => _showRelatedTransactions(data),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              child: Column(
+                              child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Category name + icon row
-                                  Row(
-                                    children: [
-                                      AppPageIcon(
-                                        icon: iconFromCodePoint(
-                                          entry?['icon'],
-                                          fallback: rowType == 'income'
-                                              ? Icons.account_balance_wallet
-                                              : (analysisType == AnalysisType.category ? Icons.category : Icons.account_balance_wallet),
-                                        ),
-                                        imagePath: entry?['icon_path']?.toString(),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
+                                  AppPageIcon(
+                                    icon: iconFromCodePoint(
+                                      entry?['icon'],
+                                      fallback: rowType == 'income'
+                                          ? Icons.account_balance_wallet
+                                          : (analysisType == AnalysisType.category ? Icons.category : Icons.account_balance_wallet),
+                                    ),
+                                    imagePath: entry?['icon_path']?.toString(),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        Text(
                                           isIncomeTransactionRow
                                               ? ((data['txComment'] as String?)?.isNotEmpty ?? false
                                                   ? '$label • ${data['txComment']}'
@@ -1408,24 +1603,22 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
                                             fontWeight: FontWeight.w700,
-                                            fontSize: 15.5,
+                                            fontSize: 14,
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  // Progress bar with overlaid text + % at end
-                                  if (isIncomeTransactionRow) ...[
-                                    Text(
-                                      '${DateFormat('dd MMM yyyy').format(DateTime.parse((data['txDate'] as String?) ?? DateTime.now().toIso8601String()))} • ${formatIndianCurrency(incomeAmount)}',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ] else if (!_isIncomeVsExpense && analysisType == AnalysisType.category) ...[
+                                        const SizedBox(height: 6),
+                                        if (isIncomeTransactionRow) ...[
+                                          Text(
+                                            '${DateFormat('dd MMM yyyy').format(DateTime.parse((data['txDate'] as String?) ?? DateTime.now().toIso8601String()))} • ${formatIndianCurrency(incomeAmount)}',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ] else if (!_isIncomeVsExpense && analysisType == AnalysisType.category) ...[
                                     Row(
                                       children: [
                                         Expanded(
@@ -1483,12 +1676,21 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                       ],
                                     ),
                                   ] else if (!_isIncomeVsExpense) ...[
-                                    Text(
-                                      formatIndianCurrency(spent),
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          formatIndianCurrency(spent),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ] else ...[
@@ -1551,6 +1753,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                       ],
                                     ),
                                   ],
+                                      ],
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),

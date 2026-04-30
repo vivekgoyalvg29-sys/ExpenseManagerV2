@@ -1,0 +1,7 @@
+# Copy to key.properties (same folder as this file). key.properties is gitignored.
+# Google Play Console expects a release-signed .aab; use your upload keystore here.
+
+storePassword=your-keystore-password
+keyPassword=your-key-password
+keyAlias=fintrack
+storeFile=app/fintrack.jks

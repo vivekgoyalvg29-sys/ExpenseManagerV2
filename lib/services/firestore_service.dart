@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'database_service.dart';
 import 'default_seed_icons.dart';
 
 class FirestoreService {
@@ -25,12 +29,13 @@ class FirestoreService {
   final Map<int, String> _accountDocIds = {};
   final Map<int, String> _categoryDocIds = {};
   final Map<int, String> _budgetDocIds = {};
+  final Map<int, String> _recurringMasterDocIds = {};
 
   /// When set, overrides SharedPreferences for the active profile ID.
   /// Used during multi-profile import to route rows to different profiles.
   String? _importProfileOverride;
 
-  String get _currentPhone => _auth.currentUser?.phoneNumber ?? '';
+  String get _actorUid => _auth.currentUser?.uid ?? '';
 
   /// Sets a temporary profile ID override for import operations.
   /// Pass null to clear the override.
@@ -71,6 +76,7 @@ class FirestoreService {
     _accountDocIds.clear();
     _categoryDocIds.clear();
     _budgetDocIds.clear();
+    _recurringMasterDocIds.clear();
   }
 
   // ============ TRANSACTIONS ============
@@ -80,6 +86,7 @@ class FirestoreService {
   Future<List<Map<String, dynamic>>> getTransactions({
     DateTime? startDate,
     DateTime? endDate,
+    GetOptions getOptions = const GetOptions(),
   }) async {
     final col = await _col('transactions');
     if (col == null) throw Exception('No active profile');
@@ -90,7 +97,7 @@ class FirestoreService {
     if (endDate != null) {
       query = query.where('date', isLessThanOrEqualTo: endDate.toIso8601String());
     }
-    final snap = await query.get();
+    final snap = await query.get(getOptions);
     final accountById = await _accountNameByLocalId();
     final categoryById = await _categoryNameByLocalId();
 
@@ -153,7 +160,7 @@ class FirestoreService {
       'categoryId': categoryId,
       'accountId': accountId,
       'comment': comment,
-      'createdBy': _currentPhone,
+      'createdBy': _actorUid,
       'createdAt': FieldValue.serverTimestamp(),
     });
     _txDocIds[localId] = ref.id;
@@ -220,10 +227,12 @@ class FirestoreService {
 
   // ============ ACCOUNTS ============
 
-  Future<List<Map<String, dynamic>>> getAccounts() async {
+  Future<List<Map<String, dynamic>>> getAccounts({
+    GetOptions getOptions = const GetOptions(),
+  }) async {
     final col = await _col('accounts');
     if (col == null) throw Exception('No active profile');
-    final snap = await col.get();
+    final snap = await col.get(getOptions);
     final results = <Map<String, dynamic>>[];
     for (final doc in snap.docs) {
       final data = doc.data();
@@ -235,7 +244,8 @@ class FirestoreService {
         'type': data['type'] ?? 'expense',
         'icon': (data['icon'] as num?)?.toInt() ?? 0,
         'icon_path': data['icon_path']?.toString(),
-        'is_favorite': (data['is_favorite'] as num?)?.toInt() ?? 0,
+        // Raw value; [DataStore.replaceAccounts] normalizes bool/num/string.
+        'is_favorite': data['is_favorite'],
       });
     }
     return results;
@@ -257,7 +267,7 @@ class FirestoreService {
       'icon': icon,
       'icon_path': iconPath,
       'is_favorite': 0,
-      'createdBy': _currentPhone,
+      'createdBy': _actorUid,
       'createdAt': FieldValue.serverTimestamp(),
     });
     _accountDocIds[localId] = ref.id;
@@ -308,17 +318,6 @@ class FirestoreService {
     final col = await _col('accounts');
     if (col == null) return;
 
-    if (isFavorite) {
-      final snap = await col.where('type', isEqualTo: type).get();
-      if (snap.docs.isNotEmpty) {
-        final batch = _firestore.batch();
-        for (final doc in snap.docs) {
-          batch.update(doc.reference, {'is_favorite': 0});
-        }
-        await batch.commit();
-      }
-    }
-
     final docId = await _resolveDocId(col, _accountDocIds, id);
     if (docId == null) return;
     await col.doc(docId).update({'is_favorite': isFavorite ? 1 : 0});
@@ -327,21 +326,19 @@ class FirestoreService {
   Future<String?> getFavoriteAccountName(String type) async {
     final col = await _col('accounts');
     if (col == null) throw Exception('No active profile');
-    final snap = await col
-        .where('type', isEqualTo: type)
-        .where('is_favorite', isEqualTo: 1)
-        .limit(1)
-        .get();
-    if (snap.docs.isEmpty) return null;
+    final snap = await col.where('is_favorite', isEqualTo: 1).get();
+    if (snap.docs.length != 1) return null;
     return snap.docs.first.data()['name']?.toString();
   }
 
   // ============ CATEGORIES ============
 
-  Future<List<Map<String, dynamic>>> getCategories() async {
+  Future<List<Map<String, dynamic>>> getCategories({
+    GetOptions getOptions = const GetOptions(),
+  }) async {
     final col = await _col('categories');
     if (col == null) throw Exception('No active profile');
-    final snap = await col.get();
+    final snap = await col.get(getOptions);
     final results = <Map<String, dynamic>>[];
     for (final doc in snap.docs) {
       final data = doc.data();
@@ -353,7 +350,7 @@ class FirestoreService {
         'type': data['type'] ?? 'expense',
         'icon': (data['icon'] as num?)?.toInt() ?? 0,
         'icon_path': data['icon_path']?.toString(),
-        'is_favorite': (data['is_favorite'] as num?)?.toInt() ?? 0,
+        'is_favorite': data['is_favorite'],
       });
     }
     return results;
@@ -375,7 +372,7 @@ class FirestoreService {
       'icon': icon,
       'icon_path': iconPath,
       'is_favorite': 0,
-      'createdBy': _currentPhone,
+      'createdBy': _actorUid,
       'createdAt': FieldValue.serverTimestamp(),
     });
     _categoryDocIds[localId] = ref.id;
@@ -426,17 +423,6 @@ class FirestoreService {
     final col = await _col('categories');
     if (col == null) return;
 
-    if (isFavorite) {
-      final snap = await col.where('type', isEqualTo: type).get();
-      if (snap.docs.isNotEmpty) {
-        final batch = _firestore.batch();
-        for (final doc in snap.docs) {
-          batch.update(doc.reference, {'is_favorite': 0});
-        }
-        await batch.commit();
-      }
-    }
-
     final docId = await _resolveDocId(col, _categoryDocIds, id);
     if (docId == null) return;
     await col.doc(docId).update({'is_favorite': isFavorite ? 1 : 0});
@@ -448,18 +434,24 @@ class FirestoreService {
     final snap = await col
         .where('type', isEqualTo: type)
         .where('is_favorite', isEqualTo: 1)
-        .limit(1)
         .get();
-    if (snap.docs.isEmpty) return null;
-    return snap.docs.first.data()['name']?.toString();
+    if (snap.docs.length != 1) return null;
+    final names = snap.docs
+        .map((d) => d.data()['name']?.toString() ?? '')
+        .where((n) => n.isNotEmpty)
+        .toList()
+      ..sort();
+    return names.isEmpty ? null : names.first;
   }
 
   // ============ BUDGETS ============
 
-  Future<List<Map<String, dynamic>>> getBudgets() async {
+  Future<List<Map<String, dynamic>>> getBudgets({
+    GetOptions getOptions = const GetOptions(),
+  }) async {
     final col = await _col('budgets');
     if (col == null) throw Exception('No active profile');
-    final snap = await col.orderBy('year', descending: true).get();
+    final snap = await col.orderBy('year', descending: true).get(getOptions);
     final results = <Map<String, dynamic>>[];
     for (final doc in snap.docs) {
       final data = doc.data();
@@ -493,7 +485,7 @@ class FirestoreService {
       'amount': amount,
       'month': month,
       'year': year,
-      'createdBy': _currentPhone,
+      'createdBy': _actorUid,
       'createdAt': FieldValue.serverTimestamp(),
     });
     _budgetDocIds[localId] = ref.id;
@@ -530,6 +522,66 @@ class FirestoreService {
     }
   }
 
+  /// Atomic multi-write for Smart Budget Copy (≤ ~500 ops per batch chunk).
+  Future<void> batchApplyBudgetCopies(
+    List<({
+      bool isUpdate,
+      int localId,
+      String category,
+      int categoryId,
+      double amount,
+      int month,
+      int year,
+    })> ops,
+  ) async {
+    final col = await _col('budgets');
+    if (col == null) throw Exception('No active profile');
+    await getBudgets();
+
+    WriteBatch batch = _firestore.batch();
+    var pending = 0;
+    for (final op in ops) {
+      if (op.isUpdate) {
+        final docId = await _resolveDocId(col, _budgetDocIds, op.localId);
+        if (docId == null) {
+          throw StateError('Missing budget document for id ${op.localId}');
+        }
+        batch.update(col.doc(docId), {
+          'category': op.category,
+          'categoryId': op.categoryId,
+          'amount': op.amount,
+          'month': op.month,
+          'year': op.year,
+        });
+      } else {
+        final ref = col.doc();
+        batch.set(ref, {
+          'localId': op.localId,
+          'category': op.category,
+          'categoryId': op.categoryId,
+          'amount': op.amount,
+          'month': op.month,
+          'year': op.year,
+          'createdBy': _actorUid,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        _budgetDocIds[op.localId] = ref.id;
+      }
+      pending++;
+      if (pending >= 450) {
+        await batch.commit();
+        batch = _firestore.batch();
+        pending = 0;
+      }
+    }
+    if (pending > 0) {
+      await batch.commit();
+    }
+  }
+
+  Future<int?> expenseCategoryIdByName(String name) =>
+      _categoryIdByNameAndType(name, 'expense');
+
   // ============ EXISTENCE CHECKS ============
 
   Future<bool> accountExists(String name, String type) async {
@@ -558,21 +610,201 @@ class FirestoreService {
       _deleteAllInCollection('budgets'),
       _deleteAllInCollection('accounts'),
       _deleteAllInCollection('categories'),
+      _deleteAllInCollection('recurringMasters'),
+      _deleteAllInCollection('recurringResolved'),
     ]);
     clearCaches();
   }
 
+  // ============ RECURRING EXPENSE MASTERS ============
+
+  Future<List<Map<String, dynamic>>> getRecurringMasters() async {
+    final col = await _col('recurringMasters');
+    if (col == null) throw Exception('No active profile');
+    final snap = await col.get();
+    final out = <Map<String, dynamic>>[];
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final localId = _localIdFromDoc(data, doc.id);
+      _recurringMasterDocIds[localId] = doc.id;
+      final sched = data['schedule'];
+      String schedJson;
+      if (sched is Map) {
+        try {
+          schedJson = jsonEncode(Map<String, dynamic>.from(
+            sched.map((k, v) => MapEntry(k.toString(), v)),
+          ));
+        } catch (_) {
+          schedJson = '{}';
+        }
+      } else {
+        schedJson = data['scheduleJson']?.toString() ?? '{}';
+      }
+      out.add({
+        'id': localId,
+        'title': data['title']?.toString() ?? '',
+        'amount': (data['amount'] as num?)?.toDouble() ?? 0,
+        'type': data['type']?.toString() ?? 'expense',
+        'account': data['account']?.toString() ?? '',
+        'comment': data['comment']?.toString() ?? '',
+        'schedule_kind': data['scheduleKind']?.toString() ?? '',
+        'schedule_json': schedJson,
+        'created_at_ms': (data['createdAtMs'] as num?)?.toInt() ??
+            DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+    out.sort((a, b) => (a['id'] as int).compareTo(b['id'] as int));
+    return out;
+  }
+
+  Future<int> insertRecurringMaster({
+    required int localId,
+    required String title,
+    required double amount,
+    required String type,
+    required String account,
+    required String comment,
+    required String scheduleKind,
+    required Map<String, dynamic> scheduleMap,
+    required int createdAtMs,
+  }) async {
+    final col = await _col('recurringMasters');
+    if (col == null) return localId;
+    final ref = col.doc('rm_$localId');
+    await ref.set({
+      'localId': localId,
+      'title': title,
+      'amount': amount,
+      'type': type,
+      'account': account,
+      'comment': comment,
+      'scheduleKind': scheduleKind,
+      'schedule': scheduleMap,
+      'createdAtMs': createdAtMs,
+      'createdAt': FieldValue.serverTimestamp(),
+      'createdBy': _actorUid,
+    });
+    _recurringMasterDocIds[localId] = ref.id;
+    return localId;
+  }
+
+  Future<void> updateRecurringMaster({
+    required int id,
+    required String title,
+    required double amount,
+    required String type,
+    required String account,
+    required String comment,
+    required String scheduleKind,
+    required Map<String, dynamic> scheduleMap,
+  }) async {
+    final col = await _col('recurringMasters');
+    if (col == null) return;
+    var docId = await _resolveDocId(col, _recurringMasterDocIds, id);
+    docId ??= _recurringMasterDocIds[id] ?? 'rm_$id';
+    await col.doc(docId).update({
+      'title': title,
+      'amount': amount,
+      'type': type,
+      'account': account,
+      'comment': comment,
+      'scheduleKind': scheduleKind,
+      'schedule': scheduleMap,
+    });
+  }
+
+  Future<void> deleteRecurringMaster(int id) async {
+    final col = await _col('recurringMasters');
+    if (col == null) return;
+    var docId = await _resolveDocId(col, _recurringMasterDocIds, id);
+    docId ??= 'rm_$id';
+    await col.doc(docId).delete();
+    _recurringMasterDocIds.remove(id);
+    await _deleteResolvedForMaster(id);
+  }
+
+  Future<void> _deleteResolvedForMaster(int masterLocalId) async {
+    final col = await _col('recurringResolved');
+    if (col == null) return;
+    QuerySnapshot<Map<String, dynamic>> snap;
+    do {
+      snap = await col.where('masterLocalId', isEqualTo: masterLocalId).limit(400).get();
+      if (snap.docs.isEmpty) break;
+      final batch = _firestore.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    } while (snap.docs.length == 400);
+  }
+
+  Future<Map<String, RecurringResolvedRow>> getAllRecurringResolvedDetailed() async {
+    final col = await _col('recurringResolved');
+    if (col == null) throw Exception('No active profile');
+    final snap = await col.get();
+    final out = <String, RecurringResolvedRow>{};
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final mid = (data['masterLocalId'] as num?)?.toInt();
+      final sd = data['scheduledDate']?.toString();
+      final st = data['status']?.toString();
+      if (mid != null && sd != null && st != null) {
+        out['$mid|$sd'] = RecurringResolvedRow(
+          status: st,
+          deferUntilIso: data['deferUntil']?.toString(),
+        );
+      }
+    }
+    return out;
+  }
+
+  Future<void> putRecurringResolved({
+    required int masterLocalId,
+    required String scheduledDateIso,
+    required String status,
+    String? deferUntilIso,
+  }) async {
+    final col = await _col('recurringResolved');
+    if (col == null) return;
+    final safe = scheduledDateIso.replaceAll(RegExp(r'[^\d-]'), '');
+    final payload = <String, dynamic>{
+      'masterLocalId': masterLocalId,
+      'scheduledDate': scheduledDateIso,
+      'status': status,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+    if (deferUntilIso != null) {
+      payload['deferUntil'] = deferUntilIso;
+    } else {
+      payload['deferUntil'] = FieldValue.delete();
+    }
+    await col.doc('${masterLocalId}_$safe').set(payload, SetOptions(merge: true));
+  }
+
   Future<int> initializeDefaultCategoriesAndAccounts() async {
     const incomeCategories = <String>[
-      'Salary', 'Bonus', 'Freelance', 'Interest', 'Dividends',
-      'Gifts', 'Reimbursements', 'Rental', 'Other',
+      'Salary',
+      'Bonus',
+      'Interest',
+      'Rental',
     ];
     const expenseCategories = <String>[
-      'Housing', 'Utilities', 'Groceries', 'Dining', 'Transport',
-      'Health', 'Insurance', 'Education', 'Entertainment', 'Shopping',
-      'Subscriptions', 'Debt', 'Savings', 'Donations', 'Misc',
+      'Housing',
+      'Utilities',
+      'Groceries',
+      'Dining',
+      'Transport',
+      'Health',
+      'Insurance',
+      'Education',
+      'Entertainment',
+      'Shopping',
+      'Subscriptions',
+      'EMIs',
+      'Savings',
+      'Donations',
     ];
-    const accountNames = <String>['Cash', 'Bank', 'Savings', 'Credit Card', 'Wallet'];
+    const accountNames = <String>['Cash', 'Savings', 'Credit Card', 'UPI'];
 
     var created = 0;
     for (final name in incomeCategories) {
@@ -600,18 +832,16 @@ class FirestoreService {
       created++;
     }
     for (final name in accountNames) {
-      for (final type in const ['income', 'expense']) {
-        if (await accountExists(name, type)) continue;
-        final id = DateTime.now().microsecondsSinceEpoch + created;
-        await insertAccount(
-          id,
-          name,
-          type,
-          Icons.account_balance_wallet_outlined.codePoint,
-          iconPath: DefaultSeedIcons.accountIconPathFor(name),
-        );
-        created++;
-      }
+      if (await accountExists(name, 'expense')) continue;
+      final id = DateTime.now().microsecondsSinceEpoch + created;
+      await insertAccount(
+        id,
+        name,
+        'expense',
+        Icons.account_balance_wallet_outlined.codePoint,
+        iconPath: DefaultSeedIcons.accountIconPathFor(name),
+      );
+      created++;
     }
     return created;
   }
@@ -645,9 +875,105 @@ class FirestoreService {
       for (final doc in snap.docs) {
         batch.delete(doc.reference);
       }
-      // Fire-and-forget: local cache updates immediately; server syncs in background.
-      batch.commit();
+      await batch.commit();
     } while (snap.docs.length == 400);
+  }
+
+  /// Deletes all documents in `profiles/[profileId]/[collectionName]` in chunks.
+  Future<void> wipeProfileSubcollection(
+    String profileId,
+    String collectionName,
+  ) async {
+    final col = _firestore
+        .collection('profiles')
+        .doc(profileId)
+        .collection(collectionName);
+    QuerySnapshot<Map<String, dynamic>> snap;
+    do {
+      snap = await col.limit(400).get();
+      if (snap.docs.isEmpty) break;
+      final batch = _firestore.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    } while (snap.docs.length == 400);
+  }
+
+  /// Wipes Firestore financial subcollections for [profileId], then uploads SQLite rows.
+  /// Used when a cloud book becomes shareable again after local-only mode.
+  Future<void> replaceCloudCollectionsFromSqlite(String profileId) async {
+    setImportOverride(profileId);
+    clearCaches();
+    try {
+      for (final name in const [
+        'transactions',
+        'budgets',
+        'accounts',
+        'categories',
+      ]) {
+        await wipeProfileSubcollection(profileId, name);
+      }
+
+      final categories = await DatabaseService.getCategories();
+      for (final c in categories) {
+        final id = (c['id'] as num?)?.toInt() ??
+            DateTime.now().microsecondsSinceEpoch;
+        await insertCategory(
+          id,
+          c['name']?.toString() ?? '',
+          c['type']?.toString() ?? 'expense',
+          (c['icon'] as num?)?.toInt() ?? 0,
+          iconPath: c['icon_path']?.toString(),
+        );
+      }
+
+      final accounts = await DatabaseService.getAccounts();
+      for (final a in accounts) {
+        final id = (a['id'] as num?)?.toInt() ??
+            DateTime.now().microsecondsSinceEpoch;
+        await insertAccount(
+          id,
+          a['name']?.toString() ?? '',
+          a['type']?.toString() ?? 'expense',
+          (a['icon'] as num?)?.toInt() ?? 0,
+          iconPath: a['icon_path']?.toString(),
+        );
+      }
+
+      final budgets = await DatabaseService.getBudgets();
+      for (final b in budgets) {
+        final id = (b['id'] as num?)?.toInt() ??
+            DateTime.now().microsecondsSinceEpoch;
+        await insertBudget(
+          id,
+          b['category']?.toString() ?? '',
+          (b['amount'] as num?)?.toDouble() ?? 0,
+          (b['month'] as num?)?.toInt() ?? 1,
+          (b['year'] as num?)?.toInt() ?? DateTime.now().year,
+        );
+      }
+
+      final transactions = await DatabaseService.getTransactions();
+      for (final tx in transactions) {
+        final id = (tx['id'] as num?)?.toInt() ??
+            DateTime.now().microsecondsSinceEpoch;
+        final date = DateTime.tryParse(tx['date']?.toString() ?? '') ??
+            DateTime.now();
+        await insertTransaction(
+          id,
+          tx['title']?.toString() ?? '',
+          (tx['amount'] as num?)?.toDouble() ?? 0,
+          date,
+          tx['type']?.toString() ?? 'expense',
+          tx['account']?.toString() ?? '',
+          tx['comment']?.toString() ?? '',
+        );
+      }
+    } finally {
+      setImportOverride(null);
+      clearCaches();
+    }
   }
 
   Future<Map<int, String>> _accountNameByLocalId() async {
