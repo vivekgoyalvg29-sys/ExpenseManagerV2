@@ -13,6 +13,12 @@ class MonthSectionCard extends StatelessWidget {
   /// Shown in a very light line under the month row (e.g. aggregation mode).
   final String? aggregationSubtitle;
 
+  /// Tighter spacing before [child] (Records/Analysis month summary).
+  final bool compact;
+
+  /// Same light panel as chart cards — separates block from app bar.
+  final bool useInnerPanelTint;
+
   const MonthSectionCard({
     super.key,
     required this.currentMonth,
@@ -21,12 +27,15 @@ class MonthSectionCard extends StatelessWidget {
     required this.child,
     this.monthTrailing,
     this.aggregationSubtitle,
+    this.compact = false,
+    this.useInnerPanelTint = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return SectionTile(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      useInnerPanelTint: useInnerPanelTint,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Column(
@@ -56,7 +65,7 @@ class MonthSectionCard extends StatelessWidget {
                     ),
               ),
             ],
-            const SizedBox(height: 10),
+            SizedBox(height: compact ? 5 : 8),
             child,
           ],
         ),

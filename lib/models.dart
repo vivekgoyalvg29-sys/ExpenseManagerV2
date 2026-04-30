@@ -13,7 +13,7 @@ class ProfileModel {
 
   final String createdBy;
 
-  /// Map of phone → role ('owner' | 'member').
+  /// Map of Firebase Auth UID → role ('owner' | 'viewer'; legacy 'member' = viewer).
   final Map<String, String> members;
 
   const ProfileModel({

@@ -1,16 +1,15 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/material.dart';
-import 'package:installed_apps/app_info.dart';
-import 'package:installed_apps/installed_apps.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/data_service.dart';
 import '../services/data_store.dart';
+import '../services/firestore_service.dart';
+import '../services/profile_service.dart';
 import '../services/visual_settings.dart';
 import '../services/widget_sync_service.dart';
 import '../utils/indian_number_formatter.dart';
@@ -28,13 +27,7 @@ class RecordsPage extends StatefulWidget {
 }
 
 class _RecordsPageState extends State<RecordsPage> {
-  static const String _defaultPaymentPackageKey = 'default_payment_package';
   static const String _lastScannedQrKey = 'last_scanned_qr';
-  static const Duration _appsCacheTtl = Duration(minutes: 20);
-  static List<AppInfo>? _installedAppsCache;
-  static DateTime? _installedAppsCacheTime;
-  static List<AppInfo>? _smartAppsCache;
-  static DateTime? _smartAppsCacheTime;
 
   DateTime currentMonth = DateTime.now();
   List<Map<String, dynamic>> transactions = [];
@@ -45,30 +38,82 @@ class _RecordsPageState extends State<RecordsPage> {
   bool selectionMode = false;
   bool _isProcessingQr = false;
 
+  /// Pull-to-refresh only for multi-user shared cloud books (Pro or Free).
+  bool _recordsPullRefreshEnabled = false;
+
   @override
   void initState() {
     super.initState();
+    DataStore.transactionMutationGeneration.addListener(_onBookDataMutation);
+    DataStore.profileSwitchGeneration.addListener(_onProfileSwitch);
+    unawaited(_updatePullRefreshAvailability());
     loadTransactions();
   }
 
-  Future<void> loadTransactions() async {
+  void _onBookDataMutation() {
+    if (mounted) loadTransactions();
+  }
+
+  void _onProfileSwitch() {
+    if (!mounted) return;
+    final n = DateTime.now();
+    setState(() {
+      currentMonth = DateTime(n.year, n.month);
+    });
+    unawaited(_updatePullRefreshAvailability());
+    loadTransactions();
+  }
+
+  Future<void> _updatePullRefreshAvailability() async {
+    final v = await ProfileService().activeProfileIsSharedCollaborationBook();
+    if (mounted) {
+      setState(() => _recordsPullRefreshEnabled = v);
+    }
+  }
+
+  Future<void> _onSharedBookRefresh() async {
+    if (!_recordsPullRefreshEnabled) return;
+    try {
+      FirestoreService().clearCaches();
+      await loadTransactions(preferServer: true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not refresh: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    DataStore.transactionMutationGeneration.removeListener(_onBookDataMutation);
+    DataStore.profileSwitchGeneration.removeListener(_onProfileSwitch);
+    super.dispose();
+  }
+
+  Future<void> loadTransactions({bool preferServer = false}) async {
     if (mounted) {
       setState(() => _isLoadingTransactions = true);
     }
     final startDate = DateTime(currentMonth.year, currentMonth.month, 1);
     final endDate = DateTime(currentMonth.year, currentMonth.month + 1, 0);
     try {
-      final txData = await DataService.getTransactions(startDate: startDate, endDate: endDate);
-      final budgetData = await DataService.getBudgets();
-      final categoryData = await DataService.getCategories();
-      final accountData = await DataService.getAccounts();
+      final txData = await DataService.getTransactions(
+        startDate: startDate,
+        endDate: endDate,
+        preferServer: preferServer,
+      );
+      final budgetData = await DataService.getBudgets(preferServer: preferServer);
+      final categoryData = await DataService.getCategories(preferServer: preferServer);
+      final accountData = await DataService.getAccounts(preferServer: preferServer);
 
       if (!mounted) return;
       setState(() {
         transactions = txData;
         budgets = budgetData;
-        DataStore.categories = categoryData;
-        DataStore.accounts = accountData;
+        DataStore.replaceCategories(categoryData);
+        DataStore.replaceAccounts(accountData);
         _isLoadingTransactions = false;
       });
     } catch (_) {
@@ -91,6 +136,194 @@ class _RecordsPageState extends State<RecordsPage> {
     return budgets
         .where((b) => b['month'] == currentMonth.month && b['year'] == currentMonth.year)
         .fold(0.0, (sum, b) => sum + (b['amount'] as num).toDouble());
+  }
+
+  ScrollPhysics? get _recordsScrollPhysics =>
+      _recordsPullRefreshEnabled ? const AlwaysScrollableScrollPhysics() : null;
+
+  Widget _recordsLoadingBody() {
+    return ListView(
+      physics: _recordsScrollPhysics,
+      padding: EdgeInsets.zero,
+      children: const [
+        SizedBox(height: 80),
+        Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _recordsEmptyBody() {
+    return ListView(
+      physics: _recordsScrollPhysics,
+      padding: EdgeInsets.zero,
+      children: const [
+        SizedBox(height: 80),
+        Center(child: Text('No transactions')),
+      ],
+    );
+  }
+
+  Widget _recordsTransactionList() {
+    return ListView.builder(
+      physics: _recordsScrollPhysics,
+      padding: EdgeInsets.zero,
+      itemCount: filteredTransactions.length,
+      itemBuilder: (context, index) {
+        final tx = filteredTransactions[index];
+        final date = DateTime.parse(tx["date"]);
+        final previousTx = index > 0 ? filteredTransactions[index - 1] : null;
+        final previousDate =
+            previousTx != null ? DateTime.parse(previousTx["date"]) : null;
+        final showDateHeader = previousDate == null ||
+            previousDate.year != date.year ||
+            previousDate.month != date.month ||
+            previousDate.day != date.day;
+        final comment = (tx["comment"] ?? '').toString().trim();
+        final amount = (tx["amount"] as num).toDouble();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showDateHeader) ...[
+              if (index > 0) const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
+                child: Text(
+                  DateFormat('MMM d, EEEE').format(date),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0E5D5B),
+                  ),
+                ),
+              ),
+              const Divider(height: 1, thickness: 1),
+            ],
+            ListTile(
+              visualDensity: VisualDensity.compact,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
+              leading: selectionMode
+                  ? Checkbox(
+                      value: selectedIndexes.contains(index),
+                      onChanged: (v) {
+                        setState(() {
+                          if (v == true) {
+                            selectedIndexes.add(index);
+                          } else {
+                            selectedIndexes.remove(index);
+                          }
+                        });
+                      },
+                    )
+                  : AppPageIcon(
+                      icon: _categoryIcon(tx["title"]),
+                      imagePath: _categoryDetails(
+                        tx["title"].toString(),
+                      )?['icon_path']?.toString(),
+                    ),
+              title: Text(
+                tx["title"],
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: comment.isEmpty
+                  ? null
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        comment,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF7C8794),
+                        ),
+                      ),
+                    ),
+              trailing: Text(
+                "${tx["type"] == "income" ? '+' : '-'}${formatIndianCurrency(amount, decimalDigits: 2)}",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: tx["type"] == "income" ? Colors.green : Colors.red,
+                ),
+              ),
+              onLongPress: DataStore.viewerReadOnly
+                  ? null
+                  : () {
+                      setState(() {
+                        selectionMode = true;
+                        selectedIndexes.add(index);
+                      });
+                    },
+              onTap: () async {
+                if (DataStore.viewerReadOnly && !selectionMode) {
+                  DataStore.showViewerReadOnlyNotice(context);
+                  return;
+                }
+                if (selectionMode) {
+                  setState(() {
+                    if (selectedIndexes.contains(index)) {
+                      selectedIndexes.remove(index);
+                    } else {
+                      selectedIndexes.add(index);
+                    }
+                  });
+                  return;
+                }
+
+                final rawId = tx['id'];
+                if (rawId is int && rawId < 0) return;
+
+                final result = await showDialog<Map<String, dynamic>>(
+                  context: context,
+                  builder: (_) => AddTransactionPage(existingTransaction: tx),
+                );
+
+                if (result != null) {
+                  await DataService.updateTransaction(
+                    tx['id'] as int,
+                    result['title'] as String,
+                    result['amount'] as double,
+                    result['date'] as DateTime,
+                    result['type'] as String,
+                    (result['account'] ?? '').toString(),
+                    (result['comment'] ?? '').toString(),
+                  );
+
+                  await loadTransactions();
+                }
+              },
+            ),
+            if (index < filteredTransactions.length - 1)
+              const Padding(
+                padding: EdgeInsets.only(left: 88),
+                child: Divider(height: 1, color: Color(0xFFE6EAF0)),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildRecordsTileBody() {
+    final Widget inner = _isLoadingTransactions && filteredTransactions.isEmpty
+        ? _recordsLoadingBody()
+        : (!_isLoadingTransactions && filteredTransactions.isEmpty)
+            ? _recordsEmptyBody()
+            : _recordsTransactionList();
+    if (_recordsPullRefreshEnabled) {
+      return RefreshIndicator(
+        onRefresh: _onSharedBookRefresh,
+        child: inner,
+      );
+    }
+    return inner;
   }
 
   void clearSelection() {
@@ -173,16 +406,15 @@ class _RecordsPageState extends State<RecordsPage> {
   }) async {
     String? selectedAccount;
     for (final account in DataStore.accounts) {
-      if ((account['type'] ?? '').toString() != 'expense') continue;
       selectedAccount = account['name']?.toString();
-      if (selectedAccount != null && selectedAccount!.isNotEmpty) break;
+      if (selectedAccount != null && selectedAccount.isNotEmpty) break;
     }
 
     String? selectedCategory;
     for (final category in DataStore.categories) {
       if ((category['type'] ?? '').toString() != 'expense') continue;
       selectedCategory = category['name']?.toString();
-      if (selectedCategory != null && selectedCategory!.isNotEmpty) break;
+      if (selectedCategory != null && selectedCategory.isNotEmpty) break;
     }
 
     final amountController = TextEditingController(
@@ -201,9 +433,7 @@ class _RecordsPageState extends State<RecordsPage> {
             final tt = Theme.of(context).textTheme;
             final fieldLabelStyle = tt.bodyMedium;
             final fieldTextStyle = tt.bodyLarge;
-            final expenseAccounts = DataStore.accounts
-                .where((acc) => (acc['type'] ?? '').toString() == 'expense')
-                .toList();
+            final expenseAccounts = DataStore.accounts.toList();
             final expenseCategories = DataStore.categories
                 .where((cat) => (cat['type'] ?? '').toString() == 'expense')
                 .toList();
@@ -392,251 +622,36 @@ class _RecordsPageState extends State<RecordsPage> {
     if (payload.isEmpty) return null;
     final payloadWithAmount = _buildPaymentPayload(payload, enteredAmount);
 
-    final prefs = await SharedPreferences.getInstance();
-    final storedDefault = prefs.getString(_defaultPaymentPackageKey);
-
-    final smartApps = await _getSmartPaymentApps();
     if (!mounted) return null;
-
-    final packageToLaunch = await _showPaymentAppPicker(
-      smartApps: smartApps,
-      defaultPackage: storedDefault,
-    );
-    if (!mounted || packageToLaunch == null) return null;
-
-    final launched = await _launchQrInApp(packageToLaunch, payloadWithAmount);
+    final launched = await _launchUpiWithSystemChooser(payloadWithAmount);
     if (!mounted) return null;
 
     if (!launched) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Selected app cannot open this QR payload. Please choose another app.'),
+          content: Text(
+            'No app can open this UPI link. Install a UPI app or try again.',
+          ),
         ),
       );
       return null;
     }
 
-    await prefs.setString(_defaultPaymentPackageKey, packageToLaunch);
     return payloadWithAmount;
   }
 
-  Future<List<AppInfo>> _getSmartPaymentApps() async {
-    final now = DateTime.now();
-    if (_smartAppsCache != null &&
-        _smartAppsCacheTime != null &&
-        now.difference(_smartAppsCacheTime!) <= _appsCacheTtl) {
-      return _smartAppsCache!;
+  /// Opens the UPI URI with ACTION_VIEW and no target package — Android shows the system chooser.
+  Future<bool> _launchUpiWithSystemChooser(String qrPayload) async {
+    try {
+      final intent = AndroidIntent(
+        action: 'android.intent.action.VIEW',
+        data: qrPayload,
+      );
+      await intent.launch();
+      return true;
+    } catch (_) {
+      return false;
     }
-
-    final installed = await _getInstalledAppsCached();
-    final allApps = installed.where((app) {
-      final name = app.name.toLowerCase();
-      final package = app.packageName.toLowerCase();
-      return name.contains('pay') ||
-          name.contains('upi') ||
-          name.contains('bank') ||
-          package.contains('pay') ||
-          package.contains('upi') ||
-          package.contains('bank') ||
-          package.contains('gpay') ||
-          package.contains('phonepe');
-    }).toList();
-
-    const prioritizedPackages = <String>[
-      'com.google.android.apps.nbu.paisa.user',
-      'com.phonepe.app',
-      'net.one97.paytm',
-      'in.org.npci.upiapp',
-      'com.amazon.mShop.android.shopping',
-      'com.freecharge.android',
-      'com.mobikwik_new',
-    ];
-
-    allApps.sort((a, b) {
-      final aPriority = prioritizedPackages.indexOf(a.packageName);
-      final bPriority = prioritizedPackages.indexOf(b.packageName);
-      final normalizedA = aPriority == -1 ? 999 : aPriority;
-      final normalizedB = bPriority == -1 ? 999 : bPriority;
-      if (normalizedA != normalizedB) {
-        return normalizedA.compareTo(normalizedB);
-      }
-      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-    });
-
-    _smartAppsCache = allApps;
-    _smartAppsCacheTime = now;
-    return allApps;
-  }
-
-  Future<String?> _showPaymentAppPicker({
-    required List<AppInfo> smartApps,
-    required String? defaultPackage,
-  }) async {
-    String? selectedPackage = defaultPackage;
-    final selectedFromSmart = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Align(
-                      alignment: Alignment.center,
-                      child: Text(
-                        'Pay with app',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (smartApps.isEmpty)
-                      const Text('No expected payment apps found with smart logic.')
-                    else
-                      SizedBox(
-                        height: 300,
-                        child: SingleChildScrollView(
-                          child: Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: smartApps.map((app) {
-                              final isSelected = selectedPackage == app.packageName;
-                              return _PaymentAppTile(
-                                iconBytes: app.icon,
-                                selected: isSelected,
-                                onTap: () {
-                                  setSheetState(() => selectedPackage = app.packageName);
-                                },
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final picked = await _showFullInstalledAppsPicker(defaultPackage);
-                        if (picked == null) return;
-                        if (!sheetContext.mounted) return;
-                        Navigator.pop(sheetContext, picked);
-                      },
-                      icon: const Icon(Icons.apps),
-                      label: const Text('Choose another app from phone'),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(sheetContext),
-                          child: const Text('Cancel'),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton(
-                          onPressed: selectedPackage == null
-                              ? null
-                              : () => Navigator.pop(sheetContext, selectedPackage),
-                          child: const Text('Continue'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    return selectedFromSmart;
-  }
-
-  Future<String?> _showFullInstalledAppsPicker(String? defaultPackage) async {
-    final allApps = await _getInstalledAppsCached();
-    allApps.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    if (!mounted) return null;
-
-    String? selectedPackage = defaultPackage;
-    return showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text(
-                      'Select app from phone',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 10),
-                    Expanded(
-                      child: RadioGroup<String>(
-                        groupValue: selectedPackage,
-                        onChanged: (value) {
-                          setSheetState(() => selectedPackage = value);
-                        },
-                        child: ListView.builder(
-                          itemCount: allApps.length,
-                          itemBuilder: (_, index) {
-                            final app = allApps[index];
-                            return RadioListTile<String>(
-                              value: app.packageName,
-                              secondary: _AppIcon(bytes: app.icon),
-                              title: Text(app.name),
-                              subtitle: Text(app.packageName),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(sheetContext),
-                          child: const Text('Back'),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton(
-                          onPressed: selectedPackage == null
-                              ? null
-                              : () => Navigator.pop(sheetContext, selectedPackage),
-                          child: const Text('Use app'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<List<AppInfo>> _getInstalledAppsCached() async {
-    final now = DateTime.now();
-    if (_installedAppsCache != null &&
-        _installedAppsCacheTime != null &&
-        now.difference(_installedAppsCacheTime!) <= _appsCacheTtl) {
-      return List<AppInfo>.from(_installedAppsCache!);
-    }
-
-    final installed = await InstalledApps.getInstalledApps(true, true);
-    _installedAppsCache = installed;
-    _installedAppsCacheTime = now;
-    return List<AppInfo>.from(installed);
   }
 
   String _buildPaymentPayload(String qrPayload, double enteredAmount) {
@@ -675,20 +690,6 @@ class _RecordsPageState extends State<RecordsPage> {
     return parsed;
   }
 
-  Future<bool> _launchQrInApp(String packageName, String qrPayload) async {
-    try {
-      final intent = AndroidIntent(
-        action: 'android.intent.action.VIEW',
-        data: qrPayload,
-        package: packageName,
-      );
-      await intent.launch();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     double expense = 0;
@@ -709,7 +710,9 @@ class _RecordsPageState extends State<RecordsPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: selectionMode
+      floatingActionButton: DataStore.viewerReadOnly
+          ? null
+          : selectionMode
           ? Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -807,152 +810,11 @@ class _RecordsPageState extends State<RecordsPage> {
               leftLabel: isIncomeVsExpense ? 'Income' : 'Budget',
               middleLabel: 'Expense',
               rightLabel: isIncomeVsExpense ? 'Net' : 'Remaining',
+              density: MonthSummaryDensity.compact,
             ),
             Expanded(
               child: SectionTile(
-                child: _isLoadingTransactions && filteredTransactions.isEmpty
-                    ? const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(24),
-                          child: CircularProgressIndicator(),
-                        ),
-                      )
-                    : (!_isLoadingTransactions && filteredTransactions.isEmpty)
-                        ? const Center(child: Text('No transactions'))
-                        : ListView.builder(
-                        padding: EdgeInsets.zero,
-                        itemCount: filteredTransactions.length,
-                        itemBuilder: (context, index) {
-                          final tx = filteredTransactions[index];
-                          final date = DateTime.parse(tx["date"]);
-                          final previousTx = index > 0 ? filteredTransactions[index - 1] : null;
-                          final previousDate = previousTx != null
-                              ? DateTime.parse(previousTx["date"])
-                              : null;
-                          final showDateHeader = previousDate == null ||
-                              previousDate.year != date.year ||
-                              previousDate.month != date.month ||
-                              previousDate.day != date.day;
-                          final comment = (tx["comment"] ?? '').toString().trim();
-                          final amount = (tx["amount"] as num).toDouble();
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (showDateHeader) ...[
-                                if (index > 0) const SizedBox(height: 14),
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
-                                  child: Text(
-                                    DateFormat('MMM d, EEEE').format(date),
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF0E5D5B),
-                                    ),
-                                  ),
-                                ),
-                                const Divider(height: 1, thickness: 1),
-                              ],
-                              ListTile(
-                                visualDensity: VisualDensity.compact,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
-                                leading: selectionMode
-                                    ? Checkbox(
-                                        value: selectedIndexes.contains(index),
-                                        onChanged: (v) {
-                                          setState(() {
-                                            if (v == true) {
-                                              selectedIndexes.add(index);
-                                            } else {
-                                              selectedIndexes.remove(index);
-                                            }
-                                          });
-                                        },
-                                      )
-                                    : AppPageIcon(
-                                        icon: _categoryIcon(tx["title"]),
-                                        imagePath: _categoryDetails(
-                                          tx["title"].toString(),
-                                        )?['icon_path']?.toString(),
-                                      ),
-                                title: Text(
-                                  tx["title"],
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                subtitle: comment.isEmpty
-                                    ? null
-                                    : Padding(
-                                        padding: const EdgeInsets.only(top: 4),
-                                        child: Text(
-                                          comment,
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: Color(0xFF7C8794),
-                                          ),
-                                        ),
-                                      ),
-                                trailing: Text(
-                                  "${tx["type"] == "income" ? '+' : '-'}${formatIndianCurrency(amount, decimalDigits: 2)}",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    color: tx["type"] == "income" ? Colors.green : Colors.red,
-                                  ),
-                                ),
-                                onLongPress: () {
-                                  setState(() {
-                                    selectionMode = true;
-                                    selectedIndexes.add(index);
-                                  });
-                                },
-                                onTap: () async {
-                                  if (selectionMode) {
-                                    setState(() {
-                                      if (selectedIndexes.contains(index)) {
-                                        selectedIndexes.remove(index);
-                                      } else {
-                                        selectedIndexes.add(index);
-                                      }
-                                    });
-                                    return;
-                                  }
-
-                                  final rawId = tx['id'];
-                                  if (rawId is int && rawId < 0) return;
-
-                                  final result = await showDialog<Map<String, dynamic>>(
-                                    context: context,
-                                    builder: (_) => AddTransactionPage(existingTransaction: tx),
-                                  );
-
-                                  if (result != null) {
-                                    await DataService.updateTransaction(
-                                      tx['id'] as int,
-                                      result['title'] as String,
-                                      result['amount'] as double,
-                                      result['date'] as DateTime,
-                                      result['type'] as String,
-                                      (result['account'] ?? '').toString(),
-                                      (result['comment'] ?? '').toString(),
-                                    );
-
-                                    await loadTransactions();
-                                  }
-                                },
-                              ),
-                              if (index < filteredTransactions.length - 1)
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 88),
-                                  child: Divider(height: 1, color: Color(0xFFE6EAF0)),
-                                ),
-                            ],
-                          );
-                        },
-                      ),
+                child: _buildRecordsTileBody(),
               ),
             ),
           ],
@@ -1016,60 +878,6 @@ class _QrScanPageState extends State<_QrScanPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _AppIcon extends StatelessWidget {
-  final dynamic bytes;
-  const _AppIcon({required this.bytes});
-
-  @override
-  Widget build(BuildContext context) {
-    if (bytes is! Uint8List || (bytes as Uint8List).isEmpty) {
-      return const Icon(Icons.android);
-    }
-    return Image.memory(
-      bytes as Uint8List,
-      width: 28,
-      height: 28,
-      errorBuilder: (_, __, ___) => const Icon(Icons.android),
-    );
-  }
-}
-
-class _PaymentAppTile extends StatelessWidget {
-  final Uint8List? iconBytes;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _PaymentAppTile({
-    required this.iconBytes,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: Container(
-        width: 76,
-        height: 76,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
-            width: selected ? 2 : 1,
-          ),
-          color: selected
-              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
-              : null,
-        ),
-        padding: const EdgeInsets.all(10),
-        child: _AppIcon(bytes: iconBytes),
       ),
     );
   }

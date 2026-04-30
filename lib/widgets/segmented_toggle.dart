@@ -71,9 +71,9 @@ class SegmentedToggle<T> extends StatelessWidget {
     final bgColor =
         theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.65);
 
-    const double inset = 3;
-    const double horizontalHeight = 42;
-    const double defaultVerticalCellHeight = 40;
+    const double inset = 2.5;
+    const double horizontalHeight = 34;
+    const double defaultVerticalCellHeight = 36;
 
     return LayoutBuilder(
       builder: (context, constraints) {

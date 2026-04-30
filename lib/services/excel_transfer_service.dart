@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../config/app_config.dart';
 import 'data_service.dart';
 import 'firestore_service.dart';
 import 'profile_service.dart';
@@ -84,8 +85,10 @@ class ExcelTransferService {
     final profileIdentifier = activeProfile != null
         ? (activeProfile.isShareable
             ? activeProfile.shareCode
-            : (FirebaseAuth.instance.currentUser?.phoneNumber ?? ''))
-        : (FirebaseAuth.instance.currentUser?.phoneNumber ?? '');
+            : (activeProfile.id == ProfileService.localPrivateProfileId
+                ? 'local_private'
+                : (FirebaseAuth.instance.currentUser?.phoneNumber ?? '')))
+        : '';
 
     final categoryTypeByName = <String, String>{
       for (final category in categories)
@@ -322,7 +325,13 @@ class ExcelTransferService {
                 ?? await _profileService.getActiveProfileId(); // fallback;
               if (profileId == null) continue; // skip — no access
 
-              firestoreService.setImportOverride(profileId);
+              String? previousActive;
+              if (AppConfig.firebaseCloudEnabled) {
+                firestoreService.setImportOverride(profileId);
+              } else {
+                previousActive = await _profileService.getActiveProfileId();
+                await _profileService.switchProfile(profileId);
+              }
               try {
                 importedRows += await _importSheetRows(
                   sheetName,
@@ -331,7 +340,11 @@ class ExcelTransferService {
                   customIconPathMap,
                 );
               } finally {
-                firestoreService.setImportOverride(null);
+                if (AppConfig.firebaseCloudEnabled) {
+                  firestoreService.setImportOverride(null);
+                } else if (previousActive != null) {
+                  await _profileService.switchProfile(previousActive);
+                }
               }
             }
           }

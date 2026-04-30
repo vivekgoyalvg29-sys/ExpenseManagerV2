@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_update/in_app_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../config/app_config.dart';
+
 /// Google Play in-app updates with optional “mandatory” behavior via Remote Config.
 ///
 /// Firebase Remote Config keys (set in Firebase Console → Remote Config):
@@ -26,6 +28,7 @@ class AppUpdateService {
 
   /// Call once per app launch after the first frame (MaterialApp is mounted).
   static Future<void> checkAfterFirstFrameIfAndroid() async {
+    if (!AppConfig.firebaseCloudEnabled) return;
     if (!Platform.isAndroid || kDebugMode) return;
     if (_sessionCheckDone) return;
     _sessionCheckDone = true;

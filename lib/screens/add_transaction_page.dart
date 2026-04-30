@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../services/app_localizations.dart';
 import '../services/data_store.dart';
 import '../services/data_service.dart';
+import 'accounts_page.dart';
+import 'categories_page.dart';
 
 class AddTransactionPage extends StatefulWidget {
   final Map<String, dynamic>? existingTransaction;
@@ -27,6 +29,8 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   final commentController = TextEditingController();
   final amountController = TextEditingController();
   final _commentFocusNode = FocusNode();
+  final GlobalKey _commentSuggestionsPanelKey = GlobalKey();
+  int _dismissSuggestionsGeneration = 0;
 
   String transactionType = 'expense';
   String? selectedAccount;
@@ -35,17 +39,14 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   List<String> _matchingComments = [];
   bool _showCommentSuggestions = false;
 
+  String? _accountError;
+  String? _categoryError;
+  String? _amountError;
+
   @override
   void initState() {
     super.initState();
-    _commentFocusNode.addListener(() {
-      if (!_commentFocusNode.hasFocus && _showCommentSuggestions) {
-        setState(() {
-          _showCommentSuggestions = false;
-          _matchingComments = [];
-        });
-      }
-    });
+    _commentFocusNode.addListener(_onCommentFocusChanged);
     _loadData();
 
     if (widget.existingTransaction != null) {
@@ -60,10 +61,63 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
 
   @override
   void dispose() {
+    _dismissSuggestionsGeneration++;
+    _commentFocusNode.removeListener(_onCommentFocusChanged);
     commentController.dispose();
     amountController.dispose();
     _commentFocusNode.dispose();
     super.dispose();
+  }
+
+  /// True when [descendant]'s render subtree is under [ancestor]'s render object.
+  static bool _contextIsDescendantOf(BuildContext ancestor, BuildContext descendant) {
+    final ancRO = ancestor.findRenderObject();
+    final descRO = descendant.findRenderObject();
+    if (ancRO == null || descRO == null) return false;
+    RenderObject? p = descRO;
+    while (p != null) {
+      if (p == ancRO) return true;
+      p = p.parent;
+    }
+    return false;
+  }
+
+  void _onCommentFocusChanged() {
+    if (_commentFocusNode.hasFocus || !_showCommentSuggestions) return;
+    final gen = ++_dismissSuggestionsGeneration;
+    // Delay dismiss so a tap on the list can run: focus often leaves the field
+    // before primaryFocus lands on the suggestion row, and it may be null for a frame.
+    Future<void>.delayed(const Duration(milliseconds: 200), () {
+      if (!mounted || gen != _dismissSuggestionsGeneration) return;
+      if (_commentFocusNode.hasFocus) return;
+      if (!_showCommentSuggestions) return;
+      final primaryCtx = FocusManager.instance.primaryFocus?.context;
+      final panelCtx = _commentSuggestionsPanelKey.currentContext;
+      if (primaryCtx != null &&
+          panelCtx != null &&
+          _contextIsDescendantOf(panelCtx, primaryCtx)) {
+        return;
+      }
+      setState(() {
+        _showCommentSuggestions = false;
+        _matchingComments = [];
+      });
+    });
+  }
+
+  /// Call only inside [setState] — updates [_matchingComments] / [_showCommentSuggestions]
+  /// from [commentController] and [_existingComments].
+  void _syncCommentSuggestions() {
+    final query = commentController.text.trim().toLowerCase();
+    if (query.length < 2) {
+      _matchingComments = [];
+      _showCommentSuggestions = false;
+      return;
+    }
+    final matches =
+        _existingComments.where((comment) => comment.toLowerCase().contains(query)).toList();
+    _matchingComments = matches;
+    _showCommentSuggestions = matches.isNotEmpty;
   }
 
   Future<void> _loadData() async {
@@ -76,35 +130,19 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     if (!mounted) return;
 
     setState(() {
-      DataStore.accounts = accounts;
-      DataStore.categories = categories;
+      DataStore.replaceAccounts(accounts);
+      DataStore.replaceCategories(categories);
       _existingComments = existingComments;
       if (widget.existingTransaction == null) {
         selectedAccount = favoriteAccount;
         selectedCategory = favoriteCategory;
       }
+      _syncCommentSuggestions();
     });
   }
 
   void _onCommentChanged(String value) {
-    final query = value.trim().toLowerCase();
-
-    if (query.length < 2) {
-      setState(() {
-        _matchingComments = [];
-        _showCommentSuggestions = false;
-      });
-      return;
-    }
-
-    final matches = _existingComments
-        .where((comment) => comment.toLowerCase().contains(query))
-        .toList();
-
-    setState(() {
-      _matchingComments = matches;
-      _showCommentSuggestions = matches.isNotEmpty;
-    });
+    setState(_syncCommentSuggestions);
   }
 
   void _selectCommentSuggestion(String comment) {
@@ -134,11 +172,38 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   }
 
   Future<void> _save() async {
-    if (selectedAccount == null || selectedCategory == null || amountController.text.isEmpty) {
+    final amountText = amountController.text.trim();
+    final accountErr = (selectedAccount == null || selectedAccount!.trim().isEmpty)
+        ? context.tr('Please select an account')
+        : null;
+    final categoryErr = (selectedCategory == null || selectedCategory!.trim().isEmpty)
+        ? context.tr('Please select a category')
+        : null;
+    final String? amountErr;
+    if (amountText.isEmpty) {
+      amountErr = context.tr('Please enter an amount');
+    } else if (double.tryParse(amountText) == null) {
+      amountErr = context.tr('Enter a valid amount');
+    } else {
+      amountErr = null;
+    }
+
+    if (accountErr != null || categoryErr != null || amountErr != null) {
+      setState(() {
+        _accountError = accountErr;
+        _categoryError = categoryErr;
+        _amountError = amountErr;
+      });
       return;
     }
 
-    final amount = double.tryParse(amountController.text) ?? 0;
+    setState(() {
+      _accountError = null;
+      _categoryError = null;
+      _amountError = null;
+    });
+
+    final amount = double.parse(amountText);
     final result = {
       'title': selectedCategory,
       'amount': amount,
@@ -158,10 +223,31 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     Navigator.pop(context, result);
   }
 
+  bool _rowIsFavorite(Map<String, dynamic> item) =>
+      DataStore.coerceFavoriteFlag(item['is_favorite']);
+
+  Future<void> _refreshAccountsAndCategoriesOnly() async {
+    final accounts = await DataService.getAccounts();
+    final categories = await DataService.getCategories();
+    if (!mounted) return;
+    setState(() {
+      DataStore.replaceAccounts(accounts);
+      DataStore.replaceCategories(categories);
+    });
+  }
+
   Future<void> _openSelector({required bool isAccount}) async {
+    await _refreshAccountsAndCategoriesOnly();
+    if (!mounted) return;
     final entries = (isAccount ? DataStore.accounts : DataStore.categories)
-        .where((item) => item['type'] == transactionType)
+        .where((item) => isAccount || item['type'] == transactionType)
         .toList();
+    entries.sort((a, b) {
+      final af = _rowIsFavorite(a);
+      final bf = _rowIsFavorite(b);
+      if (af != bf) return af ? -1 : 1;
+      return a['name'].toString().compareTo(b['name'].toString());
+    });
 
     final selected = await showDialog<String>(
       context: context,
@@ -184,15 +270,36 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                               ),
                         ),
                       ),
-                      IconButton(
+                      FilledButton.tonalIcon(
                         onPressed: () async {
-                          final created = await _showQuickCreateDialog(isAccount: isAccount);
+                          final created = isAccount
+                              ? await showAccountEditorDialog(
+                                  context,
+                                  account: null,
+                                  afterSave: () async {
+                                    await _refreshAccountsAndCategoriesOnly();
+                                    DataStore.bumpTransactionMutationGeneration();
+                                  },
+                                )
+                              : await showCategoryEditorDialog(
+                                  context,
+                                  category: null,
+                                  initialTypeWhenCreating: transactionType,
+                                  afterSave: () async {
+                                    await _refreshAccountsAndCategoriesOnly();
+                                    DataStore.bumpTransactionMutationGeneration();
+                                  },
+                                );
                           if (!mounted) return;
-                          if (created == null) return;
+                          if (created == null || created.isEmpty) return;
                           Navigator.pop(dialogContext, created);
                         },
-                        icon: const Icon(Icons.add),
-                        tooltip: isAccount ? 'Add account' : 'Add category',
+                        icon: const Icon(Icons.add_rounded, size: 22),
+                        label: Text(isAccount ? 'New account' : 'New category'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          visualDensity: VisualDensity.compact,
+                        ),
                       ),
                     ],
                   ),
@@ -203,7 +310,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                   child: entries.isEmpty
                       ? Center(
                           child: Text(
-                            'No items yet. Tap + to add.',
+                            'No items yet. Use the button above.',
                             style: TextStyle(color: Colors.grey.shade600),
                           ),
                         )
@@ -233,52 +340,12 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     setState(() {
       if (isAccount) {
         selectedAccount = selected;
+        _accountError = null;
       } else {
         selectedCategory = selected;
+        _categoryError = null;
       }
     });
-  }
-
-  Future<String?> _showQuickCreateDialog({required bool isAccount}) async {
-    final nameController = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          isAccount ? 'Create Account' : 'Create Category',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        content: TextField(
-          controller: nameController,
-          autofocus: true,
-          style: Theme.of(context).textTheme.bodyLarge,
-          decoration: InputDecoration(
-            labelText: isAccount ? 'Account Name' : 'Category Name',
-            labelStyle: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () async {
-              final trimmed = nameController.text.trim();
-              if (trimmed.isEmpty) return;
-              if (isAccount) {
-                await DataService.insertAccount(trimmed, transactionType, Icons.account_balance_wallet.codePoint);
-              } else {
-                await DataService.insertCategory(trimmed, transactionType, Icons.category.codePoint);
-              }
-              if (!context.mounted) return;
-              Navigator.pop(context, trimmed);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    nameController.dispose();
-    await _loadData();
-    return result;
   }
 
   @override
@@ -306,6 +373,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 transactionType = v!;
                 selectedCategory = null;
                 selectedAccount = null;
+                _accountError = null;
+                _categoryError = null;
+                _amountError = null;
               });
               await _loadData();
             },
@@ -321,6 +391,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               decoration: InputDecoration(
                 labelText: context.tr('Account'),
                 labelStyle: largerFieldLabelStyle,
+                errorText: _accountError,
               ),
               child: Text(
                 selectedAccount ?? 'Tap to choose',
@@ -335,6 +406,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               decoration: InputDecoration(
                 labelText: context.tr('Category'),
                 labelStyle: largerFieldLabelStyle,
+                errorText: _categoryError,
               ),
               child: Text(
                 selectedCategory ?? 'Tap to choose',
@@ -359,6 +431,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           if (_showCommentSuggestions) ...[
             const SizedBox(height: 6),
             Container(
+              key: _commentSuggestionsPanelKey,
               width: double.infinity,
               constraints: const BoxConstraints(maxHeight: 180),
               decoration: BoxDecoration(
@@ -388,9 +461,13 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           const SizedBox(height: 10),
           TextField(
             controller: amountController,
+            onChanged: (_) {
+              if (_amountError != null) setState(() => _amountError = null);
+            },
             decoration: InputDecoration(
               labelText: context.tr('Amount'),
               labelStyle: largerFieldLabelStyle,
+              errorText: _amountError,
             ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),

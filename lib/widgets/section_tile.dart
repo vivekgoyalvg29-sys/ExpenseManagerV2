@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
+import 'content_panel_colors.dart';
+
 class SectionTile extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? margin;
   final EdgeInsetsGeometry padding;
   final double borderRadius;
+  /// Matches chart inner panel tint ([contentPanelInnerTint]) for separation from the app bar.
+  final bool useInnerPanelTint;
 
   const SectionTile({
     super.key,
@@ -12,18 +16,22 @@ class SectionTile extends StatelessWidget {
     this.margin,
     this.padding = const EdgeInsets.all(8),
     this.borderRadius = 16,
+    this.useInnerPanelTint = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final fill = useInnerPanelTint
+        ? contentPanelInnerTint(context)
+        : theme.colorScheme.surface.withValues(
+            alpha: theme.brightness == Brightness.dark ? 0.92 : 0.98,
+          );
     return Container(
       margin: margin ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       padding: padding,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(
-          alpha: theme.brightness == Brightness.dark ? 0.92 : 0.98,
-        ),
+        color: fill,
         borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(
           color: theme.colorScheme.outline.withValues(

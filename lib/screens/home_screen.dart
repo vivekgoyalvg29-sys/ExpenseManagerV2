@@ -1,34 +1,53 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
-import 'dart:ui';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../config/app_config.dart';
 import '../models.dart';
 import '../services/data_store.dart';
 import '../services/app_localizations.dart';
 import '../services/data_service.dart';
+import '../services/auth_gate_service.dart';
+import '../services/account_subscription_service.dart';
+import '../services/entitlement_service.dart';
+import 'email_auth_sheet.dart';
 import '../services/profile_service.dart';
 import '../screens/profile_screen.dart';
 import '../services/excel_transfer_service.dart';
 import '../services/visual_settings.dart';
 import '../services/widget_sync_service.dart';
+import '../services/daily_transaction_reminder_service.dart';
+import '../services/recurring_schedule.dart';
+import '../widgets/recurring_expense_preview_dialog.dart';
 import '../widgets/budget_income_mode_toggle.dart';
+import '../widgets/sharable_switch_labels.dart';
 import '../widgets/segmented_toggle.dart';
 import '../widgets/section_tile.dart';
 import '../widgets/side_overlay_sheet.dart';
+import '../widgets/home_tab_scope.dart';
 import 'accounts_page.dart';
 import 'analysis_page.dart';
 import 'budgets_page.dart';
 import 'categories_page.dart';
 import 'records_page.dart';
+import 'recurring_transaction_rules_list_page.dart';
+import 'insights_page.dart';
+import 'feature_comparison_sheet.dart';
+import 'profile_join_flow.dart';
+import 'pro_purchase_flow.dart';
+import 'startup_pro_offer_flow.dart';
 import 'sms_page.dart';
+
+/// Play Store listing for sharing.
+const String kPlayStoreAppLink =
+    'https://play.google.com/store/apps/details?id=vivek.fintrack.app';
 
 class HomeScreen extends StatefulWidget {
   final int initialIndex;
@@ -39,14 +58,19 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   static String _firstRunKey(String profileId) =>
       'first_run_init_prompted_$profileId';
   late int currentIndex;
+  /// Last calendar day the app entered inactive/paused/hidden; used to re-run
+  /// recurring checks after resume when the date changed while backgrounded.
+  DateTime? _lastPausedDateOnly;
   int _refreshVersion = 0;
   String _appVersion = 'v1.0.0';
+  String _tierLabel = 'Free';
   String _username = '';
   String? _activeProfileId;
+  StreamSubscription<User?>? _authTierSub;
   final ScrollController _menuScrollController = ScrollController();
   final GlobalKey _appearanceExpandedContentKey = GlobalKey();
   final ProfileService _profileService = ProfileService();
@@ -95,17 +119,83 @@ class _HomeScreenState extends State<HomeScreen> {
     currentIndex = widget.initialIndex;
     // Same deterministic default as _PostLoginInitScreen — avoids a race where
     // prefs are not seeded yet and the drawer shows no active profile tick/name.
-    final phone = FirebaseAuth.instance.currentUser?.phoneNumber;
-    if (phone != null && phone.isNotEmpty) {
-      _activeProfileId = ProfileService.defaultProfileId(phone);
+    if (!_profileService.isSignedIn) {
+      _activeProfileId = ProfileService.localPrivateProfileId;
+    } else {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null && uid.isNotEmpty) {
+        _activeProfileId = ProfileService.defaultProfileId(uid);
+      }
     }
     _loadPackageInfo();
+    _loadTierLabel();
     _loadUsername();
     _loadRoleAndProfile();
+    if (AppConfig.firebaseCloudEnabled) {
+      _authTierSub = FirebaseAuth.instance.authStateChanges().listen((_) {
+        unawaited(_refreshTierAfterAuthChange());
+      });
+    }
+    DataStore.transactionMutationGeneration.addListener(_onTransactionMutation);
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _ensureFirstRunInitializationPrompt();
-      _checkRevokedProfiles();
+      unawaited(_runPostHomeEntryFlows());
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
+      _lastPausedDateOnly = recurringDateOnly(DateTime.now());
+      return;
+    }
+    if (state != AppLifecycleState.resumed) return;
+    final pausedDate = _lastPausedDateOnly;
+    final today = recurringDateOnly(DateTime.now());
+    if (pausedDate != null &&
+        (pausedDate.year != today.year ||
+            pausedDate.month != today.month ||
+            pausedDate.day != today.day)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(maybeShowRecurringExpensePreview(context));
+      });
+    }
+  }
+
+  Future<void> _runPostHomeEntryFlows() async {
+    try {
+      await _ensureFirstRunInitializationPrompt();
+    } catch (_) {}
+    if (!mounted) return;
+    try {
+      await runStartupProOfferFlowIfEligible(context);
+    } catch (_) {}
+    if (!mounted) return;
+    _checkRevokedProfiles();
+    unawaited(maybeShowRecurringExpensePreview(context));
+  }
+
+  void _onTransactionMutation() {
+    if (!mounted) return;
+    setState(() => _refreshVersion++);
+  }
+
+  Future<void> _refreshTierAfterAuthChange() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await AccountSubscriptionService.syncEntitlementFromFirestore();
+      } else {
+        await EntitlementService.setTier(UserTier.free);
+      }
+    } catch (_) {}
+    if (mounted) {
+      await _loadTierLabel();
+      await _syncViewerReadOnlyFlag();
+    }
   }
 
   Future<void> _loadRoleAndProfile() async {
@@ -117,7 +207,21 @@ class _HomeScreenState extends State<HomeScreen> {
       if (profileId != null && profileId.isNotEmpty) {
         setState(() => _activeProfileId = profileId);
       }
+      await _syncViewerReadOnlyFlag();
     } catch (_) {}
+  }
+
+  Future<void> _syncViewerReadOnlyFlag() async {
+    if (!AppConfig.firebaseCloudEnabled || !_profileService.isSignedIn) {
+      DataStore.clearViewerReadOnlyFlags();
+      return;
+    }
+    final role = await _profileService.getCurrentUserRole();
+    final tier = await EntitlementService.getCurrentTier();
+    // Free joiners: view-only. Pro joiners can edit book data (Firestore rules enforce).
+    DataStore.viewerReadOnly =
+        role != null && role != 'owner' && tier == UserTier.free;
+    DataStore.viewerReadOnlySilent = DataStore.viewerReadOnly;
   }
 
   Future<void> _checkRevokedProfiles() async {
@@ -148,6 +252,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    DataStore.transactionMutationGeneration.removeListener(_onTransactionMutation);
+    _authTierSub?.cancel();
     _menuScrollController.dispose();
     super.dispose();
   }
@@ -158,6 +265,12 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _appVersion = 'v${info.version}${info.buildNumber.isEmpty ? '' : ' (${info.buildNumber})'}';
     });
+  }
+
+  Future<void> _loadTierLabel() async {
+    final tier = await EntitlementService.getCurrentTier();
+    if (!mounted) return;
+    setState(() => _tierLabel = tier == UserTier.pro ? 'Pro' : 'Free');
   }
 
   Future<void> _loadUsername() async {
@@ -254,6 +367,118 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _openRemindersDialog() async {
+    var enabled = await DailyTransactionReminderService.isEnabled();
+    var time = await DailyTransactionReminderService.getTime();
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) {
+          return AlertDialog(
+            title: const Text('Reminders'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Daily reminder'),
+                    subtitle: const Text('Every day at the chosen time'),
+                    value: enabled,
+                    onChanged: (v) async {
+                      if (v) {
+                        await DailyTransactionReminderService.setEnabled(true);
+                        setDlg(() => enabled = true);
+                        return;
+                      }
+                      final ok = await showDialog<bool>(
+                        context: ctx,
+                        builder: (c) => AlertDialog(
+                          title: const Text('Turn off reminders?'),
+                          content: const Text(
+                            'You might miss on adding expense. Are you sure ?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(c, false),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(c, true),
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (ok == true) {
+                        await DailyTransactionReminderService.setEnabled(false);
+                        setDlg(() => enabled = false);
+                      }
+                    },
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Time'),
+                    subtitle: Text(
+                      TimeOfDay(hour: time.$1, minute: time.$2).format(ctx),
+                    ),
+                    enabled: enabled,
+                    onTap: enabled
+                        ? () async {
+                            final picked = await showTimePicker(
+                              context: ctx,
+                              initialTime: TimeOfDay(hour: time.$1, minute: time.$2),
+                            );
+                            if (picked == null) return;
+                            time = (picked.hour, picked.minute);
+                            await DailyTransactionReminderService.setTime(
+                              picked.hour,
+                              picked.minute,
+                            );
+                            setDlg(() {});
+                          }
+                        : null,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _copyShareAppLink() async {
+    await Clipboard.setData(const ClipboardData(text: kPlayStoreAppLink));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('App link copied')),
+    );
+  }
+
+  int? _indexForLabel(String label) {
+    final items = _navItems;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].label == label) return i;
+    }
+    return null;
+  }
+
+  void _openCategoriesTab() {
+    final i = _indexForLabel(context.tr('Categories'));
+    if (i == null) return;
+    setState(() => currentIndex = i);
+  }
+
   List<_NavItem> get _navItems {
     final comparisonMode = _visualSettingsController(context).value.comparisonMode;
     final items = <_NavItem>[
@@ -265,6 +490,14 @@ class _HomeScreenState extends State<HomeScreen> {
     if (comparisonMode == ComparisonMode.budgetVsExpense) {
       items.insert(2, _NavItem(label: context.tr('Budget'), icon: Icons.account_balance, builder: _budgetsBuilder));
     }
+    items.add(
+      _NavItem(
+        label: 'Insights',
+        icon: Icons.insights_outlined,
+        builder: _insightsBuilder,
+        requiresProGate: true,
+      ),
+    );
     if (DataStore.isSmsTabVisible) {
       items.add(_NavItem(label: context.tr('SMSs'), icon: Icons.sms, builder: _smsBuilder));
     }
@@ -307,7 +540,9 @@ class _HomeScreenState extends State<HomeScreen> {
       sizing: StackFit.expand,
       children: [
         for (var i = 0; i < items.length; i++)
-          items[i].builder(ValueKey('tab-$i-$_refreshVersion'), _refreshVersion),
+          // Stable keys preserve tab state (e.g. selected month). Data reloads via
+          // DataStore.transactionMutationGeneration listeners on each page.
+          items[i].builder(ValueKey('tab-$i'), _refreshVersion),
       ],
     );
   }
@@ -317,29 +552,42 @@ class _HomeScreenState extends State<HomeScreen> {
   static Widget _budgetsBuilder(Key key, int refreshVersion) => BudgetsPage(key: key);
   static Widget _accountsBuilder(Key key, int refreshVersion) => AccountsPage(key: key);
   static Widget _categoriesBuilder(Key key, int refreshVersion) => CategoriesPage(key: key);
-  static Widget _smsBuilder(Key key, int refreshVersion) => SmsPage(key: ValueKey('sms-${DataStore.smsTransactionsVersion}-$refreshVersion'));
+  static Widget _insightsBuilder(Key key, int refreshVersion) => InsightsPage(key: key);
+  static Widget _smsBuilder(Key key, int refreshVersion) =>
+      SmsPage(key: ValueKey('sms-${DataStore.smsTransactionsVersion}'));
 
   Future<void> _exportData() async {
-  try {
-    final exportData = await ExcelTransferService.buildExportFileData();
-    final selectedPath = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save exported file',
-      fileName: exportData.fileName,
-      bytes: Uint8List.fromList(exportData.bytes),
-      type: FileType.custom,
-      allowedExtensions: ['xlsx'],
-    );
-    if (!mounted) return;
-    if (selectedPath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export cancelled.')));
-      return;
+    try {
+      final exportData = await ExcelTransferService.buildExportFileData();
+      final bytes = Uint8List.fromList(exportData.bytes);
+      var fileName = exportData.fileName;
+      if (!fileName.toLowerCase().endsWith('.xlsx')) {
+        fileName = '$fileName.xlsx';
+      }
+      final selectedPath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save exported file',
+        fileName: fileName,
+        bytes: bytes,
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+      if (!mounted) return;
+      if (selectedPath == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export cancelled.')));
+        return;
+      }
+      var path = selectedPath;
+      if (!path.toLowerCase().endsWith('.xlsx')) {
+        path = '$path.xlsx';
+      }
+      await File(path).writeAsBytes(bytes, flush: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported: $path')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
     }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported: $selectedPath')));
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
   }
-}
 
   Future<void> _importData() async {
     try {
@@ -680,6 +928,65 @@ class _HomeScreenState extends State<HomeScreen> {
     controller.dispose();
   }
 
+  /// Right-aligned capsule search + budget/income toggle; shared minimum width.
+  Widget _buildAppBarSearchAndToggle(VisualSettingsController controller) {
+    final cs = Theme.of(context).colorScheme;
+    final labelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: cs.onSurface.withValues(alpha: 0.92),
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        );
+    final w = BudgetIncomeModeToggle.measureTrackWidth(
+      labelStyle,
+      textScaler: MediaQuery.textScalerOf(context),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _openSearchPopup,
+              borderRadius: BorderRadius.circular(999),
+              child: Tooltip(
+                message: 'Search',
+                child: Container(
+                  width: w,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    color: cs.surfaceContainerHighest.withValues(alpha: 0.95),
+                    border: Border.all(
+                      color: cs.outline.withValues(alpha: 0.35),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.search,
+                    size: 20,
+                    color: cs.primary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          BudgetIncomeModeToggle(
+            mode: controller.value.comparisonMode,
+            onChanged: (m) => unawaited(_setComparisonMode(m)),
+            trackWidth: w,
+            lightAppBarChrome: true,
+          ),
+        ],
+      ),
+    );
+  }
+
   VisualSettingsController _visualSettingsController(BuildContext context) => VisualSettingsScope.of(context);
 
   Future<void> _showSmsTab() async {
@@ -720,8 +1027,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final profile = await _profileService.getActiveProfile();
       if (profile == null) return (null, null);
-      final phone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
-      final role = profile.members[phone];
+      final role = profile.members[_profileService.currentMemberKey];
       return (profile, role);
     } catch (_) {
       return (null, null);
@@ -730,14 +1036,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Returns all profiles the user is part of, pre-categorised for the reset flow.
   Future<_ResetContext> _fetchResetContext() async {
-    final phone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
-    if (phone.isEmpty) return _ResetContext.empty();
+    if (!_profileService.isSignedIn) return _ResetContext.empty();
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (uid.isEmpty) return _ResetContext.empty();
     try {
       final profiles = await _profileService
           .getMyProfiles()
           .first
           .timeout(const Duration(seconds: 8));
-      return _ResetContext.from(profiles, phone);
+      return _ResetContext.from(profiles, uid);
     } catch (_) {
       return _ResetContext.empty();
     }
@@ -965,7 +1272,9 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Sign out?'),
-        content: const Text('You will need to verify your phone number again to sign back in.'),
+        content: const Text(
+          'You will be signed out on this device. Data stored on this device stays here.',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Sign out')),
@@ -973,8 +1282,21 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (confirmed != true) return;
+    // Clear local tier before sign-out so any auth listener / next screen read
+    // does not briefly keep the previous account’s Pro label in prefs.
+    await EntitlementService.setTier(UserTier.free);
     await FirebaseAuth.instance.signOut();
+    await EntitlementService.setProSignInRequired(false);
     await ProfileService().clearProfilePrefsForLogout();
+    await ProfileService().ensureLocalPrivateProfileActive();
+    AuthGateService.clearGuestSession();
+    DataStore.clearViewerReadOnlyFlags();
+    if (!mounted) return;
+    setState(() {
+      _activeProfileId = ProfileService.localPrivateProfileId;
+      _refreshVersion++;
+    });
+    await _loadTierLabel();
   }
 
   Future<void> _ensureFirstRunInitializationPrompt() async {
@@ -989,43 +1311,8 @@ class _HomeScreenState extends State<HomeScreen> {
     await _showInitializeDefaultsDialog(fromMenu: false, targetProfileId: profileId);
   }
 
-  Future<void> _showInitializeDefaultsDialog({
-    required bool fromMenu,
-    String? targetProfileId,
-  }) async {
-    if (!mounted) return;
-    final shouldInitialize = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Create General Categories and Accounts?'),
-        content: const Text(
-          'Create general categories and accounts now?\n\nYou can still add them later from Main Menu > Data management.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(fromMenu ? 'Cancel' : 'Not now'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Yes'),
-          ),
-        ],
-      ),
-    );
-    if (shouldInitialize != true) {
-      if (!fromMenu && !mounted) return;
-      if (!fromMenu) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'You can create general categories and accounts later from Main Menu > Data management.',
-            ),
-          ),
-        );
-      }
-      return;
-    }
+  /// Core work after the user (or a guard flow) has decided to add defaults: progress, init, snackbar.
+  Future<void> _executeInitializeDefaultsWithProgress(String? targetProfileId) async {
     if (!mounted) return;
 
     BuildContext? progressCtx;
@@ -1086,6 +1373,54 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Same [DataService] init as the main menu, but without the long confirmation (used e.g. from budget add guard).
+  Future<void> _runDefaultCategoriesForActiveProfileWithoutConfirm() async {
+    final id = await _profileService.getActiveProfileId();
+    if (!mounted) return;
+    await _executeInitializeDefaultsWithProgress(id);
+  }
+
+  Future<void> _showInitializeDefaultsDialog({
+    required bool fromMenu,
+    String? targetProfileId,
+  }) async {
+    if (!mounted) return;
+    final shouldInitialize = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Create General Categories and Accounts?'),
+        content: const Text(
+          'Create general categories and accounts now?\n\nYou can still add them later from Main Menu > Data management.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(fromMenu ? 'Cancel' : 'Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+    if (shouldInitialize != true) {
+      if (!fromMenu && !mounted) return;
+      if (!fromMenu) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'You can create general categories and accounts later from Main Menu > Data management.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    await _executeInitializeDefaultsWithProgress(targetProfileId);
+  }
+
   Future<void> _showNewProfileDialog() async {
     final nameController = TextEditingController();
     bool isShareable = false;
@@ -1108,7 +1443,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Sharable'),
+                title: const SharableSwitchTitle(),
                 subtitle: const Text('Allow others to join with a code'),
                 value: isShareable,
                 onChanged: (v) => setDlg(() => isShareable = v),
@@ -1130,13 +1465,43 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     final name = nameController.text.trim();
+    final wantedShareable = isShareable;
     nameController.dispose();
     if (confirmed != true || name.isEmpty || !mounted) return;
+
+    var createShareable = false;
+    if (wantedShareable) {
+      await Future<void>.delayed(Duration.zero);
+      if (!mounted) return;
+      if ((await EntitlementService.getCurrentTier()) != UserTier.pro) {
+        final upgraded =
+            await ensureSignedInThenProComparisonAndPurchase(context);
+        if (!mounted || !upgraded) {
+          if (mounted) {
+            await showDialog<void>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Profile not created'),
+                content: const Text('Profile creation was cancelled.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
+          return;
+        }
+      }
+      createShareable = true;
+    }
 
     try {
       final profileId = await _profileService.createProfile(
         name,
-        isShareable: isShareable,
+        isShareable: createShareable,
       );
       if (!mounted) return;
       await Future<void>.delayed(Duration.zero);
@@ -1168,10 +1533,14 @@ class _HomeScreenState extends State<HomeScreen> {
           _activeProfileId = profileId;
           _refreshVersion++;
         });
+        await _syncViewerReadOnlyFlag();
       } else {
         // Still on the previous profile — no switch ran during create.
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Profile "$name" created.')),
+          SnackBar(
+            duration: const Duration(seconds: 1),
+            content: Text('Profile "$name" created.'),
+          ),
         );
       }
 
@@ -1189,51 +1558,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _showJoinProfileDialog() async {
-    final codeController = TextEditingController();
-    final code = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Join Profile'),
-        content: TextField(
-          controller: codeController,
-          autofocus: true,
-          maxLength: 6,
-          textCapitalization: TextCapitalization.characters,
-          decoration:
-              const InputDecoration(hintText: 'Enter 6-character code'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(ctx, codeController.text.trim()),
-            child: const Text('Join'),
-          ),
-        ],
-      ),
-    );
-    codeController.dispose();
-    if (code == null || code.isEmpty || !mounted) return;
-    try {
-      final profile = await _profileService.joinProfileByCode(code);
-      if (!mounted) return;
-      final role =
-          profile.members[FirebaseAuth.instance.currentUser?.phoneNumber ?? ''] ??
-              'viewer';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Joined "${profile.name}" as ${role == 'editor' ? 'editor' : 'viewer'}.'),
-        ),
-      );
-      setState(() {});
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+    if (!mounted) return;
+    await runJoinProfileInviteCodeFlow(context);
+    if (mounted) {
+      await _loadTierLabel();
+      await _syncViewerReadOnlyFlag();
+      setState(() => _refreshVersion++);
     }
   }
 
@@ -1275,6 +1605,34 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'edit_username':
         await _openUsernameEditDialog();
         return;
+      case 'recurring_expenses':
+        if (!mounted) return;
+        {
+          final tier = await EntitlementService.getCurrentTier();
+          if (!mounted) return;
+          if (tier != UserTier.pro) {
+            final ok = await ensureSignedInThenProComparisonAndPurchase(context);
+            if (!mounted || !ok) return;
+            await _loadTierLabel();
+          }
+          if (!mounted) return;
+          await Navigator.of(context).push<void>(
+            MaterialPageRoute<void>(
+              builder: (_) => const RecurringTransactionRulesListPage(),
+            ),
+          );
+          if (mounted) setState(() => _refreshVersion++);
+        }
+        return;
+      case 'create_category':
+        await openCreateCategoryFromMainMenu(context);
+        return;
+      case 'reminders':
+        await _openRemindersDialog();
+        return;
+      case 'share_app':
+        await _copyShareAppLink();
+        return;
     }
   }
 
@@ -1291,11 +1649,63 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         final user = FirebaseAuth.instance.currentUser;
-        final phoneNumber = user?.phoneNumber ?? '';
-        final displayName = _username.isNotEmpty
-            ? '$_username ($phoneNumber)'
-            : phoneNumber;
+        final accountLine = user?.email ?? user?.uid ?? '';
+        final displayName = !_profileService.isSignedIn
+            ? (_username.isNotEmpty ? _username : 'Private profile')
+            : (_username.isNotEmpty
+                ? '$_username ($accountLine)'
+                : accountLine);
+        final cs = Theme.of(context).colorScheme;
         final themeLabel = settings.themeMode == ThemeMode.dark ? 'Dark' : 'Light';
+
+        Future<void> openUpgradeToPro() async {
+          Navigator.of(drawerContext).pop();
+          if (!context.mounted) return;
+          if (FirebaseAuth.instance.currentUser == null) {
+            final ok = await ensureSignedInWithEmail(context);
+            if (!ok || !mounted) return;
+            await _loadTierLabel();
+            await _loadRoleAndProfile();
+            await _syncViewerReadOnlyFlag();
+          }
+          if (!mounted) return;
+          if (await EntitlementService.getCurrentTier() == UserTier.pro) {
+            if (!context.mounted) return;
+            await showDialog<void>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Kharcha Manager Pro'),
+                content: const Text('You already have Pro.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+            if (mounted) setState(() => _refreshVersion++);
+            return;
+          }
+          final r = await showFeatureComparisonForShareable(context);
+          if (!mounted || r != ShareComparisonResult.proContinue) return;
+          await completeKharchaProPurchaseAfterComparison(context);
+          if (!mounted) return;
+          await _loadTierLabel();
+          await _syncViewerReadOnlyFlag();
+          if (mounted) setState(() => _refreshVersion++);
+        }
+
+        Future<void> openLoginFromHeader() async {
+          Navigator.of(drawerContext).pop();
+          if (!context.mounted) return;
+          final ok = await ensureSignedInWithEmail(context);
+          if (!ok || !mounted) return;
+          await _loadTierLabel();
+          await _loadRoleAndProfile();
+          await _syncViewerReadOnlyFlag();
+          if (mounted) setState(() => _refreshVersion++);
+        }
 
         Widget menuTile({
           required IconData icon,
@@ -1311,8 +1721,8 @@ class _HomeScreenState extends State<HomeScreen> {
           return ListTile(
             enabled: enabled,
             visualDensity: VisualDensity.compact,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            minVerticalPadding: 8,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+            minVerticalPadding: 4,
             leading: Icon(icon, size: 20, color: enabled ? null : Theme.of(context).disabledColor),
             title: Text(title, style: titleStyle),
             subtitle: subtitle == null
@@ -1323,7 +1733,8 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         bool profilesExpanded = false;
-        bool dataExpanded = false;
+        bool dataMoreExpanded = false;
+        bool applicationExpanded = false;
 
         return StatefulBuilder(
           builder: (_, setMenuState) => Column(
@@ -1339,46 +1750,166 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Kharcha Book',
+                          'Kharcha Manager',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           softWrap: false,
                           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 22,
                               ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _appVersion,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                        if (displayName.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  displayName,
+                        const SizedBox(height: 10),
+                        if (AppConfig.firebaseCloudEnabled) ...[
+                          Text(
+                            _appVersion,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          if (user == null)
+                            Wrap(
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                InkWell(
+                                  onTap: openLoginFromHeader,
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 2),
+                                    child: Text(
+                                      'Login',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: cs.primary,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: (Theme.of(context).textTheme.bodySmall?.fontSize ?? 12) + 1,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '·',
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        color: cs.onSurfaceVariant,
                                       ),
                                 ),
-                              ),
-                              IconButton(
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                icon: const Icon(Icons.edit_outlined, size: 18),
-                                tooltip: 'Edit username',
-                                onPressed: () async {
-                                  Navigator.of(drawerContext).pop();
-                                  await _openUsernameEditDialog();
-                                },
-                              ),
-                            ],
+                                InkWell(
+                                  onTap: openUpgradeToPro,
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 2),
+                                    child: Text(
+                                      'Upgrade to Pro',
+                                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                            color: cs.primary,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: (Theme.of(context).textTheme.labelMedium?.fontSize ?? 14) + 1,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          else
+                            Wrap(
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 4,
+                              runSpacing: 4,
+                              children: [
+                                Text(
+                                  accountLine.isNotEmpty ? accountLine : user.uid,
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                ),
+                                if (_tierLabel == 'Free') ...[
+                                  Text(
+                                    '·',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: cs.onSurfaceVariant,
+                                        ),
+                                  ),
+                                  Text(
+                                    '(Free)',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: cs.onSurfaceVariant,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                  ),
+                                  Text(
+                                    '·',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: cs.onSurfaceVariant,
+                                        ),
+                                  ),
+                                  InkWell(
+                                    onTap: openUpgradeToPro,
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 2),
+                                      child: Text(
+                                        'Upgrade to Pro',
+                                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                              color: cs.primary,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: (Theme.of(context).textTheme.labelMedium?.fontSize ?? 14) + 2,
+                                            ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                if (_tierLabel == 'Pro') ...[
+                                  Text(
+                                    '·',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: cs.onSurfaceVariant,
+                                        ),
+                                  ),
+                                  Text(
+                                    '(Pro)',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: cs.primary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                        ] else ...[
+                          Text(
+                            _appVersion,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
                           ),
+                          if (displayName.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    displayName,
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: cs.onSurfaceVariant,
+                                        ),
+                                  ),
+                                ),
+                                IconButton(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                  icon: const Icon(Icons.edit_outlined, size: 18),
+                                  tooltip: 'Edit username',
+                                  onPressed: () async {
+                                    Navigator.of(drawerContext).pop();
+                                    await _openUsernameEditDialog();
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ],
                     ),
@@ -1398,7 +1929,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     stream: _profileService.getMyProfiles(),
                     builder: (ctx, snap) {
                       final profiles = snap.data ?? [];
-                      final myPhone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
+                      final myKey = _profileService.currentMemberKey;
 
                       // Active profile — used to label the header
                       final activeProfile = profiles.cast<ProfileModel?>().firstWhere(
@@ -1411,15 +1942,37 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       // My Profiles: default + owned non-shareable
                       final myProfiles = profiles
-                          .where((p) => p.isDefault || (!p.isShareable && p.members[myPhone] == 'owner'))
+                          .where((p) => p.isDefault || (!p.isShareable && p.members[myKey] == 'owner'))
                           .toList();
                       // Shared Profiles: owned shareable + joined as member
                       final sharedProfiles = profiles
-                          .where((p) => p.isShareable || p.members[myPhone] == 'member')
+                          .where((p) {
+                            final r = p.members[myKey];
+                            return p.isShareable ||
+                                r == 'member' ||
+                                r == 'viewer';
+                          })
                           .toList();
 
+                      final mergedMenuProfiles = <ProfileModel>[];
+                      final mergedIds = <String>{};
+                      for (final p in myProfiles) {
+                        if (mergedIds.add(p.id)) mergedMenuProfiles.add(p);
+                      }
+                      for (final p in sharedProfiles) {
+                        if (mergedIds.add(p.id)) mergedMenuProfiles.add(p);
+                      }
+
+                      String kindInBrackets(ProfileModel p) {
+                        final r = p.members[myKey] ?? '';
+                        final shared = p.isShareable ||
+                            r == 'member' ||
+                            r == 'viewer';
+                        return shared ? ' (shared)' : ' (private)';
+                      }
+
                       Widget subHeader(String label) => Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 14, 6),
+                        padding: const EdgeInsets.fromLTRB(20, 8, 14, 4),
                         child: Text(
                           label,
                           style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -1435,14 +1988,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         final isActive = profile.id == _activeProfileId;
                         return ListTile(
                           visualDensity: VisualDensity.compact,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                          contentPadding: const EdgeInsets.fromLTRB(32, 2, 16, 2),
                           leading: Icon(
                             profile.isDefault ? Icons.folder_special_outlined : Icons.folder_outlined,
                             size: 20,
                             color: isActive ? Theme.of(context).colorScheme.primary : null,
                           ),
                           title: Text(
-                            profile.name,
+                            '${profile.name}${kindInBrackets(profile)}',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
@@ -1464,6 +2017,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     _activeProfileId = profile.id;
                                     _refreshVersion++;
                                   });
+                                  await _syncViewerReadOnlyFlag();
                                 },
                         );
                       }
@@ -1471,7 +2025,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Widget actionTile({required IconData icon, required String title, required VoidCallback onTap}) =>
                           ListTile(
                             visualDensity: VisualDensity.compact,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 1),
                             leading: Icon(icon, size: 20),
                             title: Text(
                               title,
@@ -1482,39 +2036,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       Future<void> openManageProfiles() async {
                         Navigator.of(drawerContext).pop();
-                        await showGeneralDialog<void>(
+                        await showDialog<void>(
                           context: context,
-                          barrierDismissible: true,
-                          barrierLabel: 'Close',
-                          barrierColor: const Color(0x66000000),
-                          transitionDuration: const Duration(milliseconds: 220),
-                          transitionBuilder: (ctx, anim, _, child) => FadeTransition(
-                            opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
-                            child: child,
-                          ),
-                          pageBuilder: (ctx, _, __) {
-                            final h = MediaQuery.sizeOf(context).height;
-                            return BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
-                              child: Center(
-                                child: Dialog(
-                                  insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-                                  clipBehavior: Clip.antiAlias,
-                                  backgroundColor: Theme.of(context).colorScheme.surface,
-                                  surfaceTintColor: Colors.transparent,
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: 460,
-                                      maxHeight: h * 0.72,
-                                    ),
-                                    child: const ManageProfilesScreen(),
-                                  ),
-                                ),
+                          builder: (ctx) => Dialog(
+                            insetPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 24,
+                            ),
+                            backgroundColor: Theme.of(ctx).colorScheme.surface,
+                            surfaceTintColor: Colors.transparent,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: 460,
+                                maxHeight: MediaQuery.sizeOf(ctx).height * 0.88,
                               ),
-                            );
-                          },
+                              child: const ManageProfilesScreen(),
+                            ),
+                          ),
                         );
-                        await _loadRoleAndProfile();
+                        if (!mounted) return;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) unawaited(_loadRoleAndProfile());
+                        });
                       }
 
                       return Column(
@@ -1565,7 +2108,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           ListTile(
                             visualDensity: VisualDensity.compact,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 1),
                             leading: const Icon(Icons.manage_accounts_outlined, size: 20),
                             title: const Text(
                               'Manage profiles',
@@ -1574,13 +2117,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             onTap: openManageProfiles,
                           ),
                           if (profilesExpanded) ...[
-                            if (myProfiles.isNotEmpty) ...[
+                            if (mergedMenuProfiles.isNotEmpty) ...[
                               subHeader('My Profiles'),
-                              ...myProfiles.map(profileTile),
-                            ],
-                            if (sharedProfiles.isNotEmpty) ...[
-                              subHeader('Shared Profiles'),
-                              ...sharedProfiles.map(profileTile),
+                              ...mergedMenuProfiles.map(profileTile),
                             ],
                             actionTile(
                               icon: Icons.add_circle_outline,
@@ -1590,14 +2129,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                 await _showNewProfileDialog();
                               },
                             ),
-                            actionTile(
-                              icon: Icons.qr_code_outlined,
-                              title: 'Join with invite code',
-                              onTap: () async {
-                                Navigator.of(drawerContext).pop();
-                                await _showJoinProfileDialog();
-                              },
-                            ),
+                            if (AppConfig.firebaseCloudEnabled)
+                              actionTile(
+                                icon: Icons.qr_code_outlined,
+                                title: 'Join with invite code',
+                                onTap: () async {
+                                  Navigator.of(drawerContext).pop();
+                                  await _showJoinProfileDialog();
+                                },
+                              ),
                           ],
                         ],
                       );
@@ -1607,45 +2147,87 @@ class _HomeScreenState extends State<HomeScreen> {
                   // ---- End Profiles section ----
                   // ---- Data management section ----
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: InkWell(
-                      onTap: () => setMenuState(() => dataExpanded = !dataExpanded),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Data management',
-                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
-                              ),
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+                    child: Text(
+                      'Data management',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ),
+                  menuTile(
+                    icon: Icons.add_circle_outline,
+                    title: 'Create category',
+                    onTap: () => handleSelection('create_category'),
+                  ),
+                  ListTile(
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                    minVerticalPadding: 4,
+                    leading: Icon(
+                      Icons.event_repeat_outlined,
+                      size: 20,
+                      color: Theme.of(context).iconTheme.color,
+                    ),
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Setup recurring transaction rules${_tierLabel == 'Pro' ? '' : ' (Pro)'}',
+                              maxLines: 1,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 13),
                             ),
-                            Icon(
-                              dataExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                              size: 20,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 6),
-                          ],
+                          ),
                         ),
+                      ],
+                    ),
+                    onTap: () => handleSelection('recurring_expenses'),
+                  ),
+                  InkWell(
+                    onTap: () => setMenuState(() => dataMoreExpanded = !dataMoreExpanded),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 4, 8, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'More data options',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ),
+                          Icon(
+                            dataMoreExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            size: 20,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
                       ),
                     ),
                   ),
-                  if (dataExpanded) ...[
+                  if (dataMoreExpanded) ...[
                     menuTile(icon: Icons.upload_file_outlined, title: 'Export (Excel)', onTap: () => handleSelection('export')),
                     menuTile(icon: Icons.download_outlined, title: 'Import (Excel)', onTap: () => handleSelection('import')),
-                    menuTile(icon: Icons.playlist_add_check_circle_outlined, title: 'Create General Categories and Accounts', onTap: () => handleSelection('initialize_defaults')),
                     menuTile(icon: Icons.delete_forever_outlined, title: 'Delete everything', onTap: () => handleSelection('delete_everything')),
                     menuTile(icon: Icons.receipt_long_outlined, title: 'Delete transactions', onTap: () => handleSelection('delete_transactions')),
                     menuTile(icon: Icons.restart_alt_outlined, title: 'Reset app', onTap: () => handleSelection('reset_app')),
+                    menuTile(icon: Icons.playlist_add_check_circle_outlined, title: 'Create General Categories and Accounts', onTap: () => handleSelection('initialize_defaults')),
                   ],
                   const Divider(height: 1, thickness: 1),
                   const _MenuSectionHeader('Visuals', compact: true),
                   ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                    visualDensity: VisualDensity.compact,
                     title: Text(
                       'Appearance',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -1682,28 +2264,66 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                   const Divider(height: 1, thickness: 1),
-                  const _MenuSectionHeader('Application'),
-                  menuTile(
-                    icon: Icons.feedback_outlined,
-                    title: 'Feedback',
-                    onTap: () async {
-                      Navigator.of(drawerContext).pop();
-                      await _openFeedbackDialog();
-                    },
+                  InkWell(
+                    onTap: () => setMenuState(() => applicationExpanded = !applicationExpanded),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 8, 8, 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Application',
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ),
+                          Icon(
+                            applicationExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            size: 20,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                      ),
+                    ),
                   ),
-                  menuTile(
-                    icon: Icons.privacy_tip_outlined,
-                    title: 'Privacy policy',
-                    onTap: () async {
-                      Navigator.of(drawerContext).pop();
-                      await _openPrivacyPolicy();
-                    },
-                  ),
-                  menuTile(
-                    icon: Icons.logout_outlined,
-                    title: 'Logout',
-                    onTap: () => handleSelection('logout'),
-                  ),
+                  if (applicationExpanded) ...[
+                    menuTile(
+                      icon: Icons.notifications_active_outlined,
+                      title: 'Reminders',
+                      onTap: () => handleSelection('reminders'),
+                    ),
+                    menuTile(
+                      icon: Icons.feedback_outlined,
+                      title: 'Feedback',
+                      onTap: () async {
+                        Navigator.of(drawerContext).pop();
+                        await _openFeedbackDialog();
+                      },
+                    ),
+                    menuTile(
+                      icon: Icons.privacy_tip_outlined,
+                      title: 'Privacy policy',
+                      onTap: () async {
+                        Navigator.of(drawerContext).pop();
+                        await _openPrivacyPolicy();
+                      },
+                    ),
+                    menuTile(
+                      icon: Icons.share_outlined,
+                      title: 'Share this app',
+                      onTap: () => handleSelection('share_app'),
+                    ),
+                  ],
+                  if (user != null)
+                    menuTile(
+                      icon: Icons.logout_outlined,
+                      title: 'Logout',
+                      onTap: () => handleSelection('logout'),
+                    ),
                 ],
               ),
             ),
@@ -1714,43 +2334,80 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _onBottomNavTap(int index) async {
+    final items = _navItems;
+    if (index < 0 || index >= items.length) return;
+    final item = items[index];
+    if (item.requiresProGate) {
+      final tier = await EntitlementService.getCurrentTier();
+      if (!mounted) return;
+      if (tier != UserTier.pro) {
+        final ok = await ensureSignedInThenProComparisonAndPurchase(context);
+        if (!mounted || !ok) return;
+        await _loadTierLabel();
+        setState(() {
+          currentIndex = index;
+          _refreshVersion++;
+        });
+        return;
+      }
+    }
+    setState(() => currentIndex = index);
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _visualSettingsController(context);
     final items = _navItems;
     if (currentIndex >= items.length) currentIndex = 0;
 
-    return Scaffold(
+    final barCs = Theme.of(context).colorScheme;
+    return HomeTabScope(
+      openCategoriesTab: _openCategoriesTab,
+      runInitializeDefaultsForActiveProfile: _runDefaultCategoriesForActiveProfileWithoutConfirm,
+      child: Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        toolbarHeight: 88,
-        leading: IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () => _openAppMenu(controller.value), tooltip: 'Open menu'),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        toolbarHeight: _tierLabel == 'Pro' ? 86 : 76,
+        leading: IconButton(
+          icon: Icon(Icons.more_vert_rounded, color: barCs.primary, size: 30),
+          style: IconButton.styleFrom(foregroundColor: barCs.primary),
+          onPressed: () => _openAppMenu(controller.value),
+          tooltip: 'Open menu',
+        ),
         title: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'Kharcha Book',
+              'Kharcha Manager',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 20,
+                    color: barCs.primary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 24,
                   ),
             ),
-            const SizedBox(height: 6),
-            BudgetIncomeModeToggle(
-              mode: controller.value.comparisonMode,
-              onChanged: (m) => unawaited(_setComparisonMode(m)),
-            ),
+            if (_tierLabel == 'Pro') ...[
+              const SizedBox(height: 4),
+              Text(
+                '(Pro)',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: barCs.onSurfaceVariant.withValues(alpha: 0.88),
+                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
+                      height: 1.1,
+                    ),
+              ),
+            ],
           ],
         ),
         actions: [
-          IconButton(
-            onPressed: _openSearchPopup,
-            icon: const Icon(Icons.search, color: Colors.white),
-            tooltip: 'Search',
-          ),
+          _buildAppBarSearchAndToggle(controller),
         ],
       ),
       body: _buildIndexedTabBodies(items),
@@ -1766,11 +2423,12 @@ class _HomeScreenState extends State<HomeScreen> {
             backgroundColor: Colors.transparent,
             selectedItemColor: Theme.of(context).colorScheme.primary,
             unselectedItemColor: Theme.of(context).colorScheme.onSurfaceVariant,
-            onTap: (index) => setState(() => currentIndex = index),
+            onTap: _onBottomNavTap,
             items: [for (final item in items) BottomNavigationBarItem(icon: Icon(item.icon), label: item.label)],
           ),
         ),
       ),
+    ),
     );
   }
 }
@@ -1779,8 +2437,14 @@ class _NavItem {
   final String label;
   final IconData icon;
   final Widget Function(Key key, int refreshVersion) builder;
+  final bool requiresProGate;
 
-  const _NavItem({required this.label, required this.icon, required this.builder});
+  const _NavItem({
+    required this.label,
+    required this.icon,
+    required this.builder,
+    this.requiresProGate = false,
+  });
 }
 
 /// Categorised snapshot of the user's profiles used by the reset flow.
@@ -1801,16 +2465,16 @@ class _ResetContext {
     joined: [],
   );
 
-  factory _ResetContext.from(List<ProfileModel> profiles, String phone) {
+  factory _ResetContext.from(List<ProfileModel> profiles, String memberKey) {
     return _ResetContext(
       ownedShareable: profiles
-          .where((p) => !p.isDefault && p.members[phone] == 'owner' && p.isShareable)
+          .where((p) => !p.isDefault && p.members[memberKey] == 'owner' && p.isShareable)
           .toList(),
       ownedPrivate: profiles
-          .where((p) => !p.isDefault && p.members[phone] == 'owner' && !p.isShareable)
+          .where((p) => !p.isDefault && p.members[memberKey] == 'owner' && !p.isShareable)
           .toList(),
       joined: profiles
-          .where((p) => p.members[phone] != 'owner')
+          .where((p) => p.members[memberKey] != 'owner')
           .toList(),
     );
   }

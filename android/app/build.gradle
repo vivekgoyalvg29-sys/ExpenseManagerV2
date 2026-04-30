@@ -12,12 +12,31 @@ if (localPropertiesFile.exists()) {
     }
 }
 
+// Google Play uploads must be signed with your upload key (not debug). See android/key.properties.example.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+def releaseStoreFile = (keystorePropertiesFile.exists() && keystoreProperties['storeFile'])
+    ? rootProject.file(keystoreProperties['storeFile'])
+    : file('fintrack.jks')
+def releaseKeyAlias = keystoreProperties['keyAlias'] ?: 'fintrack'
+def releaseStorePassword = keystoreProperties['storePassword'] ?: System.getenv('KEY_STORE_PASSWORD')
+def releaseKeyPassword = keystoreProperties['keyPassword'] ?: System.getenv('KEY_PASSWORD')
+// Only use release keystore when file exists and passwords are set (else debug — OK for local test APKs).
+def hasReleaseSigning = releaseStoreFile.exists() &&
+    releaseStorePassword != null && !releaseStorePassword.toString().trim().isEmpty() &&
+    releaseKeyPassword != null && !releaseKeyPassword.toString().trim().isEmpty()
+
 android {
     namespace 'vivek.fintrack.app'
-    // Keep these pinned to API 36+ for androidx.browser:1.9.0 / androidx.core:1.17.0+.
-    compileSdk Integer.parseInt(project.findProperty('fintrack.compileSdk').toString())
+    // Match Flutter defaults (API 36+ for current AndroidX).
+    compileSdk flutter.compileSdkVersion
 
     compileOptions {
+        coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
@@ -28,18 +47,20 @@ android {
 
     defaultConfig {
         applicationId 'vivek.fintrack.app'
-        minSdkVersion flutter.minSdkVersion
-        targetSdk Integer.parseInt(project.findProperty('fintrack.targetSdk').toString())
-        versionCode 3
-        versionName '1.0.2'
+        minSdk flutter.minSdkVersion
+        targetSdk flutter.targetSdkVersion
+        versionCode flutter.versionCode
+        versionName flutter.versionName
     }
 
     signingConfigs {
         release {
-            storeFile file('fintrack.jks')
-            storePassword System.getenv('KEY_STORE_PASSWORD')
-            keyAlias 'fintrack'
-            keyPassword System.getenv('KEY_PASSWORD')
+            if (hasReleaseSigning) {
+                storeFile releaseStoreFile
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
         }
     }
 
@@ -47,7 +68,7 @@ android {
         release {
             minifyEnabled false
             shrinkResources false
-            signingConfig signingConfigs.release
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
     }
 }
@@ -57,6 +78,7 @@ flutter {
 }
 
 dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
     implementation platform('com.google.firebase:firebase-bom:32.7.0')
     implementation 'com.google.firebase:firebase-auth'
 }

@@ -1,82 +1,178 @@
 rules_version = '2';
 // Target database: krchabookdb
 // Apply these rules in Firebase Console → Firestore → Rules (select krchabookdb database)
+//
+// Entitlement fields on users/{uid} are server-written only (Cloud Function). Clients may
+// downgrade themselves to free when Pro has expired (see clientProDowngradeOnly).
+// Owner-mediated updates to another user’s profiles / revokedProfiles use peerProfileAssist;
+// consider moving revokes to Admin SDK for stronger guarantees.
+//
+// Pro collaborators (viewer/member + active Pro subscription) may write financial
+// subcollections; profile sharing/delete remains owner-only in rules + app.
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ── Helpers ──────────────────────────────────────────────────────────────
 
     function isAuthed() {
       return request.auth != null;
     }
 
-    // Phone number stored in the JWT by Firebase Phone Auth
-    function myPhone() {
-      return request.auth.token.phone_number;
+    function myUid() {
+      return request.auth.uid;
     }
 
-    // Checks membership using resource.data (the document already in hand).
-    // Use this for rules on the profile document itself to avoid a circular
-    // get() call (i.e. fetching the same doc the rule is evaluating).
+    function profileMembers(data) {
+      return data.get('members', {});
+    }
+
     function isMemberByData() {
-      return isAuthed() && resource.data.members[myPhone()] != null;
+      return isAuthed() && profileMembers(resource.data)[myUid()] != null;
     }
 
     function isOwnerByData() {
-      return isAuthed() && resource.data.members[myPhone()] == 'owner';
+      return isAuthed() && profileMembers(resource.data)[myUid()] == 'owner';
     }
 
-    // Checks membership via a get() on the parent profile document.
-    // Safe to use only from sub-collection rules (where profileId is the
-    // parent, not the current document — so no circular reference).
     function isMember(profileId) {
       return isAuthed() &&
-        get(/databases/$(database)/documents/profiles/$(profileId))
-          .data.members[myPhone()] != null;
+        profileMembers(
+          get(/databases/$(database)/documents/profiles/$(profileId)).data
+        )[myUid()] != null;
     }
 
     function isOwner(profileId) {
       return isAuthed() &&
-        get(/databases/$(database)/documents/profiles/$(profileId))
-          .data.members[myPhone()] == 'owner';
+        profileMembers(
+          get(/databases/$(database)/documents/profiles/$(profileId)).data
+        )[myUid()] == 'owner';
     }
 
-    // ── Profiles ─────────────────────────────────────────────────────────────
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(myUid())).data;
+    }
+
+    // Mirrors AccountSubscriptionService + Cloud Function entitlement fields.
+    function userIsEntitledPro() {
+      let u = userDoc();
+      let st = u.get('accountStatus', 'free');
+      let exp = u.get('proExpiresAt', null);
+      return st == 'pro' && exp != null && exp > request.time;
+    }
+
+    function isProCollaboratorOnProfile(profileId) {
+      let prof = get(/databases/$(database)/documents/profiles/$(profileId)).data;
+      let m = prof.get('members', {});
+      let r = m[myUid()];
+      return userIsEntitledPro()
+        && r != null
+        && r != 'owner'
+        && (r == 'viewer' || r == 'member');
+    }
+
+    function profileAllowsJoinByCode() {
+      let sca = resource.data.get('shareCodeActive', false);
+      let ish = resource.data.get('isShareable', false);
+      return sca == true
+        || sca == 'true'
+        || sca == 1
+        || ish == true
+        || ish == 'true'
+        || ish == 1
+        || ('inviteCode' in resource.data);
+    }
+
+    function isSelfJoinViewer() {
+      let beforeM = profileMembers(resource.data);
+      let afterM = profileMembers(request.resource.data);
+      return isAuthed()
+        && profileAllowsJoinByCode()
+        && beforeM[myUid()] == null
+        && afterM[myUid()] == 'viewer';
+    }
+
+    // Non-owner removes only themselves from members; size must drop by exactly one.
+    function isSelfLeaveSharedProfile() {
+      let beforeM = profileMembers(resource.data);
+      let afterM = profileMembers(request.resource.data);
+      return isAuthed()
+        && isMemberByData()
+        && beforeM[myUid()] != null
+        && beforeM[myUid()] != 'owner'
+        && !(myUid() in afterM)
+        && afterM.keys().size() == beforeM.keys().size() - 1
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']);
+    }
+
+    function entitlementKeySet() {
+      return ['accountStatus', 'proExpiresAt', 'lastPurchaseProductId',
+              'entitlementUpdatedAt', 'playSubscriptionState'];
+    }
+
+    function userTouchedEntitlementFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(entitlementKeySet());
+    }
+
+    function userCreatedWithForbiddenEntitlement() {
+      return request.resource.data.get('accountStatus', 'free') == 'pro'
+        || ('proExpiresAt' in request.resource.data
+            && request.resource.data.get('proExpiresAt', null) != null)
+        || 'lastPurchaseProductId' in request.resource.data
+        || 'entitlementUpdatedAt' in request.resource.data
+        || 'playSubscriptionState' in request.resource.data;
+    }
+
+    function clientProDowngradeOnly() {
+      return resource.data.get('accountStatus', 'free') == 'pro'
+        && request.resource.data.get('accountStatus', 'free') == 'free'
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['accountStatus', 'proExpiresAt']);
+    }
+
+    // Owner flows update another member’s user doc (profiles / revokedProfiles only).
+    function peerProfileAssist(userId) {
+      return request.auth.uid != userId
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['profiles', 'revokedProfiles']);
+    }
 
     match /profiles/{profileId} {
-      // Any authenticated user can read profile documents.
-      // This is intentionally permissive so that:
-      //   • getMyProfiles() list queries work without circular get() errors
-      //   • joinProfileByCode() can look up profiles by shareCode before joining
-      //   • _generateShareCode() can check uniqueness across all profiles
       allow read: if isAuthed();
 
-      // Any authenticated user can create a profile (they add themselves as owner)
       allow create: if isAuthed();
 
-      // Members can update. Also allow the original creator to update when
-      // members[phone] is missing/corrupt (e.g. legacy keys or account
-      // recreated) so merge/self-heal in ensureDefaultProfileExists can run.
-      allow update: if isMemberByData() ||
-        (isAuthed() && resource.data.createdBy == myPhone());
+      allow update: if isOwnerByData() ||
+        (isAuthed() && resource.data.createdBy == myUid()) ||
+        isSelfJoinViewer() ||
+        isSelfLeaveSharedProfile();
 
-      // Only the owner can delete (uses resource.data — no circular get())
       allow delete: if isOwnerByData();
 
-      // ── Sub-collections (categories, accounts, transactions, budgets) ──────
-      // Financial data is strictly member-only. The get() here fetches the
-      // parent profile document, which is a different doc — not circular.
       match /{collection}/{docId} {
         allow read:  if isMember(profileId);
-        allow write: if isMember(profileId);
+        allow write: if isOwner(profileId) || isProCollaboratorOnProfile(profileId);
       }
     }
 
-    // ── Users ────────────────────────────────────────────────────────────────
-    // Each user document is keyed by phone number; only that user may access it.
-    match /users/{phone} {
-      allow read, write: if isAuthed() && myPhone() == phone;
+    match /users/{userId} {
+      allow read: if isAuthed() && request.auth.uid == userId;
+
+      allow create: if isAuthed() && request.auth.uid == userId
+        && !userCreatedWithForbiddenEntitlement();
+
+      allow update: if isAuthed() && (
+          (
+            request.auth.uid == userId
+            && !userTouchedEntitlementFields()
+          )
+          || (
+            request.auth.uid == userId
+            && clientProDowngradeOnly()
+          )
+          || peerProfileAssist(userId)
+        );
+
+      allow delete: if isAuthed() && request.auth.uid == userId;
     }
   }
 }

@@ -1,11 +1,20 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../config/app_config.dart';
 import '../models.dart';
 import '../services/data_service.dart';
+import '../services/entitlement_service.dart';
 import '../services/profile_service.dart';
+import '../widgets/make_sharable_action_label.dart';
 import '../widgets/section_tile.dart';
+import '../widgets/sharable_switch_labels.dart';
+import '../app_navigator.dart';
+import 'pro_purchase_flow.dart';
+import 'profile_join_flow.dart';
 
 class ManageProfilesScreen extends StatefulWidget {
   const ManageProfilesScreen({super.key});
@@ -19,19 +28,126 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
   bool _busy = false;
   bool _expandAddOptions = false;
   String? _activeProfileId;
+  StreamSubscription<List<ProfileModel>>? _profilesSub;
+  List<ProfileModel> _profileList = [];
+  bool _profilesLoading = true;
 
-  String get _myPhone =>
-      FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
+  String get _accountSubtitle {
+    final u = FirebaseAuth.instance.currentUser;
+    if (u == null) return 'This device';
+    return u.email ?? u.uid;
+  }
 
   @override
   void initState() {
     super.initState();
     _refreshActiveProfileId();
+    _profilesSub = _profileService.getMyProfiles().listen(
+      (list) {
+        if (!mounted) return;
+        setState(() {
+          _profileList = list;
+          _profilesLoading = false;
+        });
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() => _profilesLoading = false);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _profilesSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _refreshActiveProfileId() async {
     final id = await _profileService.getActiveProfileId();
     if (mounted) setState(() => _activeProfileId = id);
+  }
+
+  Widget _buildProfileList(ThemeData theme, String myKey, String? activeId) {
+    final profiles = _profileList;
+    final defaultProfile = profiles
+        .where((p) => p.isDefault)
+        .cast<ProfileModel?>()
+        .firstOrNull;
+    final ownedOthers = profiles
+        .where((p) => !p.isDefault && p.members[myKey] == 'owner')
+        .toList();
+    final joined = profiles
+        .where((p) => !p.isDefault && p.members[myKey] != 'owner')
+        .toList();
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            'Tap a profile in the main menu to switch. Active is marked below.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        if (defaultProfile != null) ...[
+          const _SectionHeader('Default profile'),
+          _DefaultProfileCard(
+            profile: defaultProfile,
+            subtitle: _accountSubtitle,
+            isActive: activeId == defaultProfile.id,
+            onRename: () => _rename(defaultProfile),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (ownedOthers.isNotEmpty) ...[
+          const _SectionHeader('My profiles'),
+          for (final p in ownedOthers) ...[
+            _OwnedProfileCard(
+              profile: p,
+              isActive: activeId == p.id,
+              onRename: () => _rename(p),
+              onDelete: () => _delete(p),
+              onToggleShareable: (ProfileService.isLocalProfileId(p.id) &&
+                      (p.id == ProfileService.localPrivateProfileId ||
+                          !AppConfig.firebaseCloudEnabled ||
+                          !_profileService.isSignedIn))
+                  ? null
+                  : () => _toggleShareable(p),
+              onCopyCode: () => _copyShareCode(p.shareCode),
+            ),
+            const SizedBox(height: 8),
+          ],
+          const SizedBox(height: 8),
+        ],
+        if (joined.isNotEmpty) ...[
+          const _SectionHeader('Joined profiles'),
+          for (final p in joined) ...[
+            _JoinedProfileCard(
+              profile: p,
+              isActive: activeId == p.id,
+              onLeave: () => _leave(p),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ],
+        if (profiles.isEmpty && !_profilesLoading)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Text(
+                'No profiles found.',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   // ─── Actions ───────────────────────────────────────────────────────────────
@@ -75,7 +191,15 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
         : 'This will permanently delete "${profile.name}" and all its data.';
     final confirmed = await _confirm('Delete profile?', '$body\n\nThis cannot be undone.');
     if (!confirmed || !mounted) return;
-    _withBusy(() => _profileService.deleteProfile(profile.id));
+    final deletedId = profile.id;
+    _withBusy(() async {
+      await _profileService.deleteProfile(deletedId);
+      if (mounted) {
+        setState(() {
+          _profileList = _profileList.where((p) => p.id != deletedId).toList();
+        });
+      }
+    });
   }
 
   Future<void> _leave(ProfileModel profile) async {
@@ -104,64 +228,23 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
 
   Future<void> _toggleShareable(ProfileModel profile) async {
     final making = !profile.isShareable;
-    if (!making) {
-      final confirmed = await _confirm(
-        'Make profile private?',
-        'All members (except you) will lose access immediately.',
-      );
-      if (!confirmed || !mounted) return;
+    if (making) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        if ((await EntitlementService.getCurrentTier()) != UserTier.pro) {
+          final ok = await ensureSignedInThenProComparisonAndPurchase(context);
+          if (!mounted || !ok) return;
+        }
+        await _withBusy(() => _profileService.toggleShareable(profile.id, true));
+      });
+      return;
     }
-    await _withBusy(() => _profileService.toggleShareable(profile.id, making));
-    if (making && mounted) {
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Profile is now sharable'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Share this code with others to let them join:'),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      profile.shareCode,
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 6,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy_outlined),
-                    tooltip: 'Copy code',
-                    onPressed: () async {
-                      await Clipboard.setData(
-                        ClipboardData(text: profile.shareCode),
-                      );
-                      if (!ctx.mounted) return;
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Share code copied.')),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Copy later'),
-            ),
-          ],
-        ),
-      );
-    }
+    final confirmed = await _confirm(
+      'Make profile private?',
+      'All members (except you) will lose access immediately.',
+    );
+    if (!confirmed || !mounted) return;
+    await _withBusy(() => _profileService.toggleShareable(profile.id, false));
   }
 
   Future<void> _withBusy(Future<void> Function() action) async {
@@ -175,10 +258,14 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
             .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
-      if (mounted) {
+      if (!mounted) return;
+      // Defer clearing busy so Firestore stream + this frame's build finish before
+      // another setState (avoids _dependents assertion under nested Dialog).
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
         setState(() => _busy = false);
         await _refreshActiveProfileId();
-      }
+      });
     }
   }
 
@@ -213,6 +300,7 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
 
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -249,7 +337,7 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
                   const SizedBox(height: 12),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Sharable'),
+                    title: const SharableSwitchTitle(),
                     subtitle: const Text(
                         'Allow others to join with a share code'),
                     value: isShareable,
@@ -270,16 +358,50 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
                           onPressed: () async {
                             final name = nameCtrl.text.trim();
                             if (name.isEmpty) return;
+                            final wantShareable = isShareable;
                             Navigator.pop(sheetCtx);
-                            String? newProfileId;
-                            await _withBusy(() async {
-                              newProfileId = await _profileService.createProfile(
-                                name,
-                                isShareable: isShareable,
-                              );
+                            WidgetsBinding.instance
+                                .addPostFrameCallback((_) async {
+                              if (!mounted) return;
+                              var share = wantShareable;
+                              if (share) {
+                                if ((await EntitlementService.getCurrentTier()) !=
+                                    UserTier.pro) {
+                                  final upgraded =
+                                      await ensureSignedInThenProComparisonAndPurchase(
+                                    context,
+                                  );
+                                  if (!mounted || !upgraded) {
+                                    await showDialog<void>(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text('Profile not created'),
+                                        content: const Text(
+                                          'Profile creation was cancelled.',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(ctx),
+                                            child: const Text('OK'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                }
+                              }
+                              String? newProfileId;
+                              await _withBusy(() async {
+                                newProfileId =
+                                    await _profileService.createProfile(
+                                  name,
+                                  isShareable: share,
+                                );
+                              });
+                              if (newProfileId == null || !mounted) return;
+                              await _showPostCreateFlow(name, newProfileId!);
                             });
-                            if (newProfileId == null || !mounted) return;
-                            await _showPostCreateFlow(name, newProfileId!);
                           },
                           child: const Text('Create'),
                         ),
@@ -293,7 +415,6 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
         ),
       ),
     );
-    nameCtrl.addListener(() {});
   }
 
   /// Two-step post-creation flow:
@@ -329,11 +450,19 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
     if (shouldSwitch == true) {
       await _withBusy(() => _profileService.switchProfile(profileId));
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Switched to "$name".')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 1),
+          content: Text('Switched to "$name".'),
+        ),
+      );
     } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Profile "$name" created.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 1),
+          content: Text('Profile "$name" created.'),
+        ),
+      );
     }
 
     // Step 2: initialize defaults?
@@ -405,6 +534,7 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text(
               created == 0
                   ? 'General categories and accounts are already available.'
@@ -417,6 +547,7 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
+            duration: Duration(seconds: 1),
             content: Text(
               'You can create general categories and accounts later from Main Menu > Data management.',
             ),
@@ -426,51 +557,12 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
     }
   }
 
-  Future<void> _showJoinCodeDialog() async {
-    final codeCtrl = TextEditingController();
-    final code = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Join Profile'),
-        content: TextField(
-          controller: codeCtrl,
-          autofocus: true,
-          maxLength: 6,
-          textCapitalization: TextCapitalization.characters,
-          decoration: const InputDecoration(
-            hintText: 'Enter 6-character code',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, codeCtrl.text.trim()),
-            child: const Text('Join'),
-          ),
-        ],
-      ),
-    );
-    codeCtrl.dispose();
-    if (code == null || code.isEmpty || !mounted) return;
-    await _withBusy(() async {
-      final profile = await _profileService.joinProfileByCode(code);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Joined "${profile.name}".')),
-        );
-      }
-    });
-  }
-
   // ─── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final myPhone = _myPhone;
     final theme = Theme.of(context);
+    final myKey = _profileService.currentMemberKey;
     final activeId = _activeProfileId;
 
     return Material(
@@ -530,9 +622,10 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
               ],
             ),
           ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: Padding(
+          // No AnimatedCrossFade: cross-fade disposal + nested routes triggered
+          // framework assertion '_dependents.isEmpty' on some devices.
+          if (_expandAddOptions)
+            Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -552,25 +645,34 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
                         _showCreateProfileSheet();
                       },
                     ),
-                    const Divider(height: 1),
-                    ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.qr_code_2_outlined, size: 22),
-                      title: const Text('Join with invite code'),
-                      onTap: () {
-                        setState(() => _expandAddOptions = false);
-                        _showJoinCodeDialog();
-                      },
-                    ),
+                    if (AppConfig.firebaseCloudEnabled) ...[
+                      const Divider(height: 1),
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.qr_code_2_outlined, size: 22),
+                        title: const Text('Join with invite code'),
+                        onTap: () {
+                          setState(() => _expandAddOptions = false);
+                          _profilesSub?.cancel();
+                          _profilesSub = null;
+                          final nav = Navigator.of(context, rootNavigator: true);
+                          WidgetsBinding.instance.addPostFrameCallback((_) async {
+                            nav.pop();
+                            // One frame after zero-duration route pop; avoid stacking dialogs
+                            // on the same Overlay scheduling pass.
+                            await Future<void>.delayed(Duration.zero);
+                            final root = appNavigatorKey.currentContext;
+                            if (root != null && root.mounted) {
+                              await runJoinProfileInviteCodeFlow(root);
+                            }
+                          });
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
-            crossFadeState: _expandAddOptions
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 180),
-          ),
           if (_busy)
             const LinearProgressIndicator(minHeight: 2)
           else
@@ -578,93 +680,9 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
           Expanded(
             child: AbsorbPointer(
               absorbing: _busy,
-              child: StreamBuilder<List<ProfileModel>>(
-                stream: _profileService.getMyProfiles(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting &&
-                      !snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final profiles = snapshot.data ?? [];
-                  final defaultProfile = profiles
-                      .where((p) => p.isDefault)
-                      .cast<ProfileModel?>()
-                      .firstOrNull;
-                  final ownedOthers = profiles
-                      .where((p) =>
-                          !p.isDefault && p.members[myPhone] == 'owner')
-                      .toList();
-                  final joined = profiles
-                      .where((p) =>
-                          !p.isDefault && p.members[myPhone] != 'owner')
-                      .toList();
-
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 8),
-                        child: Text(
-                          'Tap a profile in the main menu to switch. Active is marked below.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                      if (defaultProfile != null) ...[
-                        const _SectionHeader('Default profile'),
-                        _DefaultProfileCard(
-                          profile: defaultProfile,
-                          phone: myPhone,
-                          isActive: activeId == defaultProfile.id,
-                          onRename: () => _rename(defaultProfile),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      if (ownedOthers.isNotEmpty) ...[
-                        const _SectionHeader('My profiles'),
-                        for (final p in ownedOthers) ...[
-                          _OwnedProfileCard(
-                            profile: p,
-                            isActive: activeId == p.id,
-                            onRename: () => _rename(p),
-                            onDelete: () => _delete(p),
-                            onToggleShareable: () => _toggleShareable(p),
-                            onCopyCode: () => _copyShareCode(p.shareCode),
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                        const SizedBox(height: 8),
-                      ],
-                      if (joined.isNotEmpty) ...[
-                        const _SectionHeader('Joined profiles'),
-                        for (final p in joined) ...[
-                          _JoinedProfileCard(
-                            profile: p,
-                            myPhone: myPhone,
-                            isActive: activeId == p.id,
-                            onLeave: () => _leave(p),
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                      ],
-                      if (profiles.isEmpty)
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(28),
-                            child: Text(
-                              'No profiles found.',
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
+              child: _profilesLoading && _profileList.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildProfileList(theme, myKey, activeId),
             ),
           ),
         ],
@@ -697,13 +715,13 @@ class _SectionHeader extends StatelessWidget {
 
 class _DefaultProfileCard extends StatelessWidget {
   final ProfileModel profile;
-  final String phone;
+  final String subtitle;
   final bool isActive;
   final VoidCallback onRename;
 
   const _DefaultProfileCard({
     required this.profile,
-    required this.phone,
+    required this.subtitle,
     required this.isActive,
     required this.onRename,
   });
@@ -731,7 +749,7 @@ class _DefaultProfileCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  phone,
+                  subtitle,
                   maxLines: 1,
                   softWrap: false,
                   overflow: TextOverflow.ellipsis,
@@ -765,7 +783,7 @@ class _OwnedProfileCard extends StatelessWidget {
   final bool isActive;
   final VoidCallback onRename;
   final VoidCallback onDelete;
-  final VoidCallback onToggleShareable;
+  final VoidCallback? onToggleShareable;
   final VoidCallback onCopyCode;
 
   const _OwnedProfileCard({
@@ -773,8 +791,8 @@ class _OwnedProfileCard extends StatelessWidget {
     required this.isActive,
     required this.onRename,
     required this.onDelete,
-    required this.onToggleShareable,
     required this.onCopyCode,
+    this.onToggleShareable,
   });
 
   @override
@@ -842,31 +860,34 @@ class _OwnedProfileCard extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
+              if (onToggleShareable != null) ...[
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: Icon(
+                      profile.isShareable
+                          ? Icons.lock_outline
+                          : Icons.share_outlined,
+                      size: 15,
+                    ),
+                    label: MakeSharableActionLabel(
+                      isCurrentlySharable: profile.isShareable,
+                    ),
+                    onPressed: onToggleShareable,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
               Expanded(
                 child: OutlinedButton.icon(
-                  icon: Icon(
-                    profile.isShareable
-                        ? Icons.lock_outline
-                        : Icons.share_outlined,
-                    size: 15,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: cs.error,
+                    side: BorderSide(color: cs.error),
                   ),
-                  label: Text(
-                    profile.isShareable ? 'Make private' : 'Make sharable',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  onPressed: onToggleShareable,
+                  icon: const Icon(Icons.delete_outline, size: 15),
+                  label:
+                      const Text('Delete', style: TextStyle(fontSize: 12)),
+                  onPressed: onDelete,
                 ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: cs.error,
-                  side: BorderSide(color: cs.error),
-                ),
-                icon: const Icon(Icons.delete_outline, size: 15),
-                label:
-                    const Text('Delete', style: TextStyle(fontSize: 12)),
-                onPressed: onDelete,
               ),
             ],
           ),
@@ -878,13 +899,11 @@ class _OwnedProfileCard extends StatelessWidget {
 
 class _JoinedProfileCard extends StatelessWidget {
   final ProfileModel profile;
-  final String myPhone;
   final bool isActive;
   final VoidCallback onLeave;
 
   const _JoinedProfileCard({
     required this.profile,
-    required this.myPhone,
     required this.isActive,
     required this.onLeave,
   });
@@ -914,7 +933,7 @@ class _JoinedProfileCard extends StatelessWidget {
                 _Badge('Active', cs.primary),
                 const SizedBox(width: 6),
               ],
-              _Badge('Member', cs.onSurfaceVariant),
+              _Badge('Viewer', cs.onSurfaceVariant),
             ],
           ),
           const SizedBox(height: 4),

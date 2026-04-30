@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+
+import '../services/default_seed_icons.dart';
 
 const IconData defaultAppIcon = Icons.category;
 
@@ -29,43 +30,17 @@ const List<IconData> selectableIcons = [
   Icons.bolt,
 ];
 
-const List<String> selectableAccountSampleIconPaths = [
-  'assets/sample_icons/account/cash.svg',
-  'assets/sample_icons/account/bank.svg',
-  'assets/sample_icons/account/savings.svg',
-  'assets/sample_icons/account/credit_card.svg',
-  'assets/sample_icons/account/wallet.svg',
-];
+/// All bundled PNG variants (`1`–`3`) for default account names.
+List<String> get selectableAccountSampleIconPaths =>
+    DefaultSeedIcons.allAccountSampleIconPaths;
 
-const List<String> selectableIncomeCategorySampleIconPaths = [
-  'assets/sample_icons/income_category/salary.svg',
-  'assets/sample_icons/income_category/bonus.svg',
-  'assets/sample_icons/income_category/freelance.svg',
-  'assets/sample_icons/income_category/interest.svg',
-  'assets/sample_icons/income_category/dividends.svg',
-  'assets/sample_icons/income_category/gifts.svg',
-  'assets/sample_icons/income_category/reimbursements.svg',
-  'assets/sample_icons/income_category/rental.svg',
-  'assets/sample_icons/income_category/other.svg',
-];
+/// All bundled PNG variants for default income category names.
+List<String> get selectableIncomeCategorySampleIconPaths =>
+    DefaultSeedIcons.allIncomeCategorySampleIconPaths;
 
-const List<String> selectableExpenseCategorySampleIconPaths = [
-  'assets/sample_icons/expense_category/housing.svg',
-  'assets/sample_icons/expense_category/utilities.svg',
-  'assets/sample_icons/expense_category/groceries.svg',
-  'assets/sample_icons/expense_category/dining.svg',
-  'assets/sample_icons/expense_category/transport.svg',
-  'assets/sample_icons/expense_category/health.svg',
-  'assets/sample_icons/expense_category/insurance.svg',
-  'assets/sample_icons/expense_category/education.svg',
-  'assets/sample_icons/expense_category/entertainment.svg',
-  'assets/sample_icons/expense_category/shopping.svg',
-  'assets/sample_icons/expense_category/subscriptions.svg',
-  'assets/sample_icons/expense_category/debt.svg',
-  'assets/sample_icons/expense_category/savings.svg',
-  'assets/sample_icons/expense_category/donations.svg',
-  'assets/sample_icons/expense_category/misc.svg',
-];
+/// All bundled PNG variants for default expense category names.
+List<String> get selectableExpenseCategorySampleIconPaths =>
+    DefaultSeedIcons.allExpenseCategorySampleIconPaths;
 
 const List<IconData> _persistedCodePointIcons = [
   ...selectableIcons,
@@ -123,30 +98,52 @@ class AppPageIcon extends StatelessWidget {
     final iconTint = embedded ? cs.primary : const Color(0xFF1D4ED8);
     final fallbackTint = embedded ? cs.onSurfaceVariant : const Color(0xFF1D4ED8);
 
-    final child = hasImage
-        ? (hasAssetImage
-            ? SvgPicture.asset(
-                imagePath!,
-                fit: BoxFit.cover,
-                width: boxSize,
-                height: boxSize,
-              )
-            : Image.file(
-                File(imagePath!),
-                fit: BoxFit.cover,
-                width: boxSize,
-                height: boxSize,
-                errorBuilder: (_, __, ___) => Icon(
-                  icon ?? Icons.image_outlined,
-                  size: size,
-                  color: fallbackTint,
-                ),
-              ))
-        : Icon(
-            icon ?? Icons.category,
+    final Widget child;
+    if (hasImage) {
+      if (hasAssetImage) {
+        final lower = imagePath!.toLowerCase();
+        if (lower.endsWith('.svg')) {
+          child = Icon(
+            icon ?? Icons.image_not_supported_outlined,
             size: size,
-            color: iconTint,
+            color: fallbackTint,
           );
+        } else {
+          final assetKey = DefaultSeedIcons.normalizeBundledSeedIconPath(imagePath!) ?? imagePath!;
+          child = Image.asset(
+            assetKey,
+            fit: BoxFit.contain,
+            width: boxSize,
+            height: boxSize,
+            filterQuality: FilterQuality.medium,
+            errorBuilder: (_, __, ___) => Icon(
+              icon ?? Icons.image_outlined,
+              size: size,
+              color: fallbackTint,
+            ),
+          );
+        }
+      } else {
+        child = Image.file(
+          File(imagePath!),
+          fit: BoxFit.contain,
+          width: boxSize,
+          height: boxSize,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (_, __, ___) => Icon(
+            icon ?? Icons.image_outlined,
+            size: size,
+            color: fallbackTint,
+          ),
+        );
+      }
+    } else {
+      child = Icon(
+        icon ?? Icons.category,
+        size: size,
+        color: iconTint,
+      );
+    }
 
     if (embedded) {
       return SizedBox(

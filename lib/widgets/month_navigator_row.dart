@@ -37,7 +37,7 @@ class MonthNavigatorRow extends StatelessWidget {
         style: IconButton.styleFrom(
           foregroundColor: theme.colorScheme.onSurfaceVariant,
           visualDensity: VisualDensity.compact,
-          minimumSize: const Size(36, 36),
+          minimumSize: const Size(32, 36),
           padding: EdgeInsets.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
@@ -46,7 +46,10 @@ class MonthNavigatorRow extends StatelessWidget {
 
     return Row(
       children: [
-        navButton(icon: Icons.chevron_left_rounded, onPressed: onPrev),
+        Transform.translate(
+          offset: const Offset(6, 0),
+          child: navButton(icon: Icons.chevron_left_rounded, onPressed: onPrev),
+        ),
         Expanded(
           child: Text(
             DateFormat('MMMM yyyy').format(currentMonth),
@@ -56,7 +59,10 @@ class MonthNavigatorRow extends StatelessWidget {
             style: titleStyle,
           ),
         ),
-        navButton(icon: Icons.chevron_right_rounded, onPressed: onNext),
+        Transform.translate(
+          offset: const Offset(-6, 0),
+          child: navButton(icon: Icons.chevron_right_rounded, onPressed: onNext),
+        ),
         if (trailing != null) ...[
           const SizedBox(width: 2),
           trailing!,
