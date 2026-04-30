@@ -34,6 +34,7 @@ android {
     namespace 'vivek.fintrack.app'
     // Match Flutter defaults (API 36+ for current AndroidX).
     compileSdk flutter.compileSdkVersion
+    ndkVersion '28.2.13676358'
 
     compileOptions {
         coreLibraryDesugaringEnabled true

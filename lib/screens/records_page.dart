@@ -97,7 +97,7 @@ class _RecordsPageState extends State<RecordsPage> {
       setState(() => _isLoadingTransactions = true);
     }
     final startDate = DateTime(currentMonth.year, currentMonth.month, 1);
-    final endDate = DateTime(currentMonth.year, currentMonth.month + 1, 0);
+    final endDate = DateTime(currentMonth.year, currentMonth.month + 1, 0, 23, 59, 59, 999);
     try {
       final txData = await DataService.getTransactions(
         startDate: startDate,

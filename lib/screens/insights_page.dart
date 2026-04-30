@@ -88,7 +88,7 @@ class _InsightsPageState extends State<InsightsPage> {
     try {
       final now = DateTime.now();
       final start = DateTime(now.year - 5, 1, 1);
-      final end = DateTime(now.year, 12, 31);
+      final end = DateTime(now.year, 12, 31, 23, 59, 59, 999);
       final tx = await DataService.getTransactions(startDate: start, endDate: end);
       final budgets = await DataService.getBudgets();
       if (!mounted) return;
