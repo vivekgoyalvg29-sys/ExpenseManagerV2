@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import '../utils/indian_number_formatter.dart';
 import '../widgets/section_tile.dart';
 import '../services/data_store.dart';
-import 'load_expenses_from_messages_page.dart';
 
 class SmsPage extends StatefulWidget {
   const SmsPage({super.key});
@@ -121,20 +120,6 @@ class _SmsPageState extends State<SmsPage> {
     });
   }
 
-  Future<void> _loadFromMessages() async {
-    final loaded = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => const LoadExpensesFromMessagesPage()),
-    );
-
-    if (loaded == true && mounted) {
-      setState(() {
-        _seenVersion = -1;
-        _refreshIfChanged();
-      });
-    }
-  }
-
   void _clearLoadedTransactions() {
     DataStore.replaceSmsTransactions([]);
     setState(() {
@@ -203,7 +188,7 @@ class _SmsPageState extends State<SmsPage> {
                             ),
                             SizedBox(height: 16),
                             FilledButton.icon(
-                              onPressed: _loadFromMessages,
+                              onPressed: null,
                               icon: Icon(Icons.sms),
                               label: Text('Load expense from messages'),
                             ),
@@ -220,7 +205,7 @@ class _SmsPageState extends State<SmsPage> {
                             runSpacing: 8,
                             children: [
                               FilledButton.icon(
-                                onPressed: _loadFromMessages,
+                                onPressed: null,
                                 icon: const Icon(Icons.sms),
                                 label: const Text('Load expense from messages'),
                               ),
