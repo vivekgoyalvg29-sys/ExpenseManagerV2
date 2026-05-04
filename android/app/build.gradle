@@ -33,7 +33,7 @@ def hasReleaseSigning = releaseStoreFile.exists() &&
 android {
     namespace 'vivek.fintrack.app'
     // Match Flutter defaults (API 36+ for current AndroidX).
-    compileSdk flutter.compileSdkVersion
+    compileSdk 35
     ndkVersion '28.2.13676358'
 
     compileOptions {
