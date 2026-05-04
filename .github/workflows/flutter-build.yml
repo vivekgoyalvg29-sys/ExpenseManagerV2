@@ -1,4 +1,4 @@
-name: Build Flutter APK
+name: Build Flutter App Bundle
 on:
   push:
     branches:
@@ -11,12 +11,10 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v5
-
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-
       - name: Generate missing Android files
         run: |
           flutter create --platforms android temp_project
@@ -25,29 +23,23 @@ jobs:
           cp temp_project/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
           cp temp_project/android/local.properties android/local.properties
           rm -rf temp_project
-
       - name: Inject google-services.json
         run: |
           echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > android/app/google-services.json
-
       - name: Setup keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/fintrack.jks
-
       - name: Install dependencies
         run: flutter pub get
-
       - name: Generate splash screen
         run: dart run flutter_native_splash:create
-
-      - name: Build APK
+      - name: Build App Bundle
         env:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: flutter build apk --release
-
-      - name: Upload APK
+        run: flutter build appbundle --release
+      - name: Upload App Bundle
         uses: actions/upload-artifact@v6
         with:
-          name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: app-release-bundle
+          path: build/app/outputs/bundle/release/app-release.aab
