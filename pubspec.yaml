@@ -1,7 +1,7 @@
 name: expense_manager
 description: Personal Expense Manager
 publish_to: "none"
-version: 1.0.21+51
+version: 1.0.21+56
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
